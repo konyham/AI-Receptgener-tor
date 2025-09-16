@@ -101,19 +101,16 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onTryAga
   const { showNotification } = useNotification();
 
   useEffect(() => {
-    // Auto-generate image for new recipes
+    // This effect handles fetching or generating an image for the current recipe.
     const generateImage = async () => {
-      // If the recipe already has an image (loaded from favorites), use it.
+      // If the recipe object itself contains an image URL (e.g., from a future, more capable storage), use it directly.
       if (recipe.imageUrl) {
         setImageUrl(recipe.imageUrl);
         return;
       }
 
-      // Do not auto-generate for recipes from favorites that don't have a saved image.
-      if (isFromFavorites) {
-        return;
-      }
-
+      // For new recipes OR for favorites that were saved without an image,
+      // we generate a new one to ensure a good visual experience.
       setIsImageLoading(true);
       setImageError(null);
       try {
@@ -122,7 +119,10 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onTryAga
         setImageUrl(url);
       } catch (err: any) {
         setImageError(err.message || 'Ismeretlen hiba történt az ételfotó generálása közben.');
-        showNotification('Az ételfotó generálása nem sikerült.', 'info');
+        // Only show a notification for brand new recipes to avoid being noisy when viewing favorites.
+        if (!isFromFavorites) {
+          showNotification('Az ételfotó generálása nem sikerült.', 'info');
+        }
       } finally {
         setIsImageLoading(false);
       }
@@ -414,11 +414,10 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onTryAga
   };
 
   const handleSave = (category: string) => {
-    const recipeToSave: Recipe = {
-      ...recipe,
-      imageUrl: imageUrl,
-    };
-    onSave(recipeToSave, category);
+    // To ensure favorites can always be saved without hitting browser storage limits,
+    // we save the recipe data *without* the generated image's large data URL.
+    // The image will be automatically re-generated whenever the favorite is viewed.
+    onSave(recipe, category);
     setIsSaveModalOpen(false);
   };
 

@@ -356,8 +356,17 @@ export const generateRecipeVideo = async (recipe: Recipe): Promise<Operation<Gen
       },
     });
     return operation;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error starting video generation:', error);
+    let errorMessage = '';
+    if (error && typeof error.message === 'string') {
+        errorMessage = error.message.toLowerCase();
+    }
+    
+    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted')) {
+      throw new Error('Elérte a videógenerálási kvótáját. Lehetséges, hogy a ingyenes keret kimerült. Kérjük, ellenőrizze a fiókbeállításait, vagy próbálja újra később.');
+    }
+    
     throw new Error('Nem sikerült elindítani a videó generálását.');
   }
 };
