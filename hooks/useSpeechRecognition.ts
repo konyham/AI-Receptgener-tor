@@ -6,16 +6,36 @@ interface UseSpeechRecognitionOptions {
   continuous?: boolean;
 }
 
+type PermissionState = 'prompt' | 'granted' | 'denied' | 'checking';
+
 export const useSpeechRecognition = ({
   onResult,
   continuous = false,
 }: UseSpeechRecognitionOptions) => {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
+  const [permissionState, setPermissionState] = useState<PermissionState>('checking');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
+
+  useEffect(() => {
+    if (typeof navigator.permissions === 'undefined') {
+        setPermissionState('prompt');
+        return;
+    }
+      
+    navigator.permissions.query({ name: 'microphone' as PermissionName }).then((permissionStatus) => {
+      setPermissionState(permissionStatus.state as PermissionState);
+      permissionStatus.onchange = () => {
+        setPermissionState(permissionStatus.state as PermissionState);
+      };
+    }).catch((err) => {
+        console.error("Permission API query failed:", err);
+        setPermissionState('prompt');
+    });
+  }, []);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
@@ -24,14 +44,14 @@ export const useSpeechRecognition = ({
   }, []);
 
   const startListening = useCallback(() => {
-    if (recognitionRef.current && !isListening) {
+    if (recognitionRef.current && !isListening && permissionState !== 'denied') {
       try {
         recognitionRef.current.start();
       } catch (err) {
         console.error('Error starting speech recognition:', err);
       }
     }
-  }, [isListening]);
+  }, [isListening, permissionState]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -72,7 +92,10 @@ export const useSpeechRecognition = ({
     };
 
     recognition.onerror = (event) => {
-      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+      if (event.error === 'not-allowed') {
+        setPermissionState('denied');
+        console.error("Speech recognition error: Microphone access was denied.");
+      } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
         console.warn(`Speech recognition error: ${event.error}`);
       }
     };
@@ -82,5 +105,5 @@ export const useSpeechRecognition = ({
     };
   }, [continuous]);
 
-  return { isListening, isSupported, startListening, stopListening };
+  return { isListening, isSupported, startListening, stopListening, permissionState };
 };

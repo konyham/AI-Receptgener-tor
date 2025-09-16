@@ -147,7 +147,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
   const { 
     isSupported: recognitionIsSupported, 
     startListening, 
-    stopListening 
+    stopListening,
+    permissionState,
   } = useSpeechRecognition({
     onResult: handleVoiceResult,
     continuous: false,
@@ -157,7 +158,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
   const isSupported = recognitionIsSupported && synthesisIsSupported;
 
   useEffect(() => {
-    if (!isSupported || !voiceControlActive) {
+    if (!isSupported || !voiceControlActive || permissionState === 'denied') {
       window.speechSynthesis.cancel();
       stopListening();
       return;
@@ -211,7 +212,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
       window.speechSynthesis.cancel();
       stopListening();
     };
-  }, [voiceMode, currentStepIndex, recipe, isSupported, voiceControlActive, startListening, stopListening]);
+  }, [voiceMode, currentStepIndex, recipe, isSupported, voiceControlActive, startListening, stopListening, permissionState]);
 
 
   const handleToggleVoiceControl = () => {
@@ -409,14 +410,22 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
             {isSupported ? (
                 <div className="my-6 p-4 bg-primary-50 border border-primary-200 rounded-lg space-y-4 no-print">
                     <div className="flex items-center justify-center gap-2 text-primary-800">
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${voiceControlActive && isActivelySpeaking ? 'text-red-500 animate-pulse' : 'text-primary-700'}`} viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
-                            <path fillRule="evenodd" d="M7 2a4 4 0 00-4 4v6a4 4 0 108 0V6a4 4 0 00-4-4zM5 6a2 2 0 012-2h2a2 2 0 110 4H7a2 2 0 01-2-2zm10 4a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM4 11a1 1 0 100 2h12a1 1 0 100-2H4z" clipRule="evenodd" />
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${permissionState === 'denied' ? 'text-red-500' : (voiceControlActive && isActivelySpeaking ? 'text-red-500 animate-pulse' : 'text-primary-700')}`} viewBox="0 0 20 20" fill="currentColor">
+                           {permissionState === 'denied' ? (
+                                <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.523L13.477 14.89zm-2.02-2.02l-7.07-7.07A6.024 6.024 0 004 10v.789l.375.375 2.121 2.121L8.28 15h.789a6.002 6.002 0 006.33-4.885l-1.99 1.99zM10 18a8 8 0 100-16 8 8 0 000 16z" clipRule="evenodd" />
+                            ) : (
+                                <>
+                                    <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
+                                    <path fillRule="evenodd" d="M7 2a4 4 0 00-4 4v6a4 4 0 108 0V6a4 4 0 00-4-4zM5 6a2 2 0 012-2h2a2 2 0 110 4H7a2 2 0 01-2-2zm10 4a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM4 11a1 1 0 100 2h12a1 1 0 100-2H4z" clipRule="evenodd" />
+                                </>
+                            )}
                         </svg>
                         <h3 className="text-lg font-semibold">Hangvezérlés</h3>
                     </div>
                      <p className="text-center text-sm text-primary-700">
-                       {voiceControlActive
+                       {permissionState === 'denied'
+                          ? <span className="text-red-600 font-semibold">A mikrofon használata le van tiltva. Engedélyezze a böngésző beállításaiban.</span>
+                          : voiceControlActive
                           ? isInterpreting
                             ? 'Parancs értelmezése...'
                             : isActivelySpeaking
@@ -428,9 +437,9 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
                         <button onClick={handleToggleVoiceControl} className={`font-semibold py-2 px-4 rounded-lg transition-colors text-sm ${voiceControlActive ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-primary-200 text-primary-800 hover:bg-primary-300'}`}>
                             {voiceControlActive ? 'Leállítás' : 'Aktiválás'}
                         </button>
-                        <button onClick={handleReadIntro} disabled={isActivelySpeaking} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Leírás</button>
-                        <button onClick={handleReadIngredients} disabled={isActivelySpeaking} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Hozzávalók</button>
-                        <button onClick={handleStartCooking} disabled={isActivelySpeaking} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Főzés</button>
+                        <button onClick={handleReadIntro} disabled={isActivelySpeaking || permissionState === 'denied'} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Leírás</button>
+                        <button onClick={handleReadIngredients} disabled={isActivelySpeaking || permissionState === 'denied'} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Hozzávalók</button>
+                        <button onClick={handleStartCooking} disabled={isActivelySpeaking || permissionState === 'denied'} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Főzés</button>
                     </div>
                 </div>
             ) : null }

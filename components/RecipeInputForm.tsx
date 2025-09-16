@@ -143,13 +143,14 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading }
     isSupported,
     startListening,
     stopListening,
+    permissionState,
   } = useSpeechRecognition({
     onResult: handleVoiceResult,
     continuous: true,
   });
 
   useEffect(() => {
-    if (voiceControlActive && !isLoading) {
+    if (voiceControlActive && !isLoading && permissionState !== 'denied') {
       if (!isListening) {
         const timer = setTimeout(() => startListening(), 100);
         return () => clearTimeout(timer);
@@ -157,7 +158,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading }
     } else {
       stopListening();
     }
-  }, [voiceControlActive, isLoading, isListening, startListening, stopListening]);
+  }, [voiceControlActive, isLoading, isListening, startListening, stopListening, permissionState]);
 
   const removeIngredient = (indexToRemove: number) => {
       setIngredients(ingredients.filter((_, index) => index !== indexToRemove));
@@ -196,7 +197,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading }
   };
   
   const handleToggleListening = () => {
-      if (isSupported) {
+      if (isSupported && permissionState !== 'denied') {
           setVoiceControlActive(prev => !prev);
       }
   };
@@ -207,21 +208,40 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading }
          <button
             type="button"
             onClick={handleToggleListening}
-            className="w-full text-center p-3 bg-primary-100 text-primary-800 rounded-lg border border-primary-200 hover:bg-primary-200 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
+            disabled={permissionState === 'denied'}
+            className={`w-full text-center p-3 rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                permissionState === 'denied' 
+                ? 'bg-red-50 border-red-200 cursor-not-allowed' 
+                : 'bg-primary-100 border-primary-200 hover:bg-primary-200'
+            }`}
             aria-label={voiceControlActive ? "Hangvezérlés szüneteltetése" : "Hangvezérlés folytatása"}
         >
             <div className="flex justify-center items-center gap-2">
-                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${voiceControlActive && isListening && !isProcessing ? 'text-red-500 animate-pulse' : 'text-primary-700'}`} viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
-                    <path fillRule="evenodd" d="M7 2a4 4 0 00-4 4v6a4 4 0 108 0V6a4 4 0 00-4-4zM5 6a2 2 0 012-2h2a2 2 0 110 4H7a2 2 0 01-2-2zm10 4a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM4 11a1 1 0 100 2h12a1 1 0 100-2H4z" clipRule="evenodd" />
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${permissionState === 'denied' ? 'text-red-500' : (voiceControlActive && isListening && !isProcessing ? 'text-red-500 animate-pulse' : 'text-primary-700')}`} viewBox="0 0 20 20" fill="currentColor">
+                    {permissionState === 'denied' ? (
+                        <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.523L13.477 14.89zm-2.02-2.02l-7.07-7.07A6.024 6.024 0 004 10v.789l.375.375 2.121 2.121L8.28 15h.789a6.002 6.002 0 006.33-4.885l-1.99 1.99zM10 18a8 8 0 100-16 8 8 0 000 16z" clipRule="evenodd" />
+                    ) : (
+                        <>
+                            <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
+                            <path fillRule="evenodd" d="M7 2a4 4 0 00-4 4v6a4 4 0 108 0V6a4 4 0 00-4-4zM5 6a2 2 0 012-2h2a2 2 0 110 4H7a2 2 0 01-2-2zm10 4a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM4 11a1 1 0 100 2h12a1 1 0 100-2H4z" clipRule="evenodd" />
+                        </>
+                    )}
                 </svg>
-                <p className="font-semibold">
-                    {voiceControlActive ? (isProcessing ? 'Értelmezés...' : (isListening ? 'Hallgatom...' : 'Indítás...')) : 'Hangvezérlés szünetel'}
-                </p>
+                 {permissionState === 'denied' ? (
+                    <p className="font-semibold text-red-800">Mikrofon letiltva</p>
+                ) : (
+                    <p className="font-semibold text-primary-800">
+                        {voiceControlActive ? (isProcessing ? 'Értelmezés...' : (isListening ? 'Hallgatom...' : 'Indítás...')) : 'Hangvezérlés szünetel'}
+                    </p>
+                )}
             </div>
-            <p className="text-sm mt-1 text-primary-600">
-                {voiceControlActive ? 'Mondja be a hozzávalókat, diétát, vagy hogy "jöhet a recept".' : 'Kattintson ide a hangvezérlés folytatásához.'}
-            </p>
+             {permissionState === 'denied' ? (
+                <p className="text-sm mt-1 text-red-700">A hangvezérléshez engedélyezze a mikrofon használatát a böngésző címsorában.</p>
+            ) : (
+                <p className="text-sm mt-1 text-primary-600">
+                    {voiceControlActive ? 'Mondja be a hozzávalókat, diétát, vagy hogy "jöhet a recept".' : 'Kattintson ide a hangvezérlés folytatásához.'}
+                </p>
+            )}
         </button>
       )}
       <div>
