@@ -1,0 +1,7 @@
+{
+  "name": "AI Recept Generátor",
+  "description": "Készítsen finom és egészséges recepteket a megadott összetevőkből és diétás igényeknek megfelelően, beleértve a cukorbeteg diétát is.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
