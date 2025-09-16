@@ -42,7 +42,17 @@ export enum VoiceCommand {
     READ_INTRO = 'READ_INTRO',
     READ_INGREDIENTS = 'READ_INGREDIENTS',
     START_COOKING = 'START_COOKING',
+    START_TIMER = 'START_TIMER',
     UNKNOWN = 'UNKNOWN',
+}
+
+export interface VoiceCommandResult {
+    command: VoiceCommand;
+    payload?: {
+        hours?: number;
+        minutes?: number;
+        seconds?: number;
+    };
 }
 
 export interface SelectionResult {

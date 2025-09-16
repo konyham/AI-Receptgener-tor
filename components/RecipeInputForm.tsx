@@ -183,7 +183,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading }
   };
   
   const triggerSubmit = () => {
-    if (ingredients.length > 0 && !isLoading) {
+    if (!isLoading) {
       onSubmit(ingredients.join(', '), diet, mealType, cookingMethod, specialRequest);
     }
   };
@@ -261,7 +261,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading }
                     ))}
                 </ul>
             ) : (
-                <p className="text-gray-500">Adja meg a hozzávalókat a fenti mezőben, vagy diktálja be őket.</p>
+                <p className="text-gray-500">Adja meg a hozzávalókat, vagy hagyja üresen egy meglepetés recepthez.</p>
             )}
         </div>
         <div className="flex gap-2 mt-3">
@@ -363,10 +363,10 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading }
       <div className="pt-2">
         <button
           type="submit"
-          disabled={isLoading || ingredients.length === 0}
+          disabled={isLoading}
           className="w-full flex justify-center items-center gap-2 bg-primary-600 text-white font-bold py-4 px-4 rounded-lg shadow-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Recept generálása...' : 'Jöhet a recept!'}
+          {isLoading ? 'Recept generálása...' : (ingredients.length === 0 ? 'Jöhet a meglepetés recept!' : 'Jöhet a recept!')}
         </button>
       </div>
     </form>

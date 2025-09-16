@@ -10,6 +10,7 @@ import {
   SelectionResult,
   VoiceCommand,
   CookingMethod,
+  VoiceCommandResult,
 } from '../types';
 
 // FIX: Initialize the GoogleGenAI client with API key from environment variables as per guidelines.
@@ -243,9 +244,18 @@ export const interpretFormCommand = async (
 const commandSchema = {
     type: Type.OBJECT,
     properties: {
-        command: { 
+        command: {
             type: Type.STRING,
-            enum: ['NEXT', 'STOP', 'READ_INTRO', 'READ_INGREDIENTS', 'START_COOKING', 'UNKNOWN']
+            enum: ['NEXT', 'STOP', 'READ_INTRO', 'READ_INGREDIENTS', 'START_COOKING', 'START_TIMER', 'UNKNOWN']
+        },
+        payload: {
+            type: Type.OBJECT,
+            properties: {
+                hours: { type: Type.INTEGER, description: 'Az időzítőhöz tartozó órák száma.' },
+                minutes: { type: Type.INTEGER, description: 'Az időzítőhöz tartozó percek száma.' },
+                seconds: { type: Type.INTEGER, description: 'Az időzítőhöz tartozó másodpercek száma.' },
+            },
+            description: "A 'START_TIMER' parancshoz tartozó időtartam."
         }
     },
     required: ['command']
@@ -253,7 +263,7 @@ const commandSchema = {
 
 export const interpretUserCommand = async (
   transcript: string
-): Promise<VoiceCommand> => {
+): Promise<VoiceCommandResult> => {
   // A mapping of keywords to commands to improve accuracy and reduce LLM reliance for simple commands.
   const directCommands: { [key: string]: VoiceCommand } = {
     'következő': VoiceCommand.NEXT,
@@ -276,7 +286,7 @@ export const interpretUserCommand = async (
   const lowerTranscript = transcript.toLowerCase().trim();
   for (const key in directCommands) {
     if (lowerTranscript.includes(key)) {
-      return directCommands[key];
+      return { command: directCommands[key] };
     }
   }
 
@@ -290,9 +300,10 @@ export const interpretUserCommand = async (
     - 'READ_INTRO': Ha a felhasználó a recept bemutatását kéri (pl. "olvasd fel a bemutatót", "miről szól a recept?").
     - 'READ_INGREDIENTS': Ha a felhasználó a hozzávalók listáját kéri (pl. "mik a hozzávalók?", "összetevők").
     - 'START_COOKING': Ha a felhasználó az elkészítési lépések felolvasását kéri (pl. "kezdjük a főzést", "jöhet az elkészítés").
+    - 'START_TIMER': Ha a felhasználó időzítőt szeretne indítani. Bontsd le a kért időt órára, percre és másodpercre a payload-ban. Példák: "indíts egy 10 perces időzítőt" -> { command: 'START_TIMER', payload: { minutes: 10 } }, "időzítő másfél órára" -> { command: 'START_TIMER', payload: { hours: 1, minutes: 30 } }.
     - 'UNKNOWN': Ha a parancs nem illeszkedik a fentiekbe.
 
-    A válaszod egy JSON objektum legyen, ami tartalmaz egy 'command' kulcsot a megfelelő értékkel.
+    A válaszod egy JSON objektum legyen, ami tartalmaz egy 'command' kulcsot a megfelelő értékkel, és szükség esetén a 'payload' kulcsot.
     `;
 
   try {
@@ -312,9 +323,12 @@ export const interpretUserCommand = async (
     const jsonText = response.text.trim();
     const result = JSON.parse(jsonText);
 
-    return (result.command as VoiceCommand) || VoiceCommand.UNKNOWN;
+    return {
+        command: (result.command as VoiceCommand) || VoiceCommand.UNKNOWN,
+        payload: result.payload || undefined,
+    };
   } catch (error) {
     console.error('Error interpreting user command:', error);
-    return VoiceCommand.UNKNOWN;
+    return { command: VoiceCommand.UNKNOWN };
   }
 };

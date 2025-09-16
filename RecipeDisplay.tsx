@@ -74,6 +74,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
   const [isInterpreting, setIsInterpreting] = useState(false);
   const [voiceControlActive, setVoiceControlActive] = useState(true);
   const [isTimerOpen, setIsTimerOpen] = useState(false);
+  const [timerInitialValues, setTimerInitialValues] = useState<{ hours?: number; minutes?: number; seconds?: number } | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   
   const isInterpretingRef = useRef(false);
@@ -86,7 +87,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
     isInterpretingRef.current = true;
     setIsInterpreting(true);
     try {
-      const command = await interpretUserCommand(transcript);
+      const { command, payload } = await interpretUserCommand(transcript);
       let notificationMessage = '';
 
       switch (command) {
@@ -114,6 +115,18 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
           setCurrentStepIndex(0);
           setVoiceMode('cooking');
           break;
+        case VoiceCommand.START_TIMER:
+            if (payload) {
+                const { hours = 0, minutes = 0, seconds = 0 } = payload;
+                const timeParts = [];
+                if (hours > 0) timeParts.push(`${hours} óra`);
+                if (minutes > 0) timeParts.push(`${minutes} perc`);
+                if (seconds > 0) timeParts.push(`${seconds} másodperc`);
+                notificationMessage = `Időzítő indítása: ${timeParts.join(' ')}`;
+                setTimerInitialValues(payload);
+                setIsTimerOpen(true);
+            }
+            break;
         default:
           break;
       }
@@ -407,7 +420,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
                             ? 'Parancs értelmezése...'
                             : isActivelySpeaking
                             ? 'Recept felolvasása...'
-                            : 'Hallgatom a parancsot... (pl. "következő", "hozzávalók")'
+                            : 'Hallgatom a parancsot... (pl. "következő", "időzítő 5 percre")'
                           : 'A hangvezérlés szünetel.'}
                     </p>
                     <div className="flex flex-wrap justify-center gap-3">
@@ -453,7 +466,13 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
         </button>
       </div>
 
-      {isTimerOpen && <KitchenTimer onClose={() => setIsTimerOpen(false)} />}
+      {isTimerOpen && <KitchenTimer 
+        onClose={() => {
+            setIsTimerOpen(false);
+            setTimerInitialValues(null);
+        }} 
+        initialValues={timerInitialValues} 
+      />}
       <SaveToFavoritesModal 
         isOpen={isSaveModalOpen}
         onClose={() => setIsSaveModalOpen(false)}
