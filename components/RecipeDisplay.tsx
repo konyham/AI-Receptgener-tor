@@ -1,10 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+// FIX: Import GenerateVideosResponse and GenerateVideosMetadata to correctly type the Operation generic.
+import type { Operation, GenerateVideosResponse, GenerateVideosMetadata } from '@google/genai';
 import { Recipe, VoiceCommand, Favorites } from '../types';
-import { interpretUserCommand } from '../services/geminiService';
+import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 import KitchenTimer from './KitchenTimer';
 import SaveToFavoritesModal from './SaveToFavoritesModal';
+import VideoGenerationModal from './VideoGenerationModal';
+import VideoPlayerModal from './VideoPlayerModal';
+import ErrorMessage from './ErrorMessage';
+
 
 // FIX: Added missing props to the interface to match the usage in App.tsx.
 interface RecipeDisplayProps {
@@ -78,9 +84,22 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
   const [timerInitialValues, setTimerInitialValues] = useState<{ hours?: number; minutes?: number; seconds?: number } | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [videoGenerationProgress, setVideoGenerationProgress] = useState('');
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [videoGenerationError, setVideoGenerationError] = useState<string | null>(null);
+
   const isInterpretingRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const { showNotification } = useNotification();
+
+  useEffect(() => {
+    return () => {
+        if (generatedVideoUrl) {
+            URL.revokeObjectURL(generatedVideoUrl);
+        }
+    };
+  }, [generatedVideoUrl]);
 
   const handleVoiceResult = useCallback(async (transcript: string) => {
     if (isInterpretingRef.current) return;
@@ -353,6 +372,61 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
     onSave(recipe, category);
     setIsSaveModalOpen(false);
   };
+
+  const handleGenerateVideo = async () => {
+    setIsGeneratingVideo(true);
+    setVideoGenerationError(null);
+    setGeneratedVideoUrl(null);
+
+    const progressMessages = [
+        "A séf felveszi a kötényt...",
+        "Hozzávalók előkészítése a forgatáshoz...",
+        "Kamera indul, felvétel!",
+        "A legfontosabb lépések rögzítése...",
+        "Vágás és utómunka...",
+        "Zene és effektek hozzáadása...",
+        "A videó renderelése, mindjárt kész!",
+    ];
+    let messageIndex = 0;
+    setVideoGenerationProgress(progressMessages[messageIndex]);
+
+    const messageInterval = setInterval(() => {
+        messageIndex = (messageIndex + 1) % progressMessages.length;
+        setVideoGenerationProgress(progressMessages[messageIndex]);
+    }, 8000);
+
+    try {
+        // FIX: Correctly type the Operation generic with GenerateVideosResponse and GenerateVideosMetadata.
+        let operation: Operation<GenerateVideosResponse, GenerateVideosMetadata> = await generateRecipeVideo(recipe);
+
+        while (!operation.done) {
+            await new Promise(resolve => setTimeout(resolve, 10000)); // Poll every 10 seconds
+            operation = await getVideosOperationStatus(operation);
+        }
+
+        clearInterval(messageInterval);
+
+        const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+        if (downloadLink) {
+            // The response.body contains the MP4 bytes. You must append an API key when fetching from the download link.
+            const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+            if (!response.ok) {
+                throw new Error('Nem sikerült letölteni a generált videót.');
+            }
+            const videoBlob = await response.blob();
+            const videoUrl = URL.createObjectURL(videoBlob);
+            setGeneratedVideoUrl(videoUrl);
+        } else {
+            throw new Error('Nem található videó a generálási válaszban.');
+        }
+
+    } catch (err: any) {
+        setVideoGenerationError(err.message || 'Ismeretlen hiba történt a videó generálása közben.');
+    } finally {
+        setIsGeneratingVideo(false);
+        clearInterval(messageInterval);
+    }
+  };
   
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
 
@@ -392,10 +466,15 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
         <DiabeticAdvice advice={recipe.diabeticAdvice} />
 
         <div className="p-6 md:p-8">
+            {videoGenerationError && <div className="mb-4"><ErrorMessage message={videoGenerationError} /></div>}
             <div className="my-6 p-3 bg-gray-50 border rounded-lg flex flex-wrap justify-center items-center gap-3 no-print">
                 <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-primary-100 text-primary-800 rounded-lg hover:bg-primary-200 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
                     Mentés a kedvencekbe
+                </button>
+                 <button onClick={handleGenerateVideo} disabled={isGeneratingVideo} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                    {isGeneratingVideo ? 'Videó készül...' : 'Videó generálása'}
                 </button>
                 <button onClick={() => setIsTimerOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
@@ -489,6 +568,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
         onSave={handleSave}
         existingCategories={Object.keys(favorites)}
       />
+      {isGeneratingVideo && <VideoGenerationModal progressMessage={videoGenerationProgress} />}
+      {generatedVideoUrl && <VideoPlayerModal videoUrl={generatedVideoUrl} recipeName={recipe.recipeName} onClose={() => setGeneratedVideoUrl(null)} />}
     </>
   );
 };

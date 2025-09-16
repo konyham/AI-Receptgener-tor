@@ -1,5 +1,6 @@
 // FIX: This file was created to implement the missing Gemini API service logic.
-import { GoogleGenAI, Type } from '@google/genai';
+// FIX: Import GenerateVideosResponse and GenerateVideosMetadata to correctly type the Operation generic.
+import { GoogleGenAI, Type, Operation, GenerateVideosResponse, GenerateVideosMetadata } from '@google/genai';
 import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS } from '../constants';
 import {
   DietOption,
@@ -331,4 +332,43 @@ export const interpretUserCommand = async (
     console.error('Error interpreting user command:', error);
     return { command: VoiceCommand.UNKNOWN };
   }
+};
+
+
+// FIX: Correctly type the Operation generic with GenerateVideosResponse and GenerateVideosMetadata.
+export const generateRecipeVideo = async (recipe: Recipe): Promise<Operation<GenerateVideosResponse, GenerateVideosMetadata>> => {
+  const keyIngredients = recipe.ingredients.slice(0, 5).join(', ');
+  const keyInstructions = recipe.instructions.slice(0, 3).map(inst => inst.substring(0, 100)).join('. ');
+
+  const prompt = `Készíts egy rövid, dinamikus főzővideót a(z) "${recipe.recipeName}" elkészítéséről. 
+  A videó stílusa legyen étvágygerjesztő, mint egy profi food blogger videója.
+  - Kezdődjön a friss hozzávalók (például: ${keyIngredients}) közeli képével.
+  - Mutassa be a főzési folyamat kulcsfontosságú lépéseit, például a hozzávalók összekeverését, a sütést vagy főzést. Fókuszáljon a leglátványosabb részekre, mint például: ${keyInstructions}.
+  - A videó csúcspontja a gyönyörűen tálalt, kész étel legyen.
+  - Használjon közeli felvételeket és lassított mozgást a drámai hatás érdekében.`;
+
+  try {
+    const operation = await ai.models.generateVideos({
+      model: 'veo-2.0-generate-001',
+      prompt: prompt,
+      config: {
+        numberOfVideos: 1,
+      },
+    });
+    return operation;
+  } catch (error) {
+    console.error('Error starting video generation:', error);
+    throw new Error('Nem sikerült elindítani a videó generálását.');
+  }
+};
+
+// FIX: Correctly type the Operation generic with GenerateVideosResponse and GenerateVideosMetadata for both the parameter and return value.
+export const getVideosOperationStatus = async (operation: Operation<GenerateVideosResponse, GenerateVideosMetadata>): Promise<Operation<GenerateVideosResponse, GenerateVideosMetadata>> => {
+    try {
+        const updatedOperation = await ai.operations.getVideosOperation({ operation: operation });
+        return updatedOperation;
+    } catch (error) {
+        console.error('Error polling video generation status:', error);
+        throw new Error('Hiba történt a videó állapotának lekérdezése közben.');
+    }
 };
