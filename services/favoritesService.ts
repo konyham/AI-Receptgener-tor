@@ -30,7 +30,7 @@ export const addRecipeToFavorites = (recipe: Recipe, category: string): Favorite
     favorites[category].push(recipe);
     saveFavorites(favorites);
   }
-  return getFavorites();
+  return favorites;
 };
 
 export const removeRecipeFromFavorites = (recipeName: string, category: string): Favorites => {
@@ -42,7 +42,7 @@ export const removeRecipeFromFavorites = (recipeName: string, category: string):
     }
     saveFavorites(favorites);
   }
-  return getFavorites();
+  return favorites;
 };
 
 export const removeCategory = (category: string): Favorites => {
@@ -51,5 +51,5 @@ export const removeCategory = (category: string): Favorites => {
     delete favorites[category];
     saveFavorites(favorites);
   }
-  return getFavorites();
+  return favorites;
 };
