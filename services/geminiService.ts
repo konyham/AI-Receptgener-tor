@@ -82,7 +82,7 @@ export const generateRecipe = async (
   if (ingredients.trim()) {
     prompt = `Generálj egy ${mealTypeLabel} receptet a következő alapanyagokból: ${ingredients}.`;
   } else {
-    prompt = `Generálj egy meglepetés ${mealTypeLabel} receptet. Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad.`;
+    prompt = `Generálj egy meglepetés ${mealTypeLabel} receptet. Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad. Fontos: bár a hozzávalók meglepetések, a receptnek minden más megadott feltételnek (diéta, elkészítési mód, különleges kérés) szigorúan meg kell felelnie.`;
   }
   
   prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabel}.`;
@@ -374,9 +374,10 @@ export const getVideosOperationStatus = async (operation: Operation<GenerateVide
 };
 
 export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
-  const prompt = `Professzionális, rendkívül valósághű és étvágygerjesztő ételfotó a következő ételről: "${recipe.recipeName}". 
-  A leírása: "${recipe.description}". 
-  A tálalás legyen elegáns és modern, a háttér legyen világos és letisztult. A fotó legyen éles, részletgazdag, mintha egy profi ételfotós készítette volna egy gasztromagazinba.`;
+  const prompt = `Professzionális, rendkívül valósághű és étvágygerjesztő ételfotó. A képen a következő étel látható: "${recipe.recipeName}". 
+  A leírása segít a vizuális megjelenítésben: "${recipe.description}". 
+  A tálalás legyen elegáns és modern, a háttér legyen világos és letisztult. A fotó legyen éles, részletgazdag, mintha egy profi ételfotós készítette volna egy gasztromagazinba.
+  Fontos: A képen ne szerepeljen semmilyen szöveg, felirat vagy betű.`;
 
   try {
     const response = await ai.models.generateImages({
