@@ -76,7 +76,13 @@ export const generateRecipe = async (
   const cookingMethodLabel =
     COOKING_METHODS.find((c) => c.value === cookingMethod)?.label || 'hagyományos';
 
-  let prompt = `Generálj egy ${mealTypeLabel} receptet a következő alapanyagokból: ${ingredients}.`;
+  let prompt = '';
+  if (ingredients.trim()) {
+    prompt = `Generálj egy ${mealTypeLabel} receptet a következő alapanyagokból: ${ingredients}.`;
+  } else {
+    prompt = `Generálj egy meglepetés ${mealTypeLabel} receptet. Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad.`;
+  }
+  
   prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabel}.`;
   if (diet !== DietOption.NONE && dietLabel) {
     prompt += ` A recept feleljen meg a következő diétás előírásnak: ${dietLabel}.`;
