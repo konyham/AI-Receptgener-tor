@@ -16,7 +16,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading }
   const [ingredients, setIngredients] = useState<string[]>([]);
   const [currentIngredient, setCurrentIngredient] = useState('');
   const [diet, setDiet] = useState<DietOption>(DietOption.DIABETIC);
-  const [mealType, setMealType] = useState<MealType>(MealType.DINNER);
+  const [mealType, setMealType] = useState<MealType>(MealType.BREAKFAST);
   const [cookingMethod, setCookingMethod] = useState<CookingMethod>(CookingMethod.TRADITIONAL);
   const [specialRequest, setSpecialRequest] = useState('');
   
