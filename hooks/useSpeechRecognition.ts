@@ -48,7 +48,14 @@ export const useSpeechRecognition = ({
       try {
         recognitionRef.current.start();
       } catch (err) {
-        console.error('Error starting speech recognition:', err);
+        // The browser's SpeechRecognition API can throw an "InvalidStateError" DOMException
+        // if .start() is called when it is already starting. This can happen in React
+        // due to the asynchronous nature of state updates and effects. We can safely
+        // ignore this specific error, as it means the desired state (listening) is
+        // already being entered.
+        if ((err as DOMException).name !== 'InvalidStateError') {
+            console.error('Error starting speech recognition:', err);
+        }
       }
     }
   }, [isListening, permissionState]);
