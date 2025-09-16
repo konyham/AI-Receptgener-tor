@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-// FIX: Import GenerateVideosResponse and GenerateVideosMetadata to correctly type the Operation generic.
-import type { Operation, GenerateVideosResponse, GenerateVideosMetadata } from '@google/genai';
+// FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
+import type { Operation, GenerateVideosResponse } from '@google/genai';
 import { Recipe, VoiceCommand, Favorites } from '../types';
-import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus } from '../services/geminiService';
+import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 import KitchenTimer from './KitchenTimer';
 import SaveToFavoritesModal from './SaveToFavoritesModal';
 import VideoGenerationModal from './VideoGenerationModal';
 import VideoPlayerModal from './VideoPlayerModal';
+import ImageDisplayModal from './ImageDisplayModal';
 import ErrorMessage from './ErrorMessage';
 
 
@@ -88,6 +89,10 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
   const [videoGenerationProgress, setVideoGenerationProgress] = useState('');
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [videoGenerationError, setVideoGenerationError] = useState<string | null>(null);
+
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [imageGenerationError, setImageGenerationError] = useState<string | null>(null);
 
   const isInterpretingRef = useRef(false);
   const isSpeakingRef = useRef(false);
@@ -396,8 +401,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
     }, 8000);
 
     try {
-        // FIX: Correctly type the Operation generic with GenerateVideosResponse and GenerateVideosMetadata.
-        let operation: Operation<GenerateVideosResponse, GenerateVideosMetadata> = await generateRecipeVideo(recipe);
+        // FIX: The `Operation` generic type takes only one argument.
+        let operation: Operation<GenerateVideosResponse> = await generateRecipeVideo(recipe);
 
         while (!operation.done) {
             await new Promise(resolve => setTimeout(resolve, 10000)); // Poll every 10 seconds
@@ -428,6 +433,22 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
     }
   };
   
+  const handleGenerateImage = async () => {
+    setIsGeneratingImage(true);
+    setImageGenerationError(null);
+    setGeneratedImageUrl(null);
+
+    try {
+        const base64Image = await generateRecipeImage(recipe);
+        const imageUrl = `data:image/jpeg;base64,${base64Image}`;
+        setGeneratedImageUrl(imageUrl);
+    } catch (err: any) {
+        setImageGenerationError(err.message || 'Ismeretlen hiba történt a kép generálása közben.');
+    } finally {
+        setIsGeneratingImage(false);
+    }
+  };
+
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
 
   return (
@@ -466,13 +487,18 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
         <DiabeticAdvice advice={recipe.diabeticAdvice} />
 
         <div className="p-6 md:p-8">
+            {imageGenerationError && <div className="mb-4"><ErrorMessage message={imageGenerationError} /></div>}
             {videoGenerationError && <div className="mb-4"><ErrorMessage message={videoGenerationError} /></div>}
             <div className="my-6 p-3 bg-gray-50 border rounded-lg flex flex-wrap justify-center items-center gap-3 no-print">
                 <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-primary-100 text-primary-800 rounded-lg hover:bg-primary-200 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
                     Mentés a kedvencekbe
                 </button>
-                 <button onClick={handleGenerateVideo} disabled={isGeneratingVideo} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
+                 <button onClick={handleGenerateImage} disabled={isGeneratingImage || isGeneratingVideo} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
+                    {isGeneratingImage ? 'Fotó készül...' : 'Ételfotó generálása'}
+                </button>
+                 <button onClick={handleGenerateVideo} disabled={isGeneratingVideo || isGeneratingImage} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
                     {isGeneratingVideo ? 'Videó készül...' : 'Videó generálása'}
                 </button>
@@ -570,6 +596,17 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
       />
       {isGeneratingVideo && <VideoGenerationModal progressMessage={videoGenerationProgress} />}
       {generatedVideoUrl && <VideoPlayerModal videoUrl={generatedVideoUrl} recipeName={recipe.recipeName} onClose={() => setGeneratedVideoUrl(null)} />}
+      {isGeneratingImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center z-50 animate-fade-in" role="dialog" aria-modal="true">
+          <svg className="animate-spin h-16 w-16 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <h2 className="text-2xl font-bold text-white mt-6">Étvágygerjesztő fotó készül...</h2>
+          <p className="text-lg text-primary-200 mt-2">Kis türelmet, a séf épp beállítja a fényeket.</p>
+        </div>
+      )}
+      {generatedImageUrl && <ImageDisplayModal imageUrl={generatedImageUrl} recipeName={recipe.recipeName} onClose={() => setGeneratedImageUrl(null)} />}
     </>
   );
 };

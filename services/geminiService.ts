@@ -1,6 +1,6 @@
 // FIX: This file was created to implement the missing Gemini API service logic.
-// FIX: Import GenerateVideosResponse and GenerateVideosMetadata to correctly type the Operation generic.
-import { GoogleGenAI, Type, Operation, GenerateVideosResponse, GenerateVideosMetadata } from '@google/genai';
+// FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
+import { GoogleGenAI, Type, Operation, GenerateVideosResponse } from '@google/genai';
 import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS } from '../constants';
 import {
   DietOption,
@@ -335,8 +335,8 @@ export const interpretUserCommand = async (
 };
 
 
-// FIX: Correctly type the Operation generic with GenerateVideosResponse and GenerateVideosMetadata.
-export const generateRecipeVideo = async (recipe: Recipe): Promise<Operation<GenerateVideosResponse, GenerateVideosMetadata>> => {
+// FIX: The `Operation` generic type takes only one argument.
+export const generateRecipeVideo = async (recipe: Recipe): Promise<Operation<GenerateVideosResponse>> => {
   const keyIngredients = recipe.ingredients.slice(0, 5).join(', ');
   const keyInstructions = recipe.instructions.slice(0, 3).map(inst => inst.substring(0, 100)).join('. ');
 
@@ -362,8 +362,8 @@ export const generateRecipeVideo = async (recipe: Recipe): Promise<Operation<Gen
   }
 };
 
-// FIX: Correctly type the Operation generic with GenerateVideosResponse and GenerateVideosMetadata for both the parameter and return value.
-export const getVideosOperationStatus = async (operation: Operation<GenerateVideosResponse, GenerateVideosMetadata>): Promise<Operation<GenerateVideosResponse, GenerateVideosMetadata>> => {
+// FIX: The `Operation` generic type takes only one argument.
+export const getVideosOperationStatus = async (operation: Operation<GenerateVideosResponse>): Promise<Operation<GenerateVideosResponse>> => {
     try {
         const updatedOperation = await ai.operations.getVideosOperation({ operation: operation });
         return updatedOperation;
@@ -371,4 +371,32 @@ export const getVideosOperationStatus = async (operation: Operation<GenerateVide
         console.error('Error polling video generation status:', error);
         throw new Error('Hiba történt a videó állapotának lekérdezése közben.');
     }
+};
+
+export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
+  const prompt = `Professzionális, rendkívül valósághű és étvágygerjesztő ételfotó a következő ételről: "${recipe.recipeName}". 
+  A leírása: "${recipe.description}". 
+  A tálalás legyen elegáns és modern, a háttér legyen világos és letisztult. A fotó legyen éles, részletgazdag, mintha egy profi ételfotós készítette volna egy gasztromagazinba.`;
+
+  try {
+    const response = await ai.models.generateImages({
+        model: 'imagen-4.0-generate-001',
+        prompt: prompt,
+        config: {
+          numberOfImages: 1,
+          outputMimeType: 'image/jpeg',
+          aspectRatio: '4:3',
+        },
+    });
+
+    if (response.generatedImages && response.generatedImages.length > 0) {
+        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+        return base64ImageBytes;
+    } else {
+        throw new Error('Az API nem adott vissza képet.');
+    }
+  } catch (error) {
+    console.error('Error generating recipe image:', error);
+    throw new Error('Nem sikerült ételfotót generálni. Kérjük, próbálja újra később.');
+  }
 };
