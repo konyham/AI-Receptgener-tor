@@ -210,7 +210,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
       window.speechSynthesis.cancel();
       stopListening();
     };
-  }, [voiceMode, currentStepIndex, recipe, isSupported, voiceControlActive, startListening, stopListening]);
+  }, [voiceMode, currentStepIndex, recipe, isSupported, voiceControlActive]);
 
 
   const handleToggleVoiceControl = () => {

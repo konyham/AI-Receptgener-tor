@@ -142,7 +142,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
         isInterpretingRef.current = false;
         setIsInterpreting(false);
     }
-  }, [voiceMode, showNotification]);
+  }, [voiceMode, showNotification, currentStepIndex]);
 
   const { 
     isSupported: recognitionIsSupported, 
@@ -212,7 +212,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
       window.speechSynthesis.cancel();
       stopListening();
     };
-  }, [voiceMode, currentStepIndex, recipe, isSupported, voiceControlActive, startListening, stopListening, permissionState]);
+  }, [voiceMode, currentStepIndex, recipe, isSupported, voiceControlActive, permissionState]);
 
 
   const handleToggleVoiceControl = () => {
