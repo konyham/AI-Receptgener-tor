@@ -6,7 +6,7 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 
 interface RecipeInputFormProps {
-  onSubmit: (ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string) => void;
+  onSubmit: (params: { ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string }) => void;
   isLoading: boolean;
 }
 
@@ -185,7 +185,13 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading }
   
   const triggerSubmit = () => {
     if (!isLoading) {
-      onSubmit(ingredients.join(', '), diet, mealType, cookingMethod, specialRequest);
+      onSubmit({
+        ingredients: ingredients.join(', '),
+        diet,
+        mealType,
+        cookingMethod,
+        specialRequest
+      });
     }
   };
   const triggerSubmitRef = useRef(triggerSubmit);

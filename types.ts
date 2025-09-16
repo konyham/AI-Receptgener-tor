@@ -12,6 +12,7 @@ export interface Recipe {
   fat?: string;
   glycemicIndex?: string;
   diabeticAdvice?: string;
+  imageUrl?: string;
 }
 
 export enum DietOption {

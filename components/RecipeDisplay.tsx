@@ -17,6 +17,7 @@ import ErrorMessage from './ErrorMessage';
 interface RecipeDisplayProps {
   recipe: Recipe;
   onClose: () => void;
+  onTryAgain: () => void;
   isFromFavorites: boolean;
   favorites: Favorites;
   onSave: (recipe: Recipe, category: string) => void;
@@ -76,7 +77,7 @@ const DiabeticAdvice: React.FC<{ advice: string | undefined }> = ({ advice }) =>
 };
 
 
-const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFavorites, favorites, onSave }) => {
+const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onTryAgain, isFromFavorites, favorites, onSave }) => {
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isInterpreting, setIsInterpreting] = useState(false);
@@ -90,13 +91,45 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [videoGenerationError, setVideoGenerationError] = useState<string | null>(null);
 
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
-  const [imageGenerationError, setImageGenerationError] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [isImageLoading, setIsImageLoading] = useState<boolean>(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [isImageModalOpen, setIsImageModalOpen] = useState<boolean>(false);
 
   const isInterpretingRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const { showNotification } = useNotification();
+
+  useEffect(() => {
+    // Auto-generate image for new recipes
+    const generateImage = async () => {
+      // If the recipe already has an image (loaded from favorites), use it.
+      if (recipe.imageUrl) {
+        setImageUrl(recipe.imageUrl);
+        return;
+      }
+
+      // Do not auto-generate for recipes from favorites that don't have a saved image.
+      if (isFromFavorites) {
+        return;
+      }
+
+      setIsImageLoading(true);
+      setImageError(null);
+      try {
+        const base64Image = await generateRecipeImage(recipe);
+        const url = `data:image/jpeg;base64,${base64Image}`;
+        setImageUrl(url);
+      } catch (err: any) {
+        setImageError(err.message || 'Ismeretlen hiba történt az ételfotó generálása közben.');
+        showNotification('Az ételfotó generálása nem sikerült.', 'info');
+      } finally {
+        setIsImageLoading(false);
+      }
+    };
+
+    generateImage();
+  }, [recipe, isFromFavorites, showNotification]);
 
   useEffect(() => {
     return () => {
@@ -266,6 +299,10 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
   const handlePrint = () => {
     // Sanitize the recipe name to create a filesystem-friendly filename.
     const safeFilename = recipe.recipeName.replace(/[^a-z0-9\u00C0-\u017F_-\s]/gi, '').trim() || 'recept';
+    
+    const imageHtml = imageUrl
+      ? `<div style="text-align: center; margin: 1.5rem 0; break-inside: avoid;"><img src="${imageUrl}" alt="Fotó a receptről: ${recipe.recipeName}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: cover; display: inline-block;"></div>`
+      : '';
 
     const printHtml = `
       <html>
@@ -287,6 +324,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
               color: #14532d; /* primary-900 */
               border-bottom: 2px solid #dcfce7; /* primary-100 */
               padding-bottom: 8px;
+              break-after: avoid;
             }
             h1 { font-size: 2.25rem; }
             h2 { font-size: 1.5rem; margin-top: 1.5rem; }
@@ -294,7 +332,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
             p { margin-bottom: 1rem; }
             em { color: #374151; }
             ul, ol { padding-left: 1.5rem; }
-            li { margin-bottom: 0.5rem; }
+            li { margin-bottom: 0.5rem; break-inside: avoid; }
             .meta-info { 
               display: flex; 
               gap: 1.5rem; 
@@ -303,19 +341,21 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
               border-radius: 0.5rem; 
               margin: 1.5rem 0;
               border: 1px solid #dcfce7; /* primary-100 */
+              break-inside: avoid;
             }
             .meta-info div { flex: 1; }
             .meta-info span { font-weight: 600; display: block; font-size: 0.875rem; color: #166534; /* primary-800 */ }
-            .nutritional-info { margin: 1.5rem 0; }
+            .nutritional-info { margin: 1.5rem 0; break-inside: avoid; }
             .nutritional-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem; }
             .nutritional-info-item { text-align: center; padding: 0.5rem; background-color: #f0fdf4; border-radius: 0.5rem; }
-            .diabetic-advice { margin: 1.5rem 0; padding: 1rem; background-color: #eff6ff; border-left: 4px solid #60a5fa; }
+            .diabetic-advice { margin: 1.5rem 0; padding: 1rem; background-color: #eff6ff; border-left: 4px solid #60a5fa; break-inside: avoid; }
             .diabetic-advice h4 { font-weight: bold; color: #1e3a8a; margin-top: 0; }
           </style>
         </head>
         <body>
           <h1>${recipe.recipeName}</h1>
           <p><em>${recipe.description}</em></p>
+          ${imageHtml}
           <div class="meta-info">
             <div><span>Előkészítés:</span> ${recipe.prepTime}</div>
             <div><span>Főzési idő:</span> ${recipe.cookTime}</div>
@@ -374,7 +414,11 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
   };
 
   const handleSave = (category: string) => {
-    onSave(recipe, category);
+    const recipeToSave: Recipe = {
+      ...recipe,
+      imageUrl: imageUrl,
+    };
+    onSave(recipeToSave, category);
     setIsSaveModalOpen(false);
   };
 
@@ -432,22 +476,6 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
         clearInterval(messageInterval);
     }
   };
-  
-  const handleGenerateImage = async () => {
-    setIsGeneratingImage(true);
-    setImageGenerationError(null);
-    setGeneratedImageUrl(null);
-
-    try {
-        const base64Image = await generateRecipeImage(recipe);
-        const imageUrl = `data:image/jpeg;base64,${base64Image}`;
-        setGeneratedImageUrl(imageUrl);
-    } catch (err: any) {
-        setImageGenerationError(err.message || 'Ismeretlen hiba történt a kép generálása közben.');
-    } finally {
-        setIsGeneratingImage(false);
-    }
-  };
 
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
 
@@ -457,6 +485,22 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
         <div className="p-6 md:p-8">
           <h2 className="text-3xl font-bold text-primary-800 mb-2">{recipe.recipeName}</h2>
           <p className="text-gray-600 italic mb-6">{recipe.description}</p>
+          
+          <div className="my-6">
+            {isImageLoading && (
+              <div className="aspect-[4/3] w-full bg-gray-200 rounded-lg animate-pulse"></div>
+            )}
+            {imageError && !isImageLoading && <ErrorMessage message={imageError} />}
+            {imageUrl && !isImageLoading && (
+              <button 
+                onClick={() => setIsImageModalOpen(true)} 
+                className="w-full block rounded-lg overflow-hidden shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-all duration-300"
+                aria-label="Ételfotó megtekintése nagyban"
+              >
+                <img src={imageUrl} alt={`Fotó a receptről: ${recipe.recipeName}`} className="w-full h-full object-cover" />
+              </button>
+            )}
+          </div>
           
           <div className="flex flex-wrap gap-4 md:gap-8 mb-6 text-gray-700">
               <div className="flex items-center gap-2">
@@ -487,18 +531,13 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
         <DiabeticAdvice advice={recipe.diabeticAdvice} />
 
         <div className="p-6 md:p-8">
-            {imageGenerationError && <div className="mb-4"><ErrorMessage message={imageGenerationError} /></div>}
             {videoGenerationError && <div className="mb-4"><ErrorMessage message={videoGenerationError} /></div>}
             <div className="my-6 p-3 bg-gray-50 border rounded-lg flex flex-wrap justify-center items-center gap-3 no-print">
                 <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-primary-100 text-primary-800 rounded-lg hover:bg-primary-200 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
                     Mentés a kedvencekbe
                 </button>
-                 <button onClick={handleGenerateImage} disabled={isGeneratingImage || isGeneratingVideo} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
-                    {isGeneratingImage ? 'Fotó készül...' : 'Ételfotó generálása'}
-                </button>
-                 <button onClick={handleGenerateVideo} disabled={isGeneratingVideo || isGeneratingImage} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
+                 <button onClick={handleGenerateVideo} disabled={isGeneratingVideo} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
                     {isGeneratingVideo ? 'Videó készül...' : 'Videó generálása'}
                 </button>
@@ -572,10 +611,18 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
             </div>
           </div>
       </div>
-       <div className="mt-6 no-print">
+       <div className="mt-6 no-print flex flex-col sm:flex-row gap-3">
+         {!isFromFavorites && (
+            <button
+                onClick={onTryAgain}
+                className="flex-1 bg-white border border-primary-600 text-primary-600 font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200"
+            >
+                Újrapróbálkozás
+            </button>
+         )}
         <button
             onClick={onClose}
-            className="w-full bg-primary-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200"
+            className="flex-1 bg-primary-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200"
         >
             {isFromFavorites ? 'Vissza a kedvencekhez' : 'Új recept készítése'}
         </button>
@@ -596,17 +643,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
       />
       {isGeneratingVideo && <VideoGenerationModal progressMessage={videoGenerationProgress} />}
       {generatedVideoUrl && <VideoPlayerModal videoUrl={generatedVideoUrl} recipeName={recipe.recipeName} onClose={() => setGeneratedVideoUrl(null)} />}
-      {isGeneratingImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center z-50 animate-fade-in" role="dialog" aria-modal="true">
-          <svg className="animate-spin h-16 w-16 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <h2 className="text-2xl font-bold text-white mt-6">Étvágygerjesztő fotó készül...</h2>
-          <p className="text-lg text-primary-200 mt-2">Kis türelmet, a séf épp beállítja a fényeket.</p>
-        </div>
-      )}
-      {generatedImageUrl && <ImageDisplayModal imageUrl={generatedImageUrl} recipeName={recipe.recipeName} onClose={() => setGeneratedImageUrl(null)} />}
+      {isImageModalOpen && imageUrl && <ImageDisplayModal imageUrl={imageUrl} recipeName={recipe.recipeName} onClose={() => setIsImageModalOpen(false)} />}
     </>
   );
 };

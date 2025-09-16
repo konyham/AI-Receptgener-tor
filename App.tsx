@@ -9,36 +9,46 @@ import LoadingSpinner from './components/LoadingSpinner';
 import ErrorMessage from './components/ErrorMessage';
 import { useNotification } from './contexts/NotificationContext';
 
+interface RecipeGenerationParams {
+  ingredients: string;
+  diet: DietOption;
+  mealType: MealType;
+  cookingMethod: CookingMethod;
+  specialRequest: string;
+}
+
 const App: React.FC = () => {
   const [page, setPage] = useState<'generator' | 'favorites'>('generator');
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [favorites, setFavorites] = useState<Favorites>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastGenerationParams, setLastGenerationParams] = useState<RecipeGenerationParams | null>(null);
   const { showNotification } = useNotification();
 
   useEffect(() => {
     setFavorites(favoritesService.getFavorites());
   }, []);
   
-  const handleGenerateRecipe = async (
-    ingredients: string,
-    diet: DietOption,
-    mealType: MealType,
-    cookingMethod: CookingMethod,
-    specialRequest: string
-  ) => {
+  const handleGenerateRecipe = async (params: RecipeGenerationParams) => {
     setIsLoading(true);
     setError(null);
     setRecipe(null);
+    setLastGenerationParams(params);
     try {
-      const newRecipe = await generateRecipe(ingredients, diet, mealType, cookingMethod, specialRequest);
+      const newRecipe = await generateRecipe(params.ingredients, params.diet, params.mealType, params.cookingMethod, params.specialRequest);
       setRecipe(newRecipe);
       setPage('generator'); 
     } catch (err: any) {
       setError(err.message || 'Ismeretlen hiba történt.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleTryAgain = () => {
+    if (lastGenerationParams && !isLoading) {
+      handleGenerateRecipe(lastGenerationParams);
     }
   };
   
@@ -104,6 +114,7 @@ const App: React.FC = () => {
         <RecipeDisplay
           recipe={recipe}
           onClose={closeRecipeView}
+          onTryAgain={handleTryAgain}
           isFromFavorites={page === 'favorites'}
           favorites={favorites}
           onSave={handleSaveRecipe}
