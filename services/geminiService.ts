@@ -8,6 +8,7 @@ import {
   FormCommand,
   MealType,
   Recipe,
+  RecipeSuggestions,
   SelectionResult,
   VoiceCommand,
   CookingMethod,
@@ -97,7 +98,7 @@ export const generateRecipe = async (
     prompt += ` Mivel a recept cukorbeteg diétához készül, adj meg egy becsült tápértékadatokat is 100 grammra vetítve: kalória, szénhidrát, fehérje, zsír. Továbbá, becsüld meg a recept glikémiás indexét (Alacsony, Közepes, vagy Magas). Ezenkívül adj egy rövid, hasznos tanácsot cukorbetegek számára ehhez a recepthez kapcsolódóan (pl. mire figyeljenek a köret kiválasztásánál, vagy hogyan módosíthatják az ételt).`;
   }
 
-  prompt += ` Adj egy rövid, étvágygerjesztő leírást, az előkészítési és főzési időt, az adagok számát, a hozzávalók listáját pontos mennyiségekkel, és az elkészítési lépéseket. A válasz JSON formátumban legyen.`;
+  prompt += ` Adj egy rövid, étvágygerjesztő leírást, az előkészítési és főzési időt, az adagok számát, a hozzávalók listáját pontos mennyiségekkel, és az elkészítési lépéseket. Fontos: Minden hozzávalónál add meg a mennyiséget grammban vagy darabban, ÉS egy alternatív, mérleg nélküli mértékegységben is (pl. bögre, evőkanál, teáskanál, dl, ml), ahol ez értelmezhető. Például: "250g liszt (kb. 2 bögre)". A válasz JSON formátumban legyen.`;
 
   try {
     // FIX: Use ai.models.generateContent with appropriate model and configuration.
@@ -408,5 +409,56 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
   } catch (error) {
     console.error('Error generating recipe image:', error);
     throw new Error('Nem sikerült ételfotót generálni. Kérjük, próbálja újra később.');
+  }
+};
+
+
+const suggestionSchema = {
+  type: Type.OBJECT,
+  properties: {
+    suggestedIngredients: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "3-5 javasolt hozzávaló, ami jól kiegészítené a receptet.",
+    },
+    modificationIdeas: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "2-3 kreatív ötlet a recept módosítására vagy izgalmasabbá tételére.",
+    },
+  },
+  required: ['suggestedIngredients', 'modificationIdeas'],
+};
+
+export const getRecipeModificationSuggestions = async (
+  ingredients: string,
+  recipeName: string
+): Promise<RecipeSuggestions> => {
+  const prompt = `Adott egy(e) "${recipeName}" nevű recept, amely a következő alapanyagokból készült: ${ingredients}.
+  Kérlek, adj javaslatokat a recept továbbfejlesztéséhez.
+  1.  Javasolj 3-5 további, gyakori háztartási alapanyagot, ami jól illene ehhez a recepthez.
+  2.  Adj 2-3 kreatív ötletet, hogyan lehetne a receptet módosítani, feldobni vagy egy másik változatát elkészíteni (pl. "próbáld ki füstölt paprikával a mélyebb ízért", vagy "csirke helyett használj pulykamellet").
+
+  A válaszodat a megadott JSON séma szerint add meg.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: suggestionSchema,
+      },
+    });
+    const jsonText = response.text.trim();
+    if (!jsonText) {
+      throw new Error('Az API üres választ adott a javaslatkérésre.');
+    }
+    const suggestions: RecipeSuggestions = JSON.parse(jsonText);
+    return suggestions;
+  } catch (error) {
+    console.error('Error generating recipe suggestions:', error);
+    // Return empty suggestions on error to avoid breaking the UI
+    return { suggestedIngredients: [], modificationIdeas: [] };
   }
 };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import type { Recipe, DietOption, MealType, Favorites, CookingMethod } from './types';
-import { generateRecipe } from './services/geminiService';
+import type { Recipe, DietOption, MealType, Favorites, CookingMethod, RecipeSuggestions } from './types';
+import { generateRecipe, getRecipeModificationSuggestions } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
@@ -24,6 +24,8 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastGenerationParams, setLastGenerationParams] = useState<RecipeGenerationParams | null>(null);
+  const [initialFormData, setInitialFormData] = useState<Partial<RecipeGenerationParams> | null>(null);
+  const [suggestions, setSuggestions] = useState<RecipeSuggestions | null>(null);
   const { showNotification } = useNotification();
 
   useEffect(() => {
@@ -34,6 +36,7 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setRecipe(null);
+    setSuggestions(null); // Clear suggestions on new generation
     setLastGenerationParams(params);
     try {
       const newRecipe = await generateRecipe(params.ingredients, params.diet, params.mealType, params.cookingMethod, params.specialRequest);
@@ -46,13 +49,35 @@ const App: React.FC = () => {
     }
   };
 
-  const handleTryAgain = () => {
-    if (lastGenerationParams && !isLoading) {
-      handleGenerateRecipe(lastGenerationParams);
+  const handleRefineRecipe = async () => {
+    if (lastGenerationParams && recipe) {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const newSuggestions = await getRecipeModificationSuggestions(lastGenerationParams.ingredients, recipe.recipeName);
+        setSuggestions(newSuggestions);
+      } catch (err: any) {
+        showNotification('Nem sikerült javaslatokat betölteni.', 'info');
+        setSuggestions(null);
+      }
+      
+      setInitialFormData(lastGenerationParams);
+      setRecipe(null);
+      setIsLoading(false);
     }
   };
   
   const closeRecipeView = () => {
+    setSuggestions(null); // Clear suggestions when starting a new recipe
+    if (lastGenerationParams) {
+        setInitialFormData({
+            ingredients: lastGenerationParams.ingredients,
+            specialRequest: lastGenerationParams.specialRequest,
+        });
+    } else {
+        setInitialFormData(null);
+    }
     setRecipe(null);
     setError(null);
   };
@@ -82,11 +107,14 @@ const App: React.FC = () => {
 
   const showGenerator = () => {
     setRecipe(null);
+    setSuggestions(null);
+    // Don't clear initial form data here, it's managed by other flows
     setPage('generator');
   };
   
   const showFavorites = () => {
     setRecipe(null);
+    setSuggestions(null);
     setFavorites(favoritesService.getFavorites());
     setPage('favorites');
   };
@@ -109,12 +137,16 @@ const App: React.FC = () => {
   );
 
   const renderContent = () => {
+    if (isLoading && !recipe) {
+      return <LoadingSpinner />;
+    }
+      
     if (recipe) {
       return (
         <RecipeDisplay
           recipe={recipe}
           onClose={closeRecipeView}
-          onTryAgain={handleTryAgain}
+          onRefine={handleRefineRecipe}
           isFromFavorites={page === 'favorites'}
           favorites={favorites}
           onSave={handleSaveRecipe}
@@ -125,8 +157,13 @@ const App: React.FC = () => {
     if (page === 'generator') {
       return (
         <>
-          <RecipeInputForm onSubmit={handleGenerateRecipe} isLoading={isLoading} />
-          {isLoading && <LoadingSpinner />}
+          <RecipeInputForm
+            onSubmit={handleGenerateRecipe}
+            isLoading={isLoading}
+            initialFormData={initialFormData}
+            onFormPopulated={() => setInitialFormData(null)}
+            suggestions={suggestions}
+          />
           {error && <div className="mt-4"><ErrorMessage message={error} /></div>}
         </>
       );

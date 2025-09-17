@@ -89,3 +89,8 @@ declare global {
 }
 
 export type Favorites = Record<string, Recipe[]>;
+
+export interface RecipeSuggestions {
+  suggestedIngredients: string[];
+  modificationIdeas: string[];
+}

@@ -18,7 +18,7 @@ import InstructionCarousel from './InstructionCarousel';
 interface RecipeDisplayProps {
   recipe: Recipe;
   onClose: () => void;
-  onTryAgain: () => void;
+  onRefine: () => void;
   isFromFavorites: boolean;
   favorites: Favorites;
   onSave: (recipe: Recipe, category: string) => void;
@@ -78,7 +78,7 @@ const DiabeticAdvice: React.FC<{ advice: string | undefined }> = ({ advice }) =>
 };
 
 
-const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onTryAgain, isFromFavorites, favorites, onSave }) => {
+const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave }) => {
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isInterpreting, setIsInterpreting] = useState(false);
@@ -612,10 +612,10 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onTryAga
        <div className="mt-6 no-print flex flex-col sm:flex-row gap-3">
          {!isFromFavorites && (
             <button
-                onClick={onTryAgain}
+                onClick={onRefine}
                 className="flex-1 bg-white border border-primary-600 text-primary-600 font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200"
             >
-                Újrapróbálkozás
+                Finomítás és javaslatok
             </button>
          )}
         <button

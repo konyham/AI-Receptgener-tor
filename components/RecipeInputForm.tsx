@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod } from '../types';
+import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions } from '../types';
 import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS } from '../constants';
 import { interpretFormCommand } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
@@ -8,11 +8,14 @@ import { useNotification } from '../contexts/NotificationContext';
 interface RecipeInputFormProps {
   onSubmit: (params: { ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string }) => void;
   isLoading: boolean;
+  initialFormData?: Partial<{ ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string }> | null;
+  onFormPopulated?: () => void;
+  suggestions?: RecipeSuggestions | null;
 }
 
 const INGREDIENTS_STORAGE_KEY = 'ai-recipe-generator-saved-ingredients';
 
-const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading }) => {
+const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, initialFormData, onFormPopulated, suggestions }) => {
   const [ingredients, setIngredients] = useState<string[]>([]);
   const [currentIngredient, setCurrentIngredient] = useState('');
   const [diet, setDiet] = useState<DietOption>(DietOption.DIABETIC);
@@ -28,9 +31,43 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading }
   const { showNotification } = useNotification();
 
   useEffect(() => {
+    if (initialFormData && onFormPopulated) {
+        if (initialFormData.ingredients !== undefined) {
+            setIngredients(initialFormData.ingredients.split(',').map(s => s.trim()).filter(Boolean));
+        }
+        if (initialFormData.specialRequest !== undefined) {
+            setSpecialRequest(initialFormData.specialRequest);
+        }
+        if (initialFormData.diet !== undefined) {
+            setDiet(initialFormData.diet);
+        } else {
+            setDiet(DietOption.DIABETIC); // Reset to default
+        }
+        if (initialFormData.mealType !== undefined) {
+            setMealType(initialFormData.mealType);
+        } else {
+            setMealType(MealType.LUNCH); // Reset to default
+        }
+        if (initialFormData.cookingMethod !== undefined) {
+            setCookingMethod(initialFormData.cookingMethod);
+        } else {
+            setCookingMethod(CookingMethod.TRADITIONAL); // Reset to default
+        }
+        onFormPopulated();
+    }
+  }, [initialFormData, onFormPopulated]);
+
+  useEffect(() => {
     const saved = localStorage.getItem(INGREDIENTS_STORAGE_KEY);
     setHasSavedIngredients(!!saved);
   }, []);
+  
+  const addSuggestedIngredient = (ingredient: string) => {
+      if (ingredient && !ingredients.includes(ingredient)) {
+          setIngredients(prev => [...prev, ingredient]);
+          showNotification(`'${ingredient}' hozzáadva a hozzávalókhoz!`, 'success');
+      }
+  };
 
   const handleSaveIngredients = useCallback(() => {
     if (ingredients.length > 0) {
@@ -210,6 +247,39 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+       {suggestions && (
+        <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg animate-fade-in space-y-4">
+          <h3 className="text-lg font-bold text-yellow-800">Javaslatok a recept finomításához</h3>
+          {suggestions.suggestedIngredients.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-yellow-700 mb-2">Próbáld ki ezekkel is:</h4>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.suggestedIngredients.map((ing, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => addSuggestedIngredient(ing)}
+                    className="flex items-center gap-1.5 text-sm bg-yellow-200 text-yellow-900 font-medium px-3 py-1 rounded-full hover:bg-yellow-300 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" /></svg>
+                    {ing}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {suggestions.modificationIdeas.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-yellow-700 mb-2">Változtatási ötletek:</h4>
+              <ul className="list-disc list-inside space-y-1 text-yellow-800">
+                {suggestions.modificationIdeas.map((idea, index) => (
+                  <li key={index}>{idea}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
        {isSupported && (
          <button
             type="button"
