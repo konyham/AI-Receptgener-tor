@@ -150,6 +150,7 @@ const App: React.FC = () => {
           isFromFavorites={page === 'favorites'}
           favorites={favorites}
           onSave={handleSaveRecipe}
+          isLoading={isLoading}
         />
       );
     }
