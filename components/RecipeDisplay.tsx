@@ -11,6 +11,7 @@ import VideoGenerationModal from './VideoGenerationModal';
 import VideoPlayerModal from './VideoPlayerModal';
 import ImageDisplayModal from './ImageDisplayModal';
 import ErrorMessage from './ErrorMessage';
+import InstructionCarousel from './InstructionCarousel';
 
 
 // FIX: Added missing props to the interface to match the usage in App.tsx.
@@ -598,14 +599,12 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onTryAga
               </div>
               <div className="space-y-4">
                 <h3 className="text-2xl font-semibold text-primary-700 border-b-2 border-primary-200 pb-2">Elkészítés</h3>
-                <ol className="space-y-4 text-gray-800">
-                  {recipe.instructions.map((instruction, index) => (
-                    <li key={index} className={`flex gap-3 items-start p-2 rounded ${voiceMode === 'cooking' && index === currentStepIndex ? 'bg-primary-100' : ''}`}>
-                      <span className="flex-shrink-0 text-lg font-bold text-primary-600 bg-primary-100 rounded-full h-8 w-8 flex items-center justify-center">{index + 1}</span>
-                      <p className="flex-1">{instruction}</p>
-                    </li>
-                  ))}
-                </ol>
+                <InstructionCarousel
+                  instructions={recipe.instructions}
+                  currentStep={currentStepIndex}
+                  onStepChange={setCurrentStepIndex}
+                  voiceModeActive={voiceMode === 'cooking'}
+                />
               </div>
             </div>
           </div>
