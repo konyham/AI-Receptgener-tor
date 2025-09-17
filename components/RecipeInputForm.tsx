@@ -29,6 +29,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   
   const isProcessingRef = useRef(false);
   const { showNotification } = useNotification();
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (initialFormData && onFormPopulated) {
@@ -56,6 +57,12 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         onFormPopulated();
     }
   }, [initialFormData, onFormPopulated]);
+
+  useEffect(() => {
+    if (suggestions && suggestionsRef.current) {
+        suggestionsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [suggestions]);
 
   useEffect(() => {
     const saved = localStorage.getItem(INGREDIENTS_STORAGE_KEY);
@@ -248,7 +255,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
        {suggestions && (
-        <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg animate-fade-in space-y-4">
+        <div ref={suggestionsRef} className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg animate-fade-in space-y-4">
           <h3 className="text-lg font-bold text-yellow-800">Javaslatok a recept finomításához</h3>
           {suggestions.suggestedIngredients.length > 0 && (
             <div>
