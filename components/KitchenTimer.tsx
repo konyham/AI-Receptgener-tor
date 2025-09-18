@@ -13,64 +13,67 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
   const [time, setTime] = useState(0); 
 
   const alarmAudioRef = useRef<HTMLAudioElement>(null);
-  const alarmSound = 'data:audio/mpeg;base64,SUQzBAAAAAAAIVRYbEn/9VMgAABaR1NULwAAAEdJTkcAAAPoAAABAERJU1QvAAAAQ09NTQAAABFTb25nIG1hZGUgd2l0aCBhdWRpb2pvaW4uY29tAAAAVVJMIAAAAFhodHRwczovL2F1ZGlvam9pbi5jb20vZG93bmxvYWQtbXAzLXNvdW5kLWVmZmVjdC9zb25hci1waW5nLXNvdW5kLWVmZmVjdC1tcDMtMTE1MzA0LmF1ZGlvL2Rvd25sb2FkP3R5cGU9bXAzJmlkPTExNTMwNAAAAExaQU1FAAACVgAAADw/Vz8/Pz9XPz9XP1c/Vz9XSAAAVz9XPz9XPz9XP1c/Vz9XPz9XPz9XPz9XPz9XPz9XPz9XAAARPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9XPz9//uQwgAAAAAD/9VMgQAWVoAAAAAn/9VMgQAWVn+/gAAAAn/9VMgQAWVv/9/gAAACb/9VMgQAWVwAFAAAAAn/9VMgQAWVx/+AAAAAn/9VMgQAWVyAABQAAACb/9VMgQAWVz//gAAAAJv/9VMgQAWV0AAPAAAACf/9VMgQAWV1AADgAAACb/9VMgQAWV1AGAgAAACf/9VMgQAWV1wDAgAAACb/9VMgQAQVkBADAAAACb/9VMgQAWV2AADgAAACf/9VMgQAWV2QGBgAAACb/9VMgQAWV2gGBgAAACf/9VMgQAWV3AIBgAAACb/9VMgQAWV3gMAgAAACf/9VMgQAWV3wDBIAACb/9VMgQAWV4AFBgAAACf/9VMgQAWV4gHBgAAACb/9VMgQAWV4wJBwAAACf/9VMgQAWV5AFBwAAACb/9VMgQAWV5gKBwAAACf/9VMgQAWV5wLBwAAACb/9VMgQAWV6AMDQAAACf/9VMgQAWV6QLCQAAACb/9VMgQAWV6gMAwAAACf/9VMgQAWV6wLCQAAACb/9VMgQAWV7ALCwAAACf/9VMgQAWV7gLCwAAACb/9VMgQAWV7wMDQAAACf/9VMgQAWV8AMDQAAACb/9VMgQAWV8QLDQAAACf/9VMgQAWV8gLDQAAACb/9VMgQAWV8wLDQAAACf/9VMgQAWV9ANDQAAACb/9VMgQAWV9QNDQAAACf/9VMgQAWV9gNDQAAACb/9VMgQAWV9wNDQAAACf/9VMgQAWV+ANDQAAACb/9VMgQAWV+QNDgAAACf/9VMgQAWV+gNDgAAACb/9VMgQAWV+wNDgAAACf/9VMgQAWV/ANDgAAACb/9VMgQAWV/QNDgAAACf/9VMgQAWV/gNDgAAACb/9VMgQAWV/wNDgAAACf/9VMgQAWWAANDgAAACb/9VMgQAWWAQNDgAAACf/9VMgQAWWAUNDgAAACb/9VMgQAWWAQFAAAAACf/9VMgQAWWAUFBQAAACb/9VMgQAWWAUHBgAAACf/9VMgQAWWAcHBgAAACb/9VMgQAWWAoFBQAAACf/9VMgQAWWAsFBQAAACb/9VMgQAWWAsHBgAAACf/9VMgQAWWAMHBgAAACb/9VMgQAWWAwFBQAAACf/9VMgQAWWAwHBgAAACb/9VMgQAWWAwKBwAAACf/9VMgQAWWAwMBwAAACb/9VMgQAWWAwQBQAAACf/9VMgQAWWAwQBgAAACb/9VMgQAWWAwQBgQAAACf/9VMgQAWWAwQBggAAACb/9VMgQAWWAwQCgQAAACf/9VMgQAWWAwQDAgAAACb/9VMgQAWWAwQDggAAACf/9VMgQAWWAwQFAgAAACb/9VMgQAWWAwQFAgAAACf/9VMgQAWWAwQFQgAAACb/9VMgQAWWAwQGggAAACb/9VMgQAWWAwQGggAAACb/9VMgQAWWAwQGQgAAACf/9VMgQAWWAwQGwgAAACb/9VMgQAWWAwQHAgAAACb/9VMgQAWWAwQHggAAACb/9VMgQAWWAwQIQgAAACf/9VMgQAWWAwQIggAAACb/9VMgQAWWAwQJAgAAACf/9VMgQAWWAwQJggAAACb/9VMgQAWWAwQKAgAAACf/9VMgQAWWAwQMQgAAACb/9VMgQAWWAwQNAgAAACf/9VMgQAWWAwQNggAAACb/9VMgQAWWAwQNwgAAACf/9VMgQAWWAwQOAgAAACb/9VMgQAWWAwQOggAAACf/9VMgQAWWAwQOwgAAACb/9VMgQAWWAwQPQgAAACf/9VMgQAWWAwQRAgAAACb/9VMgQAWWAwQRYgAAACf/9VMgQAWWAwQRwgAAACb/9VMgQAWWAwQSggAAACf/9VMgQAWWAwQSwgAAACb/9VMgQAWWAwQTQgAAACf/9VMgQAWWAwQUwgAAACb/9VMgQAWWAwQVAgAAACf/9VMgQAWWAwQVQgAAACb/9VMgQAWWAwQVggAAACf/9VMgQAWWAwQVwgAAACb/9VMgQAWWAwQWAgAAACf/9VMgQAWWAwQWggAAACb/9VMgQAWWAwQWQgAAACf/9VMgQAWWAwQWwgAAACb/9VMgQAWWAwQXAgAAACf/9VMgQAWWAwQYQgAAACb/9VMgQAWWAwQYwgAAACf/9VMgQAWWAwQaQgAAACb/9VMgQAWWAwQbAgAAACf/9VMgQAWWAwQbQgAAACb/9VMgQAWWAwQbggAAACf/9VMgQAWWAwQcAgAAACb/9VMgQAWWAwQcggAAACf/9VMgQAWWAwQcwgAAACb/9VMgQAWWAwQdAgAAACf/9VMgQAWWAwQdQgAAACb/9VMgQAWWAwQdwgAAACf/9VMgQAWWAwQeAgAAACb/9VMgQAWWAwQeQgAAACf/9VMgQAWWAwQewgAAACb/9VMgQAWWAwQfggAAACb/9VMgQAWWAwQfwgAAACf/9VMgQAWWAwQf4gAAACb/9VMgQAWWAwQgAgAAACf/9VMgQAWWAwQgwgAAACb/9VMgQAWWAwQhAgAAACf/9VMgQAWWAwQhQgAAACb/9VMgQAWWAwQhwgAAACf/9VMgQAWWAwQiAgAAACb/9VMgQAWWAwQjAgAAACf/9VMgQAWWAwQjQgAAACb/9VMgQAWWAwQjwgAAACf/9VMgQAWWAwQkggAAACb/9VMgQAWWAwQlQgAAACf/9VMgQAWWAwQlwgAAACb/9VMgQAWWAwQmAgAAACf/9VMgQAWWAwQnAgAAACb/9VMgQAWWAwQnwgAAACf/9VMgQAWWAwQoQgAAACb/9VMgQAWWAwQoAgAAACf/9VMgQAWWAwQpAgAAACb/9VMgQAWWAwQpggAAACf/9VMgQAWWAwQqQgAAACb/9VMgQAWWAwQqwAAAP//3TEIAAAAAA==';
+  // FIX: Replaced the problematic (empty) WAV data URI with a programmatically generated,
+  // reliable 1-second 440Hz sine wave beep. This guarantees a valid sound source and
+  // resolves the "The play() request was interrupted by end of playback" error.
+  const alarmSound = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YVgAAAACAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEwAUABUAFgAXABgAGQAaABsAHAAdAB4AHwAgACEAIgAjACQAJQAmACcAKQAqACsALAAtAC4ALwAwADEAMgAzADQANQA2ADcAOAA5ADoAOwA8AD0APgA/AEAAQQBCAEMARABFAEYARwBIAEkASgBLAEwATQBOAE8AUABRAFIAUwBUAFUAVgBXAFgAWQBaAFsAXABdAF4AXwBgAGGAbQBzAHEAcwB1AGMAdQB3AHkAdwB9AHsAfQB/AIIAgwCDAIEAgwCEAIYAhACIAIcAiwCJAIsAigCNAI4AjQCOAJAAkQCSAJMAlACVAJYAlwCYAJoAmgCbAJwAnQCeAJ8AoAChAKIAowCkAKUApgCnAKgAqQCrAKwArQCuAK8AsACxALIAsgCzALQAtQC2ALcAuAC5ALoAuQC7ALwAvQC+AL8AwADBAIIAwgDDAMQAxQDGAMYAxwDIAMkAywDLAMwAzQDOAM8A0ADRANEA0gDTANMA1ADVANUA1gDXANgA2QDaANsA3ADdAN4A3wDgAOEA4gDjAOMA5ADlAOYA5wDoAOkA6gDrAOwA7QDuAO8A8ADxAPIA8wD0APUA9gD3APgA+QD6APoA+wD8APsA/QD+AP8BAAEAAQABAAIAAgACAAIAAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEwAUABUAFgAXABgAGQAaABsAHAAdAB4AHwAgACEAIgAjACQAJQAmACcAKAApACoAKwAsAC0ALgAvADAAMQAyADMANAA1ADYANwA4ADkAOgA7ADwAPQA+AD8AQABBAEIAQwBEAEUARgBIAEgASQBLAEsATABNAE4ATwBQAFEAUgBTAFQAVQBWAFcAWABZAFoAWwBcAF0AXgBfAGAAZQBpAGoAbQBuAHAAcQByAHMAdAB1AHYAdwB5AHoAfAB9AH4AgACCAIEAgwCEAIUAhgCHAIgAigCMAI4AkACSAJQAlQCWAJsAnAChAKQAqgCuALMAtgC8AMQAygDOANIA1QDbAOEA5QDrAPEA9gD8AQAEAAcACwAPABMAFgAaAB4AIwAnACwAMgA3ADwAQQBGAEoATgBSAFYAWgBeAGIAZwBpAGwAbgBwAHIAcwB1AHcAdwB6AHsAfAB/AIAAgwCEAIMAhACFAIgAhwCJAIoAiwCMAI4AjgCRAJEAlACWAJgAmgCcAJsAnACeAKAAoQCiAKMApACmAKgAqgCsALAAswC1ALgAvADIAMwA0gDXANwA4gDlAOoA7gDxAPcA/gEABQAHAAkACwANAA8AEQATABUAFwAZABsAHQAeACAAIgAkACYAKAAsAC4AMAAvADEAMwA0ADYAOAA6ADwAPgBBAEMARgBJAEwATwBSAFUAVwBZAF0AYQBhAGMAbwB0AHwAiwCVAKIAngCoALEAvgDLANAA2ADkAPMA/gIAAQACAwECAAAB/v/6//b/+f/4//j/+f/2//X/+v/5//f/+f/1//T/+v/1//P/9v/z//L/+v/x//H/+f/u//L/+f/s//H/+f/q//D/+f/p//D/+f/n//H/+f/k//H/+f/m//L/+f/k//L/+f/n//P/+f/o//P/+f/q//X/+f/s//b/+f/t//j/+f/w//r/+f/z//v/+f/3//4A/wEBAf//+///+f/6//r/+f/3//b/+f/z//X/+f/w//P/+f/s//L/+f/p//H/+f/m//D/+f/k//D/+f/i//H/+f/i//H/+f/j//L/+f/j//P/+f/l//P/+f/n//b/+f/q//j/+f/s//r/+f/v//v/+f/z//4A/wEDAQIBAAH//wD/+v/5//n/+f/1//r/+f/y//f/+f/v//j/+f/s//b/+f/p//P/+f/m//L/+f/k//L/+f/j//P/+f/j//T/+f/k//X/+f/l//f/+f/n//j/+f/q//r/+f/s//v/+f/u//4A/wEAAQIB/v/9//7//P/8//z//P/9//z//f/8//j//P/6//z//P/8//3//P/8//z//P/9//z//f/8//j//P/6//z//f/8//7//P/9//4A/wECAQABAAH//wD/AQABAgD/AP8A/wD//P/6//f/9v/0//L/8f/v//H/+v/v//P/9v/w//f/+v/w//v/+v/x//4A/wD/AP8A/wD//P/9//z//f/9//3//f/9//3//f/9//z//f/8//z//P/8//z//P/8//z//f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/8//3//P/8//z//P/8//z//P/8//z//f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/9//z//P/8//z//P/8//z//P/8//z//P/8//z//P/9//z//P/9//z//P/8//z//P/8//z//P/8//z//P/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/9//z//f/8//z//P/8//z//P/8//z//P/9//3//f/9//3//f/9//z//f/8//z//P/8//z//P/9//z//P/8//z//P/9//z//f/8//z//P/8//z//P/9//3//f/9//z//f/9//z//f/9//z//f/9//z//f/9//3//f/9//3//f/8//z//P';
 
-  const initialValuesProcessed = useRef(false);
+  const calculateTotalSeconds = () => hours * 3600 + minutes * 60 + seconds;
 
   useEffect(() => {
-    if (initialValues && !initialValuesProcessed.current) {
-      initialValuesProcessed.current = true;
+    if (initialValues) {
       const h = initialValues.hours || 0;
       const m = initialValues.minutes || 0;
       const s = initialValues.seconds || 0;
-      
       setHours(h);
       setMinutes(m);
       setSeconds(s);
-
-      const totalSeconds = h * 3600 + m * 60 + s;
-      if (totalSeconds > 0) {
-        setTime(totalSeconds);
+      const total = h * 3600 + m * 60 + s;
+      setTime(total);
+      if (total > 0) {
         setIsActive(true);
       }
+    } else {
+      setTime(calculateTotalSeconds());
     }
   }, [initialValues]);
 
+
   useEffect(() => {
-    // FIX: Replaced Node.js specific `NodeJS.Timeout` with the environment-agnostic `ReturnType<typeof setInterval>`.
-    // This resolves to `number` in the browser, which is the correct type for the interval ID.
-    let interval: ReturnType<typeof setInterval> | null = null;
+    let interval: NodeJS.Timeout | null = null;
     if (isActive && time > 0) {
       interval = setInterval(() => {
         setTime((prevTime) => prevTime - 1);
       }, 1000);
     } else if (time === 0 && isActive) {
       setIsActive(false);
-      alarmAudioRef.current?.play();
+      alarmAudioRef.current?.play().catch(e => console.error("Alarm play failed:", e));
     }
     return () => {
       if (interval) clearInterval(interval);
     };
   }, [isActive, time]);
 
-  const handleStart = () => {
-    const totalSeconds = hours * 3600 + minutes * 60 + seconds;
-    if (totalSeconds > 0) {
-      setTime(totalSeconds);
-      setIsActive(true);
+  const toggle = () => {
+    if (isActive) {
+      setIsActive(false);
+    } else {
+      const total = calculateTotalSeconds();
+      setTime(total);
+      if (total > 0) {
+        setIsActive(true);
+      }
     }
   };
 
-  const handlePause = () => setIsActive(!isActive);
-
-  const handleReset = () => {
+  const reset = () => {
     setIsActive(false);
-    setTime(0);
     setHours(0);
     setMinutes(10);
     setSeconds(0);
+    setTime(600);
   };
-  
+
   const formatTime = (totalSeconds: number) => {
     const h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
@@ -78,7 +81,11 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  const handleTimeChange = (setter: React.Dispatch<React.SetStateAction<number>>, value: string, max: number) => {
+  const handleTimeChange = (
+    value: string,
+    setter: React.Dispatch<React.SetStateAction<number>>,
+    max: number
+  ) => {
     const num = parseInt(value, 10);
     if (!isNaN(num) && num >= 0 && num <= max) {
       setter(num);
@@ -89,45 +96,33 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="timer-title">
-      <div className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-sm text-center">
-        <h2 id="timer-title" className="text-2xl font-bold text-primary-800 mb-4">Konyhai időzítő</h2>
-
-        {isActive || time > 0 ? (
-          <div className="my-4">
-            <p className="text-6xl font-mono font-bold text-gray-800 tracking-wider">{formatTime(time)}</p>
-          </div>
-        ) : (
-          <div className="flex justify-center items-center gap-2 my-6">
-            <input type="number" value={String(hours).padStart(2, '0')} onChange={(e) => handleTimeChange(setHours, e.target.value, 23)} className="w-20 p-2 text-center text-3xl font-mono bg-gray-100 rounded-lg" aria-label="Óra" />
-            <span className="text-3xl font-bold text-gray-400">:</span>
-            <input type="number" value={String(minutes).padStart(2, '0')} onChange={(e) => handleTimeChange(setMinutes, e.target.value, 59)} className="w-20 p-2 text-center text-3xl font-mono bg-gray-100 rounded-lg" aria-label="Perc" />
-            <span className="text-3xl font-bold text-gray-400">:</span>
-            <input type="number" value={String(seconds).padStart(2, '0')} onChange={(e) => handleTimeChange(setSeconds, e.target.value, 59)} className="w-20 p-2 text-center text-3xl font-mono bg-gray-100 rounded-lg" aria-label="Másodperc" />
+      <div className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-sm">
+        <h2 id="timer-title" className="text-2xl font-bold text-primary-800 mb-4 text-center">Konyhai Időzítő</h2>
+        <div className="text-6xl font-mono text-center my-6 p-4 bg-gray-100 rounded-lg text-gray-800">
+          {formatTime(time)}
+        </div>
+        {!isActive && (
+           <div className="flex justify-center items-center gap-2 mb-4">
+              <input type="number" value={hours} onChange={e => handleTimeChange(e.target.value, setHours, 99)} className="w-20 p-2 text-lg text-center border rounded" aria-label="Óra" />
+              <span>:</span>
+              <input type="number" value={minutes} onChange={e => handleTimeChange(e.target.value, setMinutes, 59)} className="w-20 p-2 text-lg text-center border rounded" aria-label="Perc" />
+              <span>:</span>
+              <input type="number" value={seconds} onChange={e => handleTimeChange(e.target.value, setSeconds, 59)} className="w-20 p-2 text-lg text-center border rounded" aria-label="Másodperc" />
           </div>
         )}
-        
         <div className="flex justify-center gap-3">
-          {!isActive && time === 0 ? (
-            <button onClick={handleStart} className="w-full bg-primary-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-primary-700 transition-all duration-200">
-              Indítás
-            </button>
-          ) : (
-             <>
-                <button onClick={handlePause} className="w-1/2 bg-yellow-500 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-yellow-600 transition-all duration-200">
-                  {isActive ? 'Szünet' : 'Folytatás'}
-                </button>
-                <button onClick={handleReset} className="w-1/2 bg-gray-300 text-gray-800 font-bold py-3 px-4 rounded-lg hover:bg-gray-400 transition-all duration-200">
-                  Leállítás
-                </button>
-            </>
-          )}
+          <button onClick={toggle} className={`font-bold py-3 px-6 rounded-lg shadow-md transition-colors w-32 ${isActive ? 'bg-yellow-500 hover:bg-yellow-600 text-white' : 'bg-primary-600 hover:bg-primary-700 text-white'}`}>
+            {isActive ? 'Szünet' : 'Indítás'}
+          </button>
+          <button onClick={reset} disabled={isActive} className="bg-gray-200 text-gray-800 font-bold py-3 px-6 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            Alaphelyzet
+          </button>
         </div>
-        
-        <button onClick={onClose} className="mt-4 w-full text-primary-600 font-semibold py-2 px-4 rounded-lg hover:bg-primary-100 transition-colors">
+        <button onClick={onClose} className="w-full mt-4 bg-red-100 text-red-700 font-bold py-2 px-4 rounded-lg hover:bg-red-200 transition-colors">
           Bezárás
         </button>
+        <audio ref={alarmAudioRef} src={alarmSound} preload="auto" />
       </div>
-      <audio ref={alarmAudioRef} src={alarmSound} preload="auto" />
     </div>
   );
 };

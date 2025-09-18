@@ -1,17 +1,28 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+// FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
+import type { Operation, GenerateVideosResponse } from '@google/genai';
 import { Recipe, VoiceCommand, Favorites } from './types';
-import { interpretUserCommand } from './services/geminiService';
+import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage } from './services/geminiService';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useNotification } from './contexts/NotificationContext';
 import KitchenTimer from './components/KitchenTimer';
 import SaveToFavoritesModal from './components/SaveToFavoritesModal';
+import VideoGenerationModal from './components/VideoGenerationModal';
+import VideoPlayerModal from './components/VideoPlayerModal';
+import ImageDisplayModal from './components/ImageDisplayModal';
+import ErrorMessage from './components/ErrorMessage';
+import InstructionCarousel from './components/InstructionCarousel';
 
+
+// FIX: Added missing props to the interface to match the usage in App.tsx.
 interface RecipeDisplayProps {
   recipe: Recipe;
   onClose: () => void;
+  onRefine: () => void;
   isFromFavorites: boolean;
   favorites: Favorites;
   onSave: (recipe: Recipe, category: string) => void;
+  isLoading: boolean;
 }
 
 type VoiceMode = 'idle' | 'intro' | 'ingredients' | 'cooking';
@@ -68,7 +79,7 @@ const DiabeticAdvice: React.FC<{ advice: string | undefined }> = ({ advice }) =>
 };
 
 
-const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFavorites, favorites, onSave }) => {
+const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave, isLoading }) => {
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isInterpreting, setIsInterpreting] = useState(false);
@@ -77,9 +88,58 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
   const [timerInitialValues, setTimerInitialValues] = useState<{ hours?: number; minutes?: number; seconds?: number } | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [videoGenerationProgress, setVideoGenerationProgress] = useState('');
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [videoGenerationError, setVideoGenerationError] = useState<string | null>(null);
+
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [isImageLoading, setIsImageLoading] = useState<boolean>(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [isImageModalOpen, setIsImageModalOpen] = useState<boolean>(false);
+
   const isInterpretingRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const { showNotification } = useNotification();
+
+  useEffect(() => {
+    // This effect handles fetching or generating an image for the current recipe.
+    const generateImage = async () => {
+      // If the recipe object itself contains an image URL (e.g., from a future, more capable storage), use it directly.
+      if (recipe.imageUrl) {
+        setImageUrl(recipe.imageUrl);
+        return;
+      }
+
+      // For new recipes OR for favorites that were saved without an image,
+      // we generate a new one to ensure a good visual experience.
+      setIsImageLoading(true);
+      setImageError(null);
+      try {
+        const base64Image = await generateRecipeImage(recipe);
+        const url = `data:image/jpeg;base64,${base64Image}`;
+        setImageUrl(url);
+      } catch (err: any) {
+        setImageError(err.message || 'Ismeretlen hiba történt az ételfotó generálása közben.');
+        // Only show a notification for brand new recipes to avoid being noisy when viewing favorites.
+        if (!isFromFavorites) {
+          showNotification('Az ételfotó generálása nem sikerült.', 'info');
+        }
+      } finally {
+        setIsImageLoading(false);
+      }
+    };
+
+    generateImage();
+  }, [recipe, isFromFavorites, showNotification]);
+
+  useEffect(() => {
+    return () => {
+        if (generatedVideoUrl) {
+            URL.revokeObjectURL(generatedVideoUrl);
+        }
+    };
+  }, [generatedVideoUrl]);
 
   const handleVoiceResult = useCallback(async (transcript: string) => {
     if (isInterpretingRef.current) return;
@@ -141,12 +201,13 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
         isInterpretingRef.current = false;
         setIsInterpreting(false);
     }
-  }, [voiceMode, showNotification]);
+  }, [voiceMode, showNotification, currentStepIndex]);
 
   const { 
     isSupported: recognitionIsSupported, 
     startListening, 
-    stopListening 
+    stopListening,
+    permissionState,
   } = useSpeechRecognition({
     onResult: handleVoiceResult,
     continuous: false,
@@ -156,7 +217,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
   const isSupported = recognitionIsSupported && synthesisIsSupported;
 
   useEffect(() => {
-    if (!isSupported || !voiceControlActive) {
+    if (!isSupported || !voiceControlActive || permissionState === 'denied') {
       window.speechSynthesis.cancel();
       stopListening();
       return;
@@ -210,7 +271,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
       window.speechSynthesis.cancel();
       stopListening();
     };
-  }, [voiceMode, currentStepIndex, recipe, isSupported, voiceControlActive]);
+  }, [voiceMode, currentStepIndex, recipe, isSupported, voiceControlActive, permissionState]);
 
 
   const handleToggleVoiceControl = () => {
@@ -240,6 +301,10 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
   const handlePrint = () => {
     // Sanitize the recipe name to create a filesystem-friendly filename.
     const safeFilename = recipe.recipeName.replace(/[^a-z0-9\u00C0-\u017F_-\s]/gi, '').trim() || 'recept';
+    
+    const imageHtml = imageUrl
+      ? `<div style="text-align: center; margin: 1.5rem 0; break-inside: avoid;"><img src="${imageUrl}" alt="Fotó a receptről: ${recipe.recipeName}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: cover; display: inline-block;"></div>`
+      : '';
 
     const printHtml = `
       <html>
@@ -261,6 +326,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
               color: #14532d; /* primary-900 */
               border-bottom: 2px solid #dcfce7; /* primary-100 */
               padding-bottom: 8px;
+              break-after: avoid;
             }
             h1 { font-size: 2.25rem; }
             h2 { font-size: 1.5rem; margin-top: 1.5rem; }
@@ -268,7 +334,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
             p { margin-bottom: 1rem; }
             em { color: #374151; }
             ul, ol { padding-left: 1.5rem; }
-            li { margin-bottom: 0.5rem; }
+            li { margin-bottom: 0.5rem; break-inside: avoid; }
             .meta-info { 
               display: flex; 
               gap: 1.5rem; 
@@ -277,19 +343,21 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
               border-radius: 0.5rem; 
               margin: 1.5rem 0;
               border: 1px solid #dcfce7; /* primary-100 */
+              break-inside: avoid;
             }
             .meta-info div { flex: 1; }
             .meta-info span { font-weight: 600; display: block; font-size: 0.875rem; color: #166534; /* primary-800 */ }
-            .nutritional-info { margin: 1.5rem 0; }
+            .nutritional-info { margin: 1.5rem 0; break-inside: avoid; }
             .nutritional-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem; }
             .nutritional-info-item { text-align: center; padding: 0.5rem; background-color: #f0fdf4; border-radius: 0.5rem; }
-            .diabetic-advice { margin: 1.5rem 0; padding: 1rem; background-color: #eff6ff; border-left: 4px solid #60a5fa; }
+            .diabetic-advice { margin: 1.5rem 0; padding: 1rem; background-color: #eff6ff; border-left: 4px solid #60a5fa; break-inside: avoid; }
             .diabetic-advice h4 { font-weight: bold; color: #1e3a8a; margin-top: 0; }
           </style>
         </head>
         <body>
           <h1>${recipe.recipeName}</h1>
           <p><em>${recipe.description}</em></p>
+          ${imageHtml}
           <div class="meta-info">
             <div><span>Előkészítés:</span> ${recipe.prepTime}</div>
             <div><span>Főzési idő:</span> ${recipe.cookTime}</div>
@@ -306,7 +374,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
               ${recipe.glycemicIndex ? `<div class="nutritional-info-item"><span>Glikémiás Index</span><br>${recipe.glycemicIndex}</div>` : ''}
             </div>
           </div>` : ''}
-           ${recipe.diabeticAdvice ? `
+          ${recipe.diabeticAdvice ? `
             <div class="diabetic-advice">
               <h4>Tipp cukorbetegeknek</h4>
               <p>${recipe.diabeticAdvice}</p>
@@ -348,10 +416,68 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
   };
 
   const handleSave = (category: string) => {
+    // To ensure favorites can always be saved without hitting browser storage limits,
+    // we save the recipe data *without* the generated image's large data URL.
+    // The image will be automatically re-generated whenever the favorite is viewed.
     onSave(recipe, category);
     setIsSaveModalOpen(false);
   };
-  
+
+  const handleGenerateVideo = async () => {
+    setIsGeneratingVideo(true);
+    setVideoGenerationError(null);
+    setGeneratedVideoUrl(null);
+
+    const progressMessages = [
+        "A séf felveszi a kötényt...",
+        "Hozzávalók előkészítése a forgatáshoz...",
+        "Kamera indul, felvétel!",
+        "A legfontosabb lépések rögzítése...",
+        "Vágás és utómunka...",
+        "Zene és effektek hozzáadása...",
+        "A videó renderelése, mindjárt kész!",
+    ];
+    let messageIndex = 0;
+    setVideoGenerationProgress(progressMessages[messageIndex]);
+
+    const messageInterval = setInterval(() => {
+        messageIndex = (messageIndex + 1) % progressMessages.length;
+        setVideoGenerationProgress(progressMessages[messageIndex]);
+    }, 8000);
+
+    try {
+        // FIX: The `Operation` generic type takes only one argument.
+        let operation: Operation<GenerateVideosResponse> = await generateRecipeVideo(recipe);
+
+        while (!operation.done) {
+            await new Promise(resolve => setTimeout(resolve, 10000)); // Poll every 10 seconds
+            operation = await getVideosOperationStatus(operation);
+        }
+
+        clearInterval(messageInterval);
+
+        const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+        if (downloadLink) {
+            // The response.body contains the MP4 bytes. You must append an API key when fetching from the download link.
+            const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+            if (!response.ok) {
+                throw new Error('Nem sikerült letölteni a generált videót.');
+            }
+            const videoBlob = await response.blob();
+            const videoUrl = URL.createObjectURL(videoBlob);
+            setGeneratedVideoUrl(videoUrl);
+        } else {
+            throw new Error('Nem található videó a generálási válaszban.');
+        }
+
+    } catch (err: any) {
+        setVideoGenerationError(err.message || 'Ismeretlen hiba történt a videó generálása közben.');
+    } finally {
+        setIsGeneratingVideo(false);
+        clearInterval(messageInterval);
+    }
+  };
+
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
 
   return (
@@ -360,6 +486,22 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
         <div className="p-6 md:p-8">
           <h2 className="text-3xl font-bold text-primary-800 mb-2">{recipe.recipeName}</h2>
           <p className="text-gray-600 italic mb-6">{recipe.description}</p>
+          
+          <div className="my-6">
+            {isImageLoading && (
+              <div className="aspect-[4/3] w-full bg-gray-200 rounded-lg animate-pulse"></div>
+            )}
+            {imageError && !isImageLoading && <ErrorMessage message={imageError} />}
+            {imageUrl && !isImageLoading && (
+              <button 
+                onClick={() => setIsImageModalOpen(true)} 
+                className="w-full block rounded-lg overflow-hidden shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-all duration-300"
+                aria-label="Ételfotó megtekintése nagyban"
+              >
+                <img src={imageUrl} alt={`Fotó a receptről: ${recipe.recipeName}`} className="w-full h-full object-cover" />
+              </button>
+            )}
+          </div>
           
           <div className="flex flex-wrap gap-4 md:gap-8 mb-6 text-gray-700">
               <div className="flex items-center gap-2">
@@ -390,10 +532,15 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
         <DiabeticAdvice advice={recipe.diabeticAdvice} />
 
         <div className="p-6 md:p-8">
+            {videoGenerationError && <div className="mb-4"><ErrorMessage message={videoGenerationError} /></div>}
             <div className="my-6 p-3 bg-gray-50 border rounded-lg flex flex-wrap justify-center items-center gap-3 no-print">
                 <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-primary-100 text-primary-800 rounded-lg hover:bg-primary-200 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
                     Mentés a kedvencekbe
+                </button>
+                 <button onClick={handleGenerateVideo} disabled={isGeneratingVideo} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                    {isGeneratingVideo ? 'Videó készül...' : 'Videó generálása'}
                 </button>
                 <button onClick={() => setIsTimerOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
@@ -408,14 +555,22 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
             {isSupported ? (
                 <div className="my-6 p-4 bg-primary-50 border border-primary-200 rounded-lg space-y-4 no-print">
                     <div className="flex items-center justify-center gap-2 text-primary-800">
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${voiceControlActive && isActivelySpeaking ? 'text-red-500 animate-pulse' : 'text-primary-700'}`} viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
-                            <path fillRule="evenodd" d="M7 2a4 4 0 00-4 4v6a4 4 0 108 0V6a4 4 0 00-4-4zM5 6a2 2 0 012-2h2a2 2 0 110 4H7a2 2 0 01-2-2zm10 4a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM4 11a1 1 0 100 2h12a1 1 0 100-2H4z" clipRule="evenodd" />
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${permissionState === 'denied' ? 'text-red-500' : (voiceControlActive && isActivelySpeaking ? 'text-red-500 animate-pulse' : 'text-primary-700')}`} viewBox="0 0 20 20" fill="currentColor">
+                           {permissionState === 'denied' ? (
+                                <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.523L13.477 14.89zm-2.02-2.02l-7.07-7.07A6.024 6.024 0 004 10v.789l.375.375 2.121 2.121L8.28 15h.789a6.002 6.002 0 006.33-4.885l-1.99 1.99zM10 18a8 8 0 100-16 8 8 0 000 16z" clipRule="evenodd" />
+                            ) : (
+                                <>
+                                    <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
+                                    <path fillRule="evenodd" d="M7 2a4 4 0 00-4 4v6a4 4 0 108 0V6a4 4 0 00-4-4zM5 6a2 2 0 012-2h2a2 2 0 110 4H7a2 2 0 01-2-2zm10 4a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM4 11a1 1 0 100 2h12a1 1 0 100-2H4z" clipRule="evenodd" />
+                                </>
+                            )}
                         </svg>
                         <h3 className="text-lg font-semibold">Hangvezérlés</h3>
                     </div>
                      <p className="text-center text-sm text-primary-700">
-                       {voiceControlActive
+                       {permissionState === 'denied'
+                          ? <span className="text-red-600 font-semibold">A mikrofon használata le van tiltva. Engedélyezze a böngésző beállításaiban.</span>
+                          : voiceControlActive
                           ? isInterpreting
                             ? 'Parancs értelmezése...'
                             : isActivelySpeaking
@@ -427,9 +582,9 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
                         <button onClick={handleToggleVoiceControl} className={`font-semibold py-2 px-4 rounded-lg transition-colors text-sm ${voiceControlActive ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-primary-200 text-primary-800 hover:bg-primary-300'}`}>
                             {voiceControlActive ? 'Leállítás' : 'Aktiválás'}
                         </button>
-                        <button onClick={handleReadIntro} disabled={isActivelySpeaking} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Leírás</button>
-                        <button onClick={handleReadIngredients} disabled={isActivelySpeaking} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Hozzávalók</button>
-                        <button onClick={handleStartCooking} disabled={isActivelySpeaking} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Főzés</button>
+                        <button onClick={handleReadIntro} disabled={isActivelySpeaking || permissionState === 'denied'} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Leírás</button>
+                        <button onClick={handleReadIngredients} disabled={isActivelySpeaking || permissionState === 'denied'} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Hozzávalók</button>
+                        <button onClick={handleStartCooking} disabled={isActivelySpeaking || permissionState === 'denied'} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Főzés</button>
                     </div>
                 </div>
             ) : null }
@@ -445,22 +600,39 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
               </div>
               <div className="space-y-4">
                 <h3 className="text-2xl font-semibold text-primary-700 border-b-2 border-primary-200 pb-2">Elkészítés</h3>
-                <ol className="space-y-4 text-gray-800">
-                  {recipe.instructions.map((instruction, index) => (
-                    <li key={index} className={`flex gap-3 items-start p-2 rounded ${voiceMode === 'cooking' && index === currentStepIndex ? 'bg-primary-100' : ''}`}>
-                      <span className="flex-shrink-0 text-lg font-bold text-primary-600 bg-primary-100 rounded-full h-8 w-8 flex items-center justify-center">{index + 1}</span>
-                      <p className="flex-1">{instruction}</p>
-                    </li>
-                  ))}
-                </ol>
+                <InstructionCarousel
+                  instructions={recipe.instructions}
+                  currentStep={currentStepIndex}
+                  onStepChange={setCurrentStepIndex}
+                  voiceModeActive={voiceMode === 'cooking'}
+                />
               </div>
             </div>
           </div>
       </div>
-       <div className="mt-6 no-print">
+       <div className="mt-6 no-print flex flex-col sm:flex-row gap-3">
+         {!isFromFavorites && (
+            <button
+                onClick={onRefine}
+                disabled={isLoading}
+                className="flex-1 bg-white border border-primary-600 text-primary-600 font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 flex justify-center items-center disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-wait"
+            >
+                {isLoading ? (
+                    <>
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Javaslatok betöltése...
+                    </>
+                ) : (
+                    'Finomítás és javaslatok'
+                )}
+            </button>
+         )}
         <button
             onClick={onClose}
-            className="w-full bg-primary-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200"
+            className="flex-1 bg-primary-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200"
         >
             {isFromFavorites ? 'Vissza a kedvencekhez' : 'Új recept készítése'}
         </button>
@@ -479,6 +651,9 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, isFromFa
         onSave={handleSave}
         existingCategories={Object.keys(favorites)}
       />
+      {isGeneratingVideo && <VideoGenerationModal progressMessage={videoGenerationProgress} />}
+      {generatedVideoUrl && <VideoPlayerModal videoUrl={generatedVideoUrl} recipeName={recipe.recipeName} onClose={() => setGeneratedVideoUrl(null)} />}
+      {isImageModalOpen && imageUrl && <ImageDisplayModal imageUrl={imageUrl} recipeName={recipe.recipeName} onClose={() => setIsImageModalOpen(false)} />}
     </>
   );
 };
