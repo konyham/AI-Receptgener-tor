@@ -383,16 +383,59 @@ export const getVideosOperationStatus = async (operation: Operation<GenerateVide
     }
 };
 
-export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
-  // Extracting main ingredients to guide the image generation more accurately.
-  const mainIngredients = recipe.ingredients.slice(0, 5).map(i => i.split('(')[0].trim()).join(', ');
+/**
+ * Intelligensen megtisztítja a hozzávaló stringjét, hogy csak az alapanyag nevét adja vissza.
+ * Eltávolítja a mennyiségeket, mértékegységeket, zárójeles részeket és gyakori jelzőket.
+ * @param ingredient A nyers hozzávaló string (pl. "250g liszt (BL55)").
+ * @returns A tiszta alapanyag neve (pl. "liszt").
+ */
+const cleanIngredientForImagePrompt = (ingredient: string): string => {
+  let cleaned = ingredient.toLowerCase().replace(/\(.*\)/g, '').trim();
+  
+  const patternsToRemove = [
+    // Matches numbers (e.g., 2, 1.5, 1/2, 1-2) and common units
+    /^\d+[\/\d\s.-]*\s*(g|dkg|kg|db|csomag|evőkanál|ek|teáskanál|tk|dl|ml|bögre|csipet|gerezd|fej|csokor|szál|levél)?\s*/,
+    // Matches word-based quantities
+    /^(egy|két|három|négy|öt|pár|fél)\s+/,
+    // Matches common phrases
+    /^(ízlés szerint|egy csipet|egy kevés)\s+/,
+    // Matches common adjectives/descriptors, will be applied repeatedly
+    /^(nagy|kicsi|közepes|friss|őrölt|apróra vágott|szeletelt|finomra vágott|durvára vágott|felkockázott|reszelt|forró|hideg)\s+/
+  ];
 
-  const prompt = `Professzionális, rendkívül valósághű és étvágygerjesztő ételfotó. A képen a következő étel látható: "${recipe.recipeName}".
-  A leírása segít a vizuális megjelenítésben: "${recipe.description}".
-  A fotón KIZÁRÓLAG a receptben szereplő hozzávalók látszódjanak. A főbb összetevők a következők: ${mainIngredients}.
-  Ne adj hozzá semmilyen más, a receptben nem említett összetevőt (mint például extra zöldségek, gyümölcsök vagy köretek, amik nincsenek a listában).
-  A tálalás legyen elegáns és modern, a háttér legyen világos és letisztult. A fotó legyen éles, részletgazdag, mintha egy profi ételfotós készítette volna egy gasztromagazinba.
-  Fontos: A képen ne szerepeljen semmilyen szöveg, felirat vagy betű.`;
+  let lastCleaned = '';
+  // Loop until the string stops changing to remove chained descriptors
+  while (lastCleaned !== cleaned) {
+    lastCleaned = cleaned;
+    patternsToRemove.forEach(pattern => {
+      cleaned = cleaned.replace(pattern, '').trim();
+    });
+  }
+  
+  return cleaned;
+};
+
+
+export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
+  const allCleanIngredients = recipe.ingredients
+    .map(cleanIngredientForImagePrompt)
+    .filter(Boolean)
+    .join(', ');
+
+  const prompt = `GENERÁLÁSI UTASÍTÁS ÉTELFOTÓHOZ.
+
+TÉMA: Professzionális, rendkívül valósághű és étvágygerjesztő ételfotó a következő ételről: "${recipe.recipeName}". A leírás segít a vizuális megjelenítésben: "${recipe.description}".
+
+SZIGORÚ TARTALMI SZABÁLYOK:
+1.  ENGEDÉLYEZETT HOZZÁVALÓK: A fotón KIZÁRÓLAG az alábbi listában szereplő alapanyagokból készült étel, vagy maguk az alapanyagok szerepelhetnek. A teljes lista: ${allCleanIngredients}.
+2.  TILTOTT ELEMEK: Szigorúan tilos BÁRMILYEN MÁS összetevőt hozzáadni a képhez, ami nincs a fenti listában. A cél a recepthez való 100%-os vizuális hűség. Különösen Tilos a képen megjeleníteni (hacsak nem szerepelnek a fenti listában): paradicsom, uborka, paprika, salátalevél, citromkarika, narancskarika, retek, olajbogyó, vagy bármilyen más, a recepthez nem tartozó díszítőelem.
+3.  FÓKUSZ: A főétel legyen a középpontban. Ne adj hozzá felesleges köreteket, ha azok nem részei a receptnek.
+
+VIZUÁLIS STÍLUS:
+- Tálalás: Elegáns és modern.
+- Háttér: Világos, letisztult, minimálisan texturált (pl. márvány, fa, vagy egyszínű felület).
+- Fényképezés: Éles, részletgazdag, mintha egy profi ételfotós készítette volna egy gasztromagazinba.
+- Szöveg: A képen TILOS bármilyen szöveg, felirat vagy betű.`;
 
   try {
     const response = await ai.models.generateImages({
