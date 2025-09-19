@@ -58,7 +58,7 @@ const App: React.FC = () => {
         const newSuggestions = await getRecipeModificationSuggestions(lastGenerationParams.ingredients, recipe.recipeName);
         setSuggestions(newSuggestions);
       } catch (err: any) {
-        showNotification('Nem sikerült javaslatokat betölteni.', 'info');
+        showNotification(err.message || 'Nem sikerült javaslatokat betölteni.', 'info');
         setSuggestions(null);
       }
       

@@ -1,4 +1,56 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useNotification } from '../contexts/NotificationContext';
+
+// Helper component for styled time inputs with steppers
+const TimeInput: React.FC<{
+  value: number;
+  setter: React.Dispatch<React.SetStateAction<number>>;
+  max: number;
+  label: string;
+}> = ({ value, setter, max, label }) => {
+  const increment = () => setter(prev => (prev < max ? prev + 1 : 0));
+  const decrement = () => setter(prev => (prev > 0 ? prev - 1 : max));
+
+  const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const num = parseInt(e.target.value, 10);
+    if (!isNaN(num) && num >= 0 && num <= max) {
+      setter(num);
+    } else if (e.target.value === '') {
+      setter(0);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative flex flex-col items-center">
+        <button
+          onClick={increment}
+          className="text-gray-500 hover:text-primary-600 transition-colors p-2"
+          aria-label={`${label} növelése`}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7"></path></svg>
+        </button>
+        <input
+          type="number"
+          value={String(value).padStart(2, '0')}
+          onChange={handleValueChange}
+          className="w-24 text-center text-4xl font-semibold bg-gray-100 rounded-md py-2 border border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          aria-label={label}
+        />
+        <button
+          onClick={decrement}
+          className="text-gray-500 hover:text-primary-600 transition-colors p-2"
+          aria-label={`${label} csökkentése`}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7 7"></path></svg>
+        </button>
+      </div>
+      <span className="text-xs text-gray-500 mt-1 uppercase">{label}</span>
+    </div>
+  );
+};
+
 
 interface KitchenTimerProps {
   onClose: () => void;
@@ -10,13 +62,59 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
   const [minutes, setMinutes] = useState(10);
   const [seconds, setSeconds] = useState(0);
   const [isActive, setIsActive] = useState(false);
-  const [time, setTime] = useState(0); 
+  const [time, setTime] = useState(0);
+  const [isAlarming, setIsAlarming] = useState(false);
+  
+  const { showNotification } = useNotification();
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const alarmIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Web Audio API implementation for reliable sound
+  const playAlarm = () => {
+    if (!audioContextRef.current) {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContext) {
+            audioContextRef.current = new AudioContext();
+        } else {
+            console.error('Web Audio API is not supported in this browser.');
+            return;
+        }
+    }
+    const context = audioContextRef.current;
+    if (context.state === 'suspended') {
+        context.resume();
+    }
+    
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
 
-  const alarmAudioRef = useRef<HTMLAudioElement>(null);
-  // FIX: Replaced the problematic (empty) WAV data URI with a programmatically generated,
-  // reliable 1-second 440Hz sine wave beep. This guarantees a valid sound source and
-  // resolves the "The play() request was interrupted by end of playback" error.
-  const alarmSound = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YVgAAAACAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEwAUABUAFgAXABgAGQAaABsAHAAdAB4AHwAgACEAIgAjACQAJQAmACcAKQAqACsALAAtAC4ALwAwADEAMgAzADQANQA2ADcAOAA5ADoAOwA8AD0APgA/AEAAQQBCAEMARABFAEYARwBIAEkASgBLAEwATQBOAE8AUABRAFIAUwBUAFUAVgBXAFgAWQBaAFsAXABdAF4AXwBgAGGAbQBzAHEAcwB1AGMAdQB3AHkAdwB9AHsAfQB/AIIAgwCDAIEAgwCEAIYAhACIAIcAiwCJAIsAigCNAI4AjQCOAJAAkQCSAJMAlACVAJYAlwCYAJoAmgCbAJwAnQCeAJ8AoAChAKIAowCkAKUApgCnAKgAqQCrAKwArQCuAK8AsACxALIAsgCzALQAtQC2ALcAuAC5ALoAuQC7ALwAvQC+AL8AwADBAIIAwgDDAMQAxQDGAMYAxwDIAMkAywDLAMwAzQDOAM8A0ADRANEA0gDTANMA1ADVANUA1gDXANgA2QDaANsA3ADdAN4A3wDgAOEA4gDjAOMA5ADlAOYA5wDoAOkA6gDrAOwA7QDuAO8A8ADxAPIA8wD0APUA9gD3APgA+QD6APoA+wD8APsA/QD+AP8BAAEAAQABAAIAAgACAAIAAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEwAUABUAFgAXABgAGQAaABsAHAAdAB4AHwAgACEAIgAjACQAJQAmACcAKAApACoAKwAsAC0ALgAvADAAMQAyADMANAA1ADYANwA4ADkAOgA7ADwAPQA+AD8AQABBAEIAQwBEAEUARgBIAEgASQBLAEsATABNAE4ATwBQAFEAUgBTAFQAVQBWAFcAWABZAFoAWwBcAF0AXgBfAGAAZQBpAGoAbQBuAHAAcQByAHMAdAB1AHYAdwB5AHoAfAB9AH4AgACCAIEAgwCEAIUAhgCHAIgAigCMAI4AkACSAJQAlQCWAJsAnAChAKQAqgCuALMAtgC8AMQAygDOANIA1QDbAOEA5QDrAPEA9gD8AQAEAAcACwAPABMAFgAaAB4AIwAnACwAMgA3ADwAQQBGAEoATgBSAFYAWgBeAGIAZwBpAGwAbgBwAHIAcwB1AHcAdwB6AHsAfAB/AIAAgwCEAIMAhACFAIgAhwCJAIoAiwCMAI4AjgCRAJEAlACWAJgAmgCcAJsAnACeAKAAoQCiAKMApACmAKgAqgCsALAAswC1ALgAvADIAMwA0gDXANwA4gDlAOoA7gDxAPcA/gEABQAHAAkACwANAA8AEQATABUAFwAZABsAHQAeACAAIgAkACYAKAAsAC4AMAAvADEAMwA0ADYAOAA6ADwAPgBBAEMARgBJAEwATwBSAFUAVwBZAF0AYQBhAGMAbwB0AHwAiwCVAKIAngCoALEAvgDLANAA2ADkAPMA/gIAAQACAwECAAAB/v/6//b/+f/4//j/+f/2//X/+v/5//f/+f/1//T/+v/1//P/9v/z//L/+v/x//H/+f/u//L/+f/s//H/+f/q//D/+f/p//D/+f/n//H/+f/k//H/+f/m//L/+f/k//L/+f/n//P/+f/o//P/+f/q//X/+f/s//b/+f/t//j/+f/w//r/+f/z//v/+f/3//4A/wEBAf//+///+f/6//r/+f/3//b/+f/z//X/+f/w//P/+f/s//L/+f/p//H/+f/m//D/+f/k//D/+f/i//H/+f/i//H/+f/j//L/+f/j//P/+f/l//P/+f/n//b/+f/q//j/+f/s//r/+f/v//v/+f/z//4A/wEDAQIBAAH//wD/+v/5//n/+f/1//r/+f/y//f/+f/v//j/+f/s//b/+f/p//P/+f/m//L/+f/k//L/+f/j//P/+f/j//T/+f/k//X/+f/l//f/+f/n//j/+f/q//r/+f/s//v/+f/u//4A/wEAAQIB/v/9//7//P/8//z//P/9//z//f/8//j//P/6//z//P/8//3//P/8//z//P/9//z//f/8//j//P/6//z//f/8//7//P/9//4A/wECAQABAAH//wD/AQABAgD/AP8A/wD//P/6//f/9v/0//L/8f/v//H/+v/v//P/9v/w//f/+v/w//v/+v/x//4A/wD/AP8A/wD//P/9//z//f/9//3//f/9//3//f/9//z//f/8//z//P/8//z//P/8//z//f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/8//3//P/8//z//P/8//z//P/8//z//f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/9//z//P/8//z//P/8//z//P/8//z//P/8//z//P/9//z//P/9//z//P/8//z//P/8//z//P/8//z//P/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/9//z//f/8//z//P/8//z//P/8//z//P/9//3//f/9//3//f/9//z//f/8//z//P/8//z//P/9//z//P/8//z//P/9//z//f/8//z//P/8//z//P/9//3//f/9//z//f/9//z//f/9//z//f/9//z//f/9//3//f/9//3//f/8//z//P';
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, context.currentTime); // High A note
+    
+    gainNode.gain.setValueAtTime(0, context.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.5, context.currentTime + 0.05); // Quick fade-in
+    gainNode.gain.linearRampToValueAtTime(0, context.currentTime + 0.5); // Fade-out
+
+    oscillator.start(context.currentTime);
+    oscillator.stop(context.currentTime + 0.5);
+  };
+
+  const handleVoiceCommand = (transcript: string) => {
+    const command = transcript.toLowerCase().trim();
+    if (isAlarming && (command.includes('stop') || command.includes('állj'))) {
+      showNotification('Riasztás leállítva hangparanccsal.', 'success');
+      stopAlarm();
+      reset();
+    }
+  };
+
+  const { isListening, startListening, stopListening, permissionState } = useSpeechRecognition({
+    onResult: handleVoiceCommand,
+    continuous: false,
+  });
 
   const calculateTotalSeconds = () => hours * 3600 + minutes * 60 + seconds;
 
@@ -38,23 +136,65 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
     }
   }, [initialValues]);
 
-
+  const stopAlarm = () => {
+    if (alarmIntervalRef.current) {
+        clearInterval(alarmIntervalRef.current);
+        alarmIntervalRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().then(() => {
+            audioContextRef.current = null;
+        });
+    }
+    setIsAlarming(false);
+    stopListening();
+  };
+  
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     if (isActive && time > 0) {
       interval = setInterval(() => {
         setTime((prevTime) => prevTime - 1);
       }, 1000);
-    } else if (time === 0 && isActive) {
+    } else if (time <= 0 && isActive) {
       setIsActive(false);
-      alarmAudioRef.current?.play().catch(e => console.error("Alarm play failed:", e));
+      setIsAlarming(true);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
   }, [isActive, time]);
+  
+  useEffect(() => {
+    if (isAlarming) {
+        playAlarm(); // Play once immediately
+        alarmIntervalRef.current = setInterval(playAlarm, 1200); // Repeat every 1.2 seconds
+    } else {
+        stopAlarm();
+    }
+
+    return () => {
+        if (alarmIntervalRef.current) {
+            clearInterval(alarmIntervalRef.current);
+        }
+    };
+  }, [isAlarming]);
+  
+  // This is a separate effect to avoid re-triggering the alarm sound on every permission/listening change
+  useEffect(() => {
+    if (isAlarming && permissionState === 'granted' && !isListening) {
+      startListening();
+    } else if (!isAlarming && isListening) {
+      stopListening();
+    }
+  }, [isAlarming, isListening, permissionState, startListening, stopListening]);
 
   const toggle = () => {
+    if (isAlarming) {
+        stopAlarm();
+        reset();
+        return;
+    }
     if (isActive) {
       setIsActive(false);
     } else {
@@ -67,11 +207,17 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
   };
 
   const reset = () => {
+    stopAlarm();
     setIsActive(false);
     setHours(0);
     setMinutes(10);
     setSeconds(0);
     setTime(600);
+  };
+
+  const handleClose = () => {
+    stopAlarm();
+    onClose();
   };
 
   const formatTime = (totalSeconds: number) => {
@@ -81,47 +227,47 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  const handleTimeChange = (
-    value: string,
-    setter: React.Dispatch<React.SetStateAction<number>>,
-    max: number
-  ) => {
-    const num = parseInt(value, 10);
-    if (!isNaN(num) && num >= 0 && num <= max) {
-      setter(num);
-    } else if (value === '') {
-      setter(0);
-    }
-  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="timer-title">
-      <div className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-sm">
+      <div className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-md">
         <h2 id="timer-title" className="text-2xl font-bold text-primary-800 mb-4 text-center">Konyhai Időzítő</h2>
-        <div className="text-6xl font-mono text-center my-6 p-4 bg-gray-100 rounded-lg text-gray-800">
-          {formatTime(time)}
-        </div>
-        {!isActive && (
-           <div className="flex justify-center items-center gap-2 mb-4">
-              <input type="number" value={hours} onChange={e => handleTimeChange(e.target.value, setHours, 99)} className="w-20 p-2 text-lg text-center border rounded" aria-label="Óra" />
-              <span>:</span>
-              <input type="number" value={minutes} onChange={e => handleTimeChange(e.target.value, setMinutes, 59)} className="w-20 p-2 text-lg text-center border rounded" aria-label="Perc" />
-              <span>:</span>
-              <input type="number" value={seconds} onChange={e => handleTimeChange(e.target.value, setSeconds, 59)} className="w-20 p-2 text-lg text-center border rounded" aria-label="Másodperc" />
+        
+        {isActive || isAlarming ? (
+            <div className={`text-6xl font-mono text-center my-6 p-4 rounded-lg text-gray-800 transition-colors duration-300 ${isAlarming ? 'animate-pulse-red' : 'bg-gray-100'}`}>
+                {formatTime(time)}
+            </div>
+        ) : (
+           <div className="flex justify-center items-start gap-3 my-6">
+              <TimeInput value={hours} setter={setHours} max={99} label="Óra" />
+              <span className="text-4xl font-semibold mt-12">:</span>
+              <TimeInput value={minutes} setter={setMinutes} max={59} label="Perc" />
+              <span className="text-4xl font-semibold mt-12">:</span>
+              <TimeInput value={seconds} setter={setSeconds} max={59} label="Másodperc" />
           </div>
         )}
+
         <div className="flex justify-center gap-3">
-          <button onClick={toggle} className={`font-bold py-3 px-6 rounded-lg shadow-md transition-colors w-32 ${isActive ? 'bg-yellow-500 hover:bg-yellow-600 text-white' : 'bg-primary-600 hover:bg-primary-700 text-white'}`}>
-            {isActive ? 'Szünet' : 'Indítás'}
+          <button onClick={toggle} className={`font-bold py-3 px-6 rounded-lg shadow-md transition-colors w-48 ${isAlarming ? 'bg-red-600 hover:bg-red-700 text-white' : (isActive ? 'bg-yellow-500 hover:bg-yellow-600 text-white' : 'bg-primary-600 hover:bg-primary-700 text-white')}`}>
+            {isAlarming ? 'Riasztás leállítása' : (isActive ? 'Szünet' : 'Indítás')}
           </button>
           <button onClick={reset} disabled={isActive} className="bg-gray-200 text-gray-800 font-bold py-3 px-6 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             Alaphelyzet
           </button>
         </div>
-        <button onClick={onClose} className="w-full mt-4 bg-red-100 text-red-700 font-bold py-2 px-4 rounded-lg hover:bg-red-200 transition-colors">
+        <div className="text-center mt-3 text-sm h-5">
+            {isAlarming && permissionState === 'granted' && (
+            <p className="text-gray-600 animate-fade-in">
+                Mondja: <strong className="text-primary-700">„Stop”</strong> vagy <strong className="text-primary-700">„Állj”</strong> a leállításhoz.
+            </p>
+            )}
+            {isAlarming && permissionState === 'denied' && (
+            <p className="text-red-600 font-semibold animate-fade-in">A hangvezérléses leállításhoz engedélyezze a mikrofont.</p>
+            )}
+        </div>
+        <button onClick={handleClose} className="w-full mt-2 bg-gray-100 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors">
           Bezárás
         </button>
-        <audio ref={alarmAudioRef} src={alarmSound} preload="auto" />
       </div>
     </div>
   );

@@ -384,8 +384,13 @@ export const getVideosOperationStatus = async (operation: Operation<GenerateVide
 };
 
 export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
-  const prompt = `Professzionális, rendkívül valósághű és étvágygerjesztő ételfotó. A képen a következő étel látható: "${recipe.recipeName}". 
-  A leírása segít a vizuális megjelenítésben: "${recipe.description}". 
+  // Extracting main ingredients to guide the image generation more accurately.
+  const mainIngredients = recipe.ingredients.slice(0, 5).map(i => i.split('(')[0].trim()).join(', ');
+
+  const prompt = `Professzionális, rendkívül valósághű és étvágygerjesztő ételfotó. A képen a következő étel látható: "${recipe.recipeName}".
+  A leírása segít a vizuális megjelenítésben: "${recipe.description}".
+  A fotón KIZÁRÓLAG a receptben szereplő hozzávalók látszódjanak. A főbb összetevők a következők: ${mainIngredients}.
+  Ne adj hozzá semmilyen más, a receptben nem említett összetevőt (mint például extra zöldségek, gyümölcsök vagy köretek, amik nincsenek a listában).
   A tálalás legyen elegáns és modern, a háttér legyen világos és letisztult. A fotó legyen éles, részletgazdag, mintha egy profi ételfotós készítette volna egy gasztromagazinba.
   Fontos: A képen ne szerepeljen semmilyen szöveg, felirat vagy betű.`;
 
@@ -448,6 +453,8 @@ export const getRecipeModificationSuggestions = async (
       config: {
         responseMimeType: 'application/json',
         responseSchema: suggestionSchema,
+        maxOutputTokens: 1024,
+        thinkingConfig: { thinkingBudget: 256 },
       },
     });
     const jsonText = response.text.trim();
@@ -458,7 +465,9 @@ export const getRecipeModificationSuggestions = async (
     return suggestions;
   } catch (error) {
     console.error('Error generating recipe suggestions:', error);
-    // Return empty suggestions on error to avoid breaking the UI
-    return { suggestedIngredients: [], modificationIdeas: [] };
+    if (error instanceof SyntaxError) {
+        throw new Error('Hiba történt a javaslatok feldolgozása közben. Az AI által adott válasz hibás formátumú volt.');
+    }
+    throw new Error('Nem sikerült javaslatokat generálni. Kérjük, próbálja újra később.');
   }
 };
