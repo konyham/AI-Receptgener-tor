@@ -24,4 +24,5 @@ export const MEAL_TYPES: { value: MealType; label: string }[] = [
 export const COOKING_METHODS: { value: CookingMethod; label: string }[] = [
   { value: CookingMethod.TRADITIONAL, label: 'Hagyományos' },
   { value: CookingMethod.SMART_COOKER, label: 'Okoskukta' },
+  { value: CookingMethod.THERMOMIXER, label: 'Monsieur Cuisine Connect termomixer' },
 ];

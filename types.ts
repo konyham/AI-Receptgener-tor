@@ -38,6 +38,7 @@ export enum MealType {
 export enum CookingMethod {
   TRADITIONAL = 'traditional',
   SMART_COOKER = 'smart_cooker',
+  THERMOMIXER = 'thermomixer',
 }
 
 export enum VoiceCommand {

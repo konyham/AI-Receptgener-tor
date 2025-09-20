@@ -391,7 +391,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
 
       <div>
         <label htmlFor="special-request" className="block text-lg font-semibold text-gray-700 mb-2">
-          Különleges kérés (opcionális)
+          Különleges kérés (nem kötelező)
         </label>
         <textarea
           id="special-request"
