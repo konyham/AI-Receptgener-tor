@@ -3,7 +3,7 @@ import { ShoppingListItem } from '../types';
 
 interface ShoppingListViewProps {
   list: ShoppingListItem[];
-  onAddItem: (itemText: string) => void;
+  onAddItems: (items: string[]) => void;
   onUpdateItem: (index: number, updatedItem: ShoppingListItem) => void;
   onRemoveItem: (index: number) => void;
   onClearChecked: () => void;
@@ -12,7 +12,7 @@ interface ShoppingListViewProps {
 
 const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   list,
-  onAddItem,
+  onAddItems,
   onUpdateItem,
   onRemoveItem,
   onClearChecked,
@@ -23,8 +23,11 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (newItem.trim()) {
-      onAddItem(newItem.trim());
-      setNewItem('');
+      const itemsToAdd = newItem.split(',').map(item => item.trim()).filter(Boolean);
+      if (itemsToAdd.length > 0) {
+        onAddItems(itemsToAdd);
+        setNewItem('');
+      }
     }
   };
 
@@ -44,7 +47,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
           type="text"
           value={newItem}
           onChange={(e) => setNewItem(e.target.value)}
-          placeholder="Új tétel hozzáadása..."
+          placeholder="Új tétel (vesszővel elválasztva)..."
           className="flex-grow p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
           aria-label="Új bevásárlólista tétel"
         />

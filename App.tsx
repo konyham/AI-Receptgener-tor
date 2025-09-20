@@ -56,6 +56,35 @@ const App: React.FC = () => {
       setShoppingList([]); // Start with empty list on corruption
     }
   }, [showNotification]);
+
+  // Handlers for Shopping List - Placed here as they are fundamental
+  const handleShoppingListAddItems = (items: string[]) => {
+    const updatedList = shoppingListService.addItems(items);
+    setShoppingList(updatedList);
+    showNotification(`${items.length} tétel hozzáadva a bevásárlólistához!`, 'success');
+  };
+
+  const handleShoppingListUpdateItem = (index: number, updatedItem: ShoppingListItem) => {
+      const updatedList = shoppingListService.updateItem(index, updatedItem);
+      setShoppingList(updatedList);
+  };
+
+  const handleShoppingListRemoveItem = (index: number) => {
+      const updatedList = shoppingListService.removeItem(index);
+      setShoppingList(updatedList);
+  };
+
+  const handleShoppingListClearChecked = () => {
+      const updatedList = shoppingListService.clearChecked();
+      setShoppingList(updatedList);
+      showNotification('Kipipált tételek törölve.', 'info');
+  };
+  
+  const handleShoppingListClearAll = () => {
+      const updatedList = shoppingListService.clearAll();
+      setShoppingList(updatedList);
+      showNotification('Bevásárlólista törölve.', 'info');
+  };
   
   // Voice control logic
   const handleAppVoiceResult = useCallback(async (transcript: string) => {
@@ -81,7 +110,10 @@ const App: React.FC = () => {
                 showNotification(`Navigálás: ${command.payload}`, 'info');
                 break;
             case 'add_shopping_list_item':
-                handleShoppingListAddItem(command.payload as string);
+                const itemsToAdd = (command.payload as string).split(',').map(s => s.trim()).filter(Boolean);
+                if (itemsToAdd.length > 0) {
+                    handleShoppingListAddItems(itemsToAdd);
+                }
                 showNotification(`Hozzáadva: ${command.payload}`, 'success');
                 break;
             case 'remove_shopping_list_item':
@@ -155,7 +187,7 @@ const App: React.FC = () => {
         isProcessingRef.current = false;
         setIsProcessingVoice(false);
     }
-  }, [page, favorites, shoppingList, showNotification]);
+  }, [page, favorites, shoppingList, showNotification, handleShoppingListAddItems]);
 
   const {
     isListening: isAppListening,
@@ -248,40 +280,6 @@ const App: React.FC = () => {
      showNotification(`"${category}" kategória törölve.`, 'info');
   };
 
-  // Handlers for Shopping List
-  const handleShoppingListAddItems = (items: string[]) => {
-    const updatedList = shoppingListService.addItems(items);
-    setShoppingList(updatedList);
-    showNotification(`${items.length} tétel hozzáadva a bevásárlólistához!`, 'success');
-  };
-
-  const handleShoppingListAddItem = (itemText: string) => {
-    const updatedList = shoppingListService.addItems([itemText]);
-    setShoppingList(updatedList);
-  };
-  
-  const handleShoppingListUpdateItem = (index: number, updatedItem: ShoppingListItem) => {
-      const updatedList = shoppingListService.updateItem(index, updatedItem);
-      setShoppingList(updatedList);
-  };
-
-  const handleShoppingListRemoveItem = (index: number) => {
-      const updatedList = shoppingListService.removeItem(index);
-      setShoppingList(updatedList);
-  };
-
-  const handleShoppingListClearChecked = () => {
-      const updatedList = shoppingListService.clearChecked();
-      setShoppingList(updatedList);
-      showNotification('Kipipált tételek törölve.', 'info');
-  };
-  
-  const handleShoppingListClearAll = () => {
-      const updatedList = shoppingListService.clearAll();
-      setShoppingList(updatedList);
-      showNotification('Bevásárlólista törölve.', 'info');
-  };
-
   const showGenerator = () => {
     setRecipe(null);
     setSuggestions(null);
@@ -372,7 +370,7 @@ const App: React.FC = () => {
       return (
         <ShoppingListView
           list={shoppingList}
-          onAddItem={handleShoppingListAddItem}
+          onAddItems={handleShoppingListAddItems}
           onUpdateItem={handleShoppingListUpdateItem}
           onRemoveItem={handleShoppingListRemoveItem}
           onClearChecked={handleShoppingListClearChecked}
