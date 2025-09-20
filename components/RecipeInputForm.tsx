@@ -67,7 +67,18 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   useEffect(() => {
     const saved = localStorage.getItem(INGREDIENTS_STORAGE_KEY);
     setHasSavedIngredients(!!saved);
-  }, []);
+    // Auto-load ingredients if they exist
+    if (saved) {
+      try {
+        const loadedIngredients = JSON.parse(saved);
+        if (Array.isArray(loadedIngredients) && loadedIngredients.every(i => typeof i === 'string')) {
+          setIngredients(loadedIngredients);
+        }
+      } catch (e) {
+        console.error("Failed to auto-load ingredients from localStorage:", e);
+      }
+    }
+  }, []); // Run only on mount
   
   const addSuggestedIngredient = (ingredient: string) => {
       if (ingredient && !ingredients.includes(ingredient)) {
@@ -175,6 +186,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     } catch (error: any) {
         console.error("Error interpreting form command:", error);
         let errorMessage = "Hiba a hangparancs értelmezése közben.";
+        // FIX: Changed `err` to `error` to match the variable defined in the catch block.
         const errorString = (typeof error.message === 'string') ? error.message : JSON.stringify(error);
         
         if (errorString.includes('RESOURCE_EXHAUSTED') || errorString.includes('429')) {

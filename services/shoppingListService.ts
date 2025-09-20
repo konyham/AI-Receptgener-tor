@@ -5,27 +5,25 @@ const SHOPPING_LIST_KEY = 'ai-recipe-generator-shopping-list';
 // Reads the list from localStorage.
 export const getShoppingList = (): ShoppingListItem[] => {
   const listJson = localStorage.getItem(SHOPPING_LIST_KEY);
-  // Return empty array if no data is found.
   if (!listJson) {
       return [];
   }
 
   try {
     const list = JSON.parse(listJson);
-    // Basic validation to ensure we have an array.
-    if (Array.isArray(list)) {
+    // Add more robust validation for the array and its items.
+    if (Array.isArray(list) && list.every(item => typeof item === 'object' && item !== null && 'text' in item && 'checked' in item)) {
         return list;
     }
-    // If data is not in the expected format, log it but don't delete.
-    console.warn('Shopping list data in localStorage is not a valid array:', listJson);
-    return [];
+     throw new Error('Malformed shopping list data structure.');
   } catch (error) {
-    console.error("Error parsing shopping list from localStorage. Data might be corrupted.", error);
-    // Log the corrupted data to help with debugging.
-    console.error("Corrupted shopping list data from localStorage:", listJson);
-    return [];
+    console.error("Error parsing shopping list from localStorage. Backing up corrupted data.", error);
+    localStorage.setItem(`${SHOPPING_LIST_KEY}_corrupted_${Date.now()}`, listJson);
+    localStorage.removeItem(SHOPPING_LIST_KEY);
+    throw new Error('A bevásárlólista sérült, ezért nem sikerült betölteni. A sérült adatokról biztonsági mentés készült, és egy új, üres lista jött létre.');
   }
 };
+
 
 // Saves the list to localStorage.
 export const saveShoppingList = (list: ShoppingListItem[]): void => {

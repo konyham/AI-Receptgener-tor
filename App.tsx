@@ -43,9 +43,19 @@ const App: React.FC = () => {
   const isProcessingRef = useRef(false);
 
   useEffect(() => {
-    setFavorites(favoritesService.getFavorites());
-    setShoppingList(shoppingListService.getShoppingList());
-  }, []);
+    try {
+      setFavorites(favoritesService.getFavorites());
+    } catch (err: any) {
+      showNotification(err.message, 'info');
+      setFavorites({}); // Start with empty favorites on corruption
+    }
+    try {
+      setShoppingList(shoppingListService.getShoppingList());
+    } catch (err: any) {
+      showNotification(err.message, 'info');
+      setShoppingList([]); // Start with empty list on corruption
+    }
+  }, [showNotification]);
   
   // Voice control logic
   const handleAppVoiceResult = useCallback(async (transcript: string) => {

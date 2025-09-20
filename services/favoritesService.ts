@@ -4,31 +4,33 @@ const FAVORITES_KEY = 'ai-recipe-generator-favorites';
 
 /**
  * Retrieves the favorites object from localStorage.
- * Returns an empty object if nothing is found or if there's a parsing error.
+ * Throws an error and backs up data if it's corrupted.
  */
 export const getFavorites = (): Favorites => {
   const favoritesJson = localStorage.getItem(FAVORITES_KEY);
-  // Return empty object if no data is found.
   if (!favoritesJson) {
       return {};
   }
 
   try {
     const favorites = JSON.parse(favoritesJson);
-    // Basic validation to ensure we have an object.
+    // Basic validation to ensure we have an object that is not an array.
     if (typeof favorites === 'object' && favorites !== null && !Array.isArray(favorites)) {
       return favorites;
     }
-    // If data is not in the expected format, log it but don't delete.
-    console.warn('Favorites data in localStorage is not a valid object:', favoritesJson);
-    return {};
+    // If the data is not in the expected format (but is valid JSON), treat it as corruption.
+    throw new Error('Malformed favorites data structure.');
   } catch (error) {
-    console.error("Error parsing favorites from localStorage. Data might be corrupted.", error);
-    // Log the corrupted data to help with debugging.
-    console.error("Corrupted favorites data from localStorage:", favoritesJson);
-    return {};
+    console.error("Error parsing favorites from localStorage. Backing up corrupted data.", error);
+    // Backup corrupted data for potential manual recovery.
+    localStorage.setItem(`${FAVORITES_KEY}_corrupted_${Date.now()}`, favoritesJson);
+    // Remove the corrupted item to prevent a loop of errors.
+    localStorage.removeItem(FAVORITES_KEY);
+    // Throw a user-friendly error to be caught by the UI layer.
+    throw new Error('A kedvenc receptek listája sérült, ezért nem sikerült betölteni. A sérült adatokról biztonsági mentés készült, és egy új, üres lista jött létre.');
   }
 };
+
 
 /**
  * Saves the entire favorites object to localStorage.
