@@ -216,7 +216,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         isInterpretingRef.current = false;
         setIsInterpreting(false);
       }
-    }, 1000); // 1-second delay
+    }, 2000); // 2-second delay
   }, [voiceMode, showNotification]);
 
   const { 

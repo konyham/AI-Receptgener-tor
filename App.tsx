@@ -134,12 +134,17 @@ const App: React.FC = () => {
             }
         } catch (err: any) {
             console.error("Error interpreting app command:", err);
-            showNotification('Hiba a parancs értelmezésekor.', 'info');
+            let errorMessage = 'Hiba a parancs értelmezésekor.';
+            if (typeof err.message === 'string' && err.message.includes('RESOURCE_EXHAUSTED')) {
+                errorMessage = "Túl sok kérés érkezett, a hangvezérlés átmenetileg szünetel.";
+                setIsAppVoiceControlActive(false);
+            }
+            showNotification(errorMessage, 'info');
         } finally {
             isProcessingRef.current = false;
             setIsProcessingVoice(false);
         }
-    }, 1500);
+    }, 2500);
   }, [page, favorites, shoppingList, showNotification]);
 
   const {
