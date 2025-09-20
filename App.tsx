@@ -40,7 +40,6 @@ const App: React.FC = () => {
   // App-level voice control state
   const [isAppVoiceControlActive, setIsAppVoiceControlActive] = useState(true);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
-  const debounceTimerRef = useRef<number | null>(null);
   const isProcessingRef = useRef(false);
 
   useEffect(() => {
@@ -49,102 +48,103 @@ const App: React.FC = () => {
   }, []);
   
   // Voice control logic
-  const handleAppVoiceResult = useCallback((transcript: string) => {
-    if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-    }
+  const handleAppVoiceResult = useCallback(async (transcript: string) => {
+    if (isProcessingRef.current) return;
+    
+    isProcessingRef.current = true;
     setIsProcessingVoice(true);
 
-    debounceTimerRef.current = window.setTimeout(async () => {
-        if (isProcessingRef.current) return;
-        isProcessingRef.current = true;
-
-        const context = {
-            categories: Object.keys(favorites),
-            recipesByCategory: Object.entries(favorites).reduce((acc, [category, recipes]) => {
-                acc[category] = recipes.map(r => r.recipeName);
-                return acc;
-            }, {} as { [category: string]: string[] }),
-            shoppingListItems: shoppingList.map(item => item.text),
-        };
-        
-        try {
-            const command = await interpretAppCommand(transcript, page, context);
-            switch (command.action) {
-                case 'navigate':
-                    setPage(command.payload as AppView);
-                    showNotification(`Navigálás: ${command.payload}`, 'info');
-                    break;
-                case 'add_shopping_list_item':
-                    handleShoppingListAddItem(command.payload as string);
-                    showNotification(`Hozzáadva: ${command.payload}`, 'success');
-                    break;
-                case 'remove_shopping_list_item':
-                    const itemToRemove = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
-                    if (itemToRemove > -1) {
-                        handleShoppingListRemoveItem(itemToRemove);
-                        showNotification(`Törölve: ${shoppingList[itemToRemove].text}`, 'info');
-                    }
-                    break;
-                 case 'check_shopping_list_item':
-                    const itemToCheck = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
-                    if (itemToCheck > -1 && !shoppingList[itemToCheck].checked) {
-                        handleShoppingListUpdateItem(itemToCheck, { ...shoppingList[itemToCheck], checked: true });
-                        showNotification(`Kipipálva: ${shoppingList[itemToCheck].text}`, 'info');
-                    }
-                    break;
-                case 'uncheck_shopping_list_item':
-                    const itemToUncheck = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
-                    if (itemToUncheck > -1 && shoppingList[itemToUncheck].checked) {
-                        handleShoppingListUpdateItem(itemToUncheck, { ...shoppingList[itemToUncheck], checked: false });
-                    }
-                    break;
-                case 'clear_checked_shopping_list':
-                    handleShoppingListClearChecked();
-                    break;
-                case 'clear_all_shopping_list':
-                    handleShoppingListClearAll();
-                    break;
-                case 'view_favorite_recipe':
-                    const payloadView = command.payload as { recipeName: string; category: string };
-                    const recipeToView = favorites[payloadView.category]?.find(r => r.recipeName === payloadView.recipeName);
-                    if (recipeToView) {
-                        viewFavoriteRecipe(recipeToView);
-                        showNotification(`Megnyitva: ${payloadView.recipeName}`, 'info');
-                    }
-                    break;
-                case 'delete_favorite_recipe':
-                    const payloadDelete = command.payload as { recipeName: string; category: string };
-                    handleDeleteRecipe(payloadDelete.recipeName, payloadDelete.category);
-                    break;
-                case 'filter_favorites':
-                    setFilterCategory(command.payload as string);
-                    showNotification(`Szűrés: ${command.payload}`, 'info');
-                    break;
-                case 'clear_favorites_filter':
-                    setFilterCategory('all');
-                    showNotification('Szűrés törölve', 'info');
-                    break;
-                case 'expand_category':
-                     setExpandedCategories(prev => ({ ...prev, [command.payload as string]: true }));
-                     break;
-                case 'collapse_category':
-                     setExpandedCategories(prev => ({ ...prev, [command.payload as string]: false }));
-                     break;
-            }
-        } catch (err: any) {
-            console.error("Error interpreting app command:", err);
-            let errorMessage = 'Hiba a parancs értelmezésekor.';
-            if (typeof err.message === 'string' && err.message.includes('RESOURCE_EXHAUSTED')) {
-                errorMessage = "Túl sok kérés érkezett, a hangvezérlés átmenetileg szünetel.";
-                setIsAppVoiceControlActive(false);
-            }
-            showNotification(errorMessage, 'info');
-        } finally {
-            isProcessingRef.current = false;
-            setIsProcessingVoice(false);
+    const context = {
+        categories: Object.keys(favorites),
+        recipesByCategory: Object.entries(favorites).reduce((acc, [category, recipes]) => {
+            acc[category] = recipes.map(r => r.recipeName);
+            return acc;
+        }, {} as { [category: string]: string[] }),
+        shoppingListItems: shoppingList.map(item => item.text),
+    };
+    
+    try {
+        const command = await interpretAppCommand(transcript, page, context);
+        switch (command.action) {
+            case 'navigate':
+                setPage(command.payload as AppView);
+                showNotification(`Navigálás: ${command.payload}`, 'info');
+                break;
+            case 'add_shopping_list_item':
+                handleShoppingListAddItem(command.payload as string);
+                showNotification(`Hozzáadva: ${command.payload}`, 'success');
+                break;
+            case 'remove_shopping_list_item':
+                const itemToRemove = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
+                if (itemToRemove > -1) {
+                    handleShoppingListRemoveItem(itemToRemove);
+                    showNotification(`Törölve: ${shoppingList[itemToRemove].text}`, 'info');
+                }
+                break;
+             case 'check_shopping_list_item':
+                const itemToCheck = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
+                if (itemToCheck > -1 && !shoppingList[itemToCheck].checked) {
+                    handleShoppingListUpdateItem(itemToCheck, { ...shoppingList[itemToCheck], checked: true });
+                    showNotification(`Kipipálva: ${shoppingList[itemToCheck].text}`, 'info');
+                }
+                break;
+            case 'uncheck_shopping_list_item':
+                const itemToUncheck = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
+                if (itemToUncheck > -1 && shoppingList[itemToUncheck].checked) {
+                    handleShoppingListUpdateItem(itemToUncheck, { ...shoppingList[itemToUncheck], checked: false });
+                }
+                break;
+            case 'clear_checked_shopping_list':
+                handleShoppingListClearChecked();
+                break;
+            case 'clear_all_shopping_list':
+                handleShoppingListClearAll();
+                break;
+            case 'view_favorite_recipe':
+                const payloadView = command.payload as { recipeName: string; category: string };
+                const recipeToView = favorites[payloadView.category]?.find(r => r.recipeName === payloadView.recipeName);
+                if (recipeToView) {
+                    viewFavoriteRecipe(recipeToView);
+                    showNotification(`Megnyitva: ${payloadView.recipeName}`, 'info');
+                }
+                break;
+            case 'delete_favorite_recipe':
+                const payloadDelete = command.payload as { recipeName: string; category: string };
+                handleDeleteRecipe(payloadDelete.recipeName, payloadDelete.category);
+                break;
+            case 'filter_favorites':
+                setFilterCategory(command.payload as string);
+                showNotification(`Szűrés: ${command.payload}`, 'info');
+                break;
+            case 'clear_favorites_filter':
+                setFilterCategory('all');
+                showNotification('Szűrés törölve', 'info');
+                break;
+            case 'expand_category':
+                 setExpandedCategories(prev => ({ ...prev, [command.payload as string]: true }));
+                 break;
+            case 'collapse_category':
+                 setExpandedCategories(prev => ({ ...prev, [command.payload as string]: false }));
+                 break;
         }
-    }, 2500);
+    } catch (err: any) {
+        console.error("Error interpreting app command:", err);
+        let errorMessage = 'Hiba a parancs értelmezésekor.';
+        const errorString = (typeof err.message === 'string') ? err.message : JSON.stringify(err);
+
+        if (errorString.includes('RESOURCE_EXHAUSTED') || errorString.includes('429')) {
+            errorMessage = "Túl sok kérés. A hangvezérlés 15 másodpercre szünetel.";
+            setIsAppVoiceControlActive(false);
+            setTimeout(() => {
+              setIsAppVoiceControlActive(true)
+              showNotification("A hangvezérlés újra aktív.", 'success');
+            }, 15000); // Re-enable after 15 seconds
+        }
+        showNotification(errorMessage, 'info');
+    } finally {
+        isProcessingRef.current = false;
+        setIsProcessingVoice(false);
+    }
   }, [page, favorites, shoppingList, showNotification]);
 
   const {
@@ -153,14 +153,14 @@ const App: React.FC = () => {
     startListening: startAppListening,
     stopListening: stopAppListening,
     permissionState,
-  } = useSpeechRecognition({ onResult: handleAppVoiceResult, continuous: true });
+  } = useSpeechRecognition({ onResult: handleAppVoiceResult, continuous: false });
 
   useEffect(() => {
     // This voice control is only active on the main list pages, not during recipe generation or display.
     const isAppPage = (page === 'favorites' || page === 'shopping-list') && !recipe;
     if (isAppVoiceControlActive && isAppPage && !isAppListening) {
       startAppListening();
-    } else if (!isAppVoiceControlActive || !isAppPage) {
+    } else if ((!isAppVoiceControlActive || !isAppPage) && isAppListening) {
       stopAppListening();
     }
   }, [isAppVoiceControlActive, page, recipe, isAppListening, startAppListening, stopAppListening]);

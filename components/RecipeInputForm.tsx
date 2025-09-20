@@ -28,7 +28,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [hasSavedIngredients, setHasSavedIngredients] = useState(false);
   
   const isProcessingRef = useRef(false);
-  const debounceTimerRef = useRef<number | null>(null);
   const { showNotification } = useNotification();
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -107,20 +106,13 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     }
   }, [showNotification]);
 
-  const handleVoiceResult = useCallback((transcript: string) => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
+  const handleVoiceResult = useCallback(async (transcript: string) => {
+    if (isProcessingRef.current) return;
 
-    setIsProcessing(true); // Show immediate feedback that something is happening
+    isProcessingRef.current = true;
+    setIsProcessing(true);
 
-    debounceTimerRef.current = window.setTimeout(async () => {
-      if (isProcessingRef.current) return;
-
-      isProcessingRef.current = true;
-      // No need to set isProcessing again, it's already set
-
-      try {
+    try {
         const lowerTranscript = transcript.toLowerCase().trim();
         const generateKeywords = [
             "jöhet a recept",
@@ -184,17 +176,21 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     } catch (error: any) {
         console.error("Error interpreting form command:", error);
         let errorMessage = "Hiba a hangparancs értelmezése közben.";
-        // Check for specific API rate limit error
-        if (typeof error.message === 'string' && error.message.includes('RESOURCE_EXHAUSTED')) {
-            errorMessage = "Túl sok kérés. A hangvezérlés szünetel. Kérjük, beszéljen lassabban.";
+        const errorString = (typeof error.message === 'string') ? error.message : JSON.stringify(error);
+        
+        if (errorString.includes('RESOURCE_EXHAUSTED') || errorString.includes('429')) {
+            errorMessage = "Túl sok kérés. A hangvezérlés 15 másodpercre szünetel.";
             setVoiceControlActive(false); // Automatically pause voice control
+            setTimeout(() => {
+                setVoiceControlActive(true);
+                showNotification("A hangvezérlés újra aktív.", 'success');
+            }, 15000); // Re-enable after 15 seconds
         }
         showNotification(errorMessage, 'info');
     } finally {
         isProcessingRef.current = false;
         setIsProcessing(false);
     }
-    }, 3000); // 3-second delay to allow for longer pauses between words.
   }, [showNotification]);
 
   const {
@@ -205,16 +201,15 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     permissionState,
   } = useSpeechRecognition({
     onResult: handleVoiceResult,
-    continuous: true,
+    continuous: false,
   });
 
   useEffect(() => {
     if (voiceControlActive && !isLoading && permissionState !== 'denied') {
       if (!isListening) {
-        const timer = setTimeout(() => startListening(), 100);
-        return () => clearTimeout(timer);
+        startListening();
       }
-    } else {
+    } else if (isListening) {
       stopListening();
     }
   }, [voiceControlActive, isLoading, isListening, startListening, stopListening, permissionState]);
