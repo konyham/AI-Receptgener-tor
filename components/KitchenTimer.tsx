@@ -41,7 +41,7 @@ const TimeInput: React.FC<{
         <button
           onClick={decrement}
           className="text-gray-500 hover:text-primary-600 transition-colors p-2"
-          aria-label={`${label} csökkentése`}
+          aria-label={`${label} csökkéntése`}
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7 7"></path></svg>
         </button>
@@ -139,7 +139,8 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
 
   const stopAlarm = () => {
     if (alarmIntervalRef.current) {
-        clearInterval(alarmIntervalRef.current);
+        // FIX: Use window.clearInterval to ensure the browser's implementation is used, which expects a number.
+        window.clearInterval(alarmIntervalRef.current);
         alarmIntervalRef.current = null;
     }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
@@ -155,7 +156,8 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
     // FIX: In browser environments, setInterval returns a number, not a NodeJS.Timeout.
     let interval: number | null = null;
     if (isActive && time > 0) {
-      interval = setInterval(() => {
+      // FIX: Use window.setInterval to ensure the browser's implementation is used, which returns a number.
+      interval = window.setInterval(() => {
         setTime((prevTime) => prevTime - 1);
       }, 1000);
     } else if (time <= 0 && isActive) {
@@ -163,21 +165,22 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
       setIsAlarming(true);
     }
     return () => {
-      if (interval) clearInterval(interval);
+      if (interval) window.clearInterval(interval);
     };
   }, [isActive, time]);
   
   useEffect(() => {
     if (isAlarming) {
         playAlarm(); // Play once immediately
-        alarmIntervalRef.current = setInterval(playAlarm, 1200); // Repeat every 1.2 seconds
+        // FIX: Use window.setInterval to ensure the browser's implementation is used, which returns a number.
+        alarmIntervalRef.current = window.setInterval(playAlarm, 1200);
     } else {
         stopAlarm();
     }
 
     return () => {
         if (alarmIntervalRef.current) {
-            clearInterval(alarmIntervalRef.current);
+            window.clearInterval(alarmIntervalRef.current);
         }
     };
   }, [isAlarming]);

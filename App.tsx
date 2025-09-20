@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import type { Recipe, DietOption, MealType, Favorites, CookingMethod, RecipeSuggestions } from './types';
+import type { Recipe, DietOption, MealType, Favorites, CookingMethod, RecipeSuggestions, ShoppingListItem } from './types';
 import { generateRecipe, getRecipeModificationSuggestions } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
+import * as shoppingListService from './services/shoppingListService';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
 import FavoritesView from './components/FavoritesView';
+import ShoppingListView from './components/ShoppingListView';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorMessage from './components/ErrorMessage';
 import { useNotification } from './contexts/NotificationContext';
@@ -18,9 +20,10 @@ interface RecipeGenerationParams {
 }
 
 const App: React.FC = () => {
-  const [page, setPage] = useState<'generator' | 'favorites'>('generator');
+  const [page, setPage] = useState<'generator' | 'favorites' | 'shopping-list'>('generator');
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [favorites, setFavorites] = useState<Favorites>({});
+  const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastGenerationParams, setLastGenerationParams] = useState<RecipeGenerationParams | null>(null);
@@ -30,6 +33,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     setFavorites(favoritesService.getFavorites());
+    setShoppingList(shoppingListService.getShoppingList());
   }, []);
   
   const handleGenerateRecipe = async (params: RecipeGenerationParams) => {
@@ -105,10 +109,43 @@ const App: React.FC = () => {
      showNotification(`"${category}" kategória törölve.`, 'info');
   };
 
+  // Handlers for Shopping List
+  const handleShoppingListAddItems = (items: string[]) => {
+    const updatedList = shoppingListService.addItems(items);
+    setShoppingList(updatedList);
+    showNotification(`${items.length} tétel hozzáadva a bevásárlólistához!`, 'success');
+  };
+
+  const handleShoppingListAddItem = (itemText: string) => {
+    const updatedList = shoppingListService.addItems([itemText]);
+    setShoppingList(updatedList);
+  };
+  
+  const handleShoppingListUpdateItem = (index: number, updatedItem: ShoppingListItem) => {
+      const updatedList = shoppingListService.updateItem(index, updatedItem);
+      setShoppingList(updatedList);
+  };
+
+  const handleShoppingListRemoveItem = (index: number) => {
+      const updatedList = shoppingListService.removeItem(index);
+      setShoppingList(updatedList);
+  };
+
+  const handleShoppingListClearChecked = () => {
+      const updatedList = shoppingListService.clearChecked();
+      setShoppingList(updatedList);
+      showNotification('Kipipált tételek törölve.', 'info');
+  };
+  
+  const handleShoppingListClearAll = () => {
+      const updatedList = shoppingListService.clearAll();
+      setShoppingList(updatedList);
+      showNotification('Bevásárlólista törölve.', 'info');
+  };
+
   const showGenerator = () => {
     setRecipe(null);
     setSuggestions(null);
-    // Don't clear initial form data here, it's managed by other flows
     setPage('generator');
   };
   
@@ -117,6 +154,12 @@ const App: React.FC = () => {
     setSuggestions(null);
     setFavorites(favoritesService.getFavorites());
     setPage('favorites');
+  };
+  
+  const showShoppingList = () => {
+    setRecipe(null);
+    setSuggestions(null);
+    setPage('shopping-list');
   };
 
   const NavButton: React.FC<{
@@ -150,6 +193,7 @@ const App: React.FC = () => {
           isFromFavorites={page === 'favorites'}
           favorites={favorites}
           onSave={handleSaveRecipe}
+          onAddItemsToShoppingList={handleShoppingListAddItems}
           isLoading={isLoading}
         />
       );
@@ -180,6 +224,19 @@ const App: React.FC = () => {
         />
       );
     }
+
+    if (page === 'shopping-list') {
+      return (
+        <ShoppingListView
+          list={shoppingList}
+          onAddItem={handleShoppingListAddItem}
+          onUpdateItem={handleShoppingListUpdateItem}
+          onRemoveItem={handleShoppingListRemoveItem}
+          onClearChecked={handleShoppingListClearChecked}
+          onClearAll={handleShoppingListClearAll}
+        />
+      );
+    }
     
     return null;
   };
@@ -203,6 +260,9 @@ const App: React.FC = () => {
                 </NavButton>
                 <NavButton active={page === 'favorites'} onClick={showFavorites}>
                     Kedvenceim
+                </NavButton>
+                <NavButton active={page === 'shopping-list'} onClick={showShoppingList}>
+                    Bevásárlólista
                 </NavButton>
             </div>
           <div className="bg-white p-6 md:p-8 rounded-2xl shadow-lg border border-gray-200">

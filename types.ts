@@ -98,3 +98,8 @@ export interface RecipeSuggestions {
   suggestedIngredients: string[];
   modificationIdeas: string[];
 }
+
+export interface ShoppingListItem {
+  text: string;
+  checked: boolean;
+}
