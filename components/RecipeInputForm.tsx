@@ -93,13 +93,12 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
           setIngredients(loadedIngredients);
           showNotification('Hozzávalók betöltve!', 'success');
         } else {
-            throw new Error('Invalid data format');
+            throw new Error('Invalid data format in localStorage.');
         }
       } catch (e) {
-        console.error("Failed to parse saved ingredients:", e);
-        showNotification('A mentett hozzávalók listája sérült.', 'info');
-        localStorage.removeItem(INGREDIENTS_STORAGE_KEY);
-        setHasSavedIngredients(false);
+        console.error("Failed to parse saved ingredients from localStorage:", e);
+        showNotification('A mentett hozzávalók listája sérült, ezért nem sikerült betölteni.', 'info');
+        // Do NOT remove the corrupted item, allowing for manual recovery by the user.
       }
     } else {
       showNotification('Nincsenek mentett hozzávalók.', 'info');

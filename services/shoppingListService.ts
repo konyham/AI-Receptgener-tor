@@ -6,10 +6,21 @@ const SHOPPING_LIST_KEY = 'ai-recipe-generator-shopping-list';
 export const getShoppingList = (): ShoppingListItem[] => {
   try {
     const listJson = localStorage.getItem(SHOPPING_LIST_KEY);
-    return listJson ? JSON.parse(listJson) : [];
+    // Return empty array if no data is found.
+    if (!listJson) {
+        return [];
+    }
+    const list = JSON.parse(listJson);
+    // Basic validation to ensure we have an array.
+    if (Array.isArray(list)) {
+        return list;
+    }
+    // If data is not in the expected format, log it but don't delete.
+    console.warn('Shopping list data in localStorage is not a valid array:', listJson);
+    return [];
   } catch (error) {
-    console.error("Error reading shopping list from localStorage", error);
-    localStorage.removeItem(SHOPPING_LIST_KEY);
+    console.error("Error parsing shopping list from localStorage. Data might be corrupted.", error);
+    // Do not remove the item. Log the error and return a clean state.
     return [];
   }
 };
