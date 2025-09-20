@@ -360,8 +360,9 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
               margin: 1.5rem 0;
               border: 1px solid #dcfce7; /* primary-100 */
               break-inside: avoid;
+              flex-wrap: wrap;
             }
-            .meta-info div { flex: 1; }
+            .meta-info div { flex: 1; min-width: 120px; }
             .meta-info span { font-weight: 600; display: block; font-size: 0.875rem; color: #166534; /* primary-800 */ }
             .nutritional-info { margin: 1.5rem 0; break-inside: avoid; }
             .nutritional-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem; }
@@ -378,6 +379,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
             <div><span>Előkészítés:</span> ${recipe.prepTime}</div>
             <div><span>Főzési idő:</span> ${recipe.cookTime}</div>
             <div><span>Adag:</span> ${recipe.servings}</div>
+            ${recipe.estimatedCost ? `<div><span>Becsült költség:</span> ${recipe.estimatedCost}</div>` : ''}
           </div>
           ${(recipe.calories || recipe.carbohydrates) ? `
           <div class="nutritional-info">
@@ -541,6 +543,18 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
                       <span>{recipe.servings}</span>
                   </div>
               </div>
+              {recipe.estimatedCost && (
+                <div className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M8.433 7.418c.158-.103.346-.196.567-.267v1.698a2.5 2.5 0 00-1.162-.328zM11.567 9.182c.158.103.346.196.567-.267V7.849a2.5 2.5 0 00-1.162.328v1.005z" />
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.5 4.5 0 00-1.879 3.197A1 1 0 108.25 10.5h.025a2.5 2.5 0 014.975 0h.025a1 1 0 101.879-1.217A4.5 4.5 0 0011 5.092V5zM10 13a1 1 0 011 1v.01a1 1 0 11-2 0V14a1 1 0 011-1z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                        <span className="font-semibold block text-sm">Becsült költség</span>
+                        <span>{recipe.estimatedCost}</span>
+                    </div>
+                </div>
+              )}
           </div>
         </div>
 

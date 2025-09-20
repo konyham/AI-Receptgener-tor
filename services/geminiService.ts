@@ -57,6 +57,7 @@ const recipeSchema = {
     fat: { type: Type.STRING, description: 'A recept zsírtartalma 100 grammra vetítve, pl. "8 g".' },
     glycemicIndex: { type: Type.STRING, description: 'A recept becsült glikémiás indexe (pl. "Alacsony", "Közepes", "Magas").' },
     diabeticAdvice: { type: Type.STRING, description: 'Rövid, hasznos tanács cukorbetegek számára a recepthez kapcsolódóan.' },
+    estimatedCost: { type: Type.STRING, description: 'A recept teljes becsült költsége forintban (Ft), pl. "kb. 1500 Ft".' },
   },
   required: [
     'recipeName',
@@ -100,6 +101,8 @@ export const generateRecipe = async (
   if (diet === DietOption.DIABETIC) {
     prompt += ` Mivel a recept cukorbeteg diétához készül, adj meg egy becsült tápértékadatokat is 100 grammra vetítve: kalória, szénhidrát, fehérje, zsír. Továbbá, becsüld meg a recept glikémiás indexét (Alacsony, Közepes, vagy Magas). Ezenkívül adj egy rövid, hasznos tanácsot cukorbetegek számára ehhez a recepthez kapcsolódóan (pl. mire figyeljenek a köret kiválasztásánál, vagy hogyan módosíthatják az ételt).`;
   }
+
+  prompt += ` Végezz egy becsült költségszámítást is a recepthez magyar forintban (Ft). A számításhoz használd a következő átlagos magyarországi bolti árakat referenciaként (az árakat arányosítsd a receptben szereplő mennyiségekkel): csirkemell: 2500 Ft/kg, sertéskaraj: 2800 Ft/kg, rizs: 800 Ft/kg, krumpli: 400 Ft/kg, liszt: 300 Ft/kg, cukor: 500 Ft/kg, tojás: 80 Ft/db, tej: 450 Ft/liter, hagyma: 400 Ft/kg, fokhagyma: 200 Ft/fej, étolaj: 900 Ft/liter, vaj/margarin: 4000 Ft/kg, paradicsom: 1000 Ft/kg, paprika: 1200 Ft/kg, sajt (trappista): 3500 Ft/kg. Ha egy hozzávaló nincs a listán, használj egy reális piaci becslést. A végeredményt egyetlen stringként add meg, pl. 'kb. 2100 Ft'.`;
 
   prompt += ` Adj egy rövid, étvágygerjesztő leírást, az előkészítési és főzési időt, az adagok számát, a hozzávalók listáját pontos mennyiségekkel, és az elkészítési lépéseket. Fontos: Minden hozzávalónál add meg a mennyiséget grammban vagy darabban, ÉS egy alternatív, mérleg nélküli mértékegységben is (pl. bögre, evőkanál, teáskanál, dl, ml), ahol ez értelmezhető. Például: "250g liszt (kb. 2 bögre)". A válasz JSON formátumban legyen.`;
 

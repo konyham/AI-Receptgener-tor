@@ -13,6 +13,7 @@ export interface Recipe {
   glycemicIndex?: string;
   diabeticAdvice?: string;
   imageUrl?: string;
+  estimatedCost?: string;
 }
 
 export enum DietOption {
