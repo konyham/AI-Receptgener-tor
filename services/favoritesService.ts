@@ -7,12 +7,13 @@ const FAVORITES_KEY = 'ai-recipe-generator-favorites';
  * Returns an empty object if nothing is found or if there's a parsing error.
  */
 export const getFavorites = (): Favorites => {
+  const favoritesJson = localStorage.getItem(FAVORITES_KEY);
+  // Return empty object if no data is found.
+  if (!favoritesJson) {
+      return {};
+  }
+
   try {
-    const favoritesJson = localStorage.getItem(FAVORITES_KEY);
-    // Return empty object if no data is found.
-    if (!favoritesJson) {
-        return {};
-    }
     const favorites = JSON.parse(favoritesJson);
     // Basic validation to ensure we have an object.
     if (typeof favorites === 'object' && favorites !== null && !Array.isArray(favorites)) {
@@ -23,8 +24,8 @@ export const getFavorites = (): Favorites => {
     return {};
   } catch (error) {
     console.error("Error parsing favorites from localStorage. Data might be corrupted.", error);
-    // Do not remove the item. Log the error and return a clean state.
-    // This prevents wiping out user data due to a temporary parsing issue.
+    // Log the corrupted data to help with debugging.
+    console.error("Corrupted favorites data from localStorage:", favoritesJson);
     return {};
   }
 };

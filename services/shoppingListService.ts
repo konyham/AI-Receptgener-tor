@@ -4,12 +4,13 @@ const SHOPPING_LIST_KEY = 'ai-recipe-generator-shopping-list';
 
 // Reads the list from localStorage.
 export const getShoppingList = (): ShoppingListItem[] => {
+  const listJson = localStorage.getItem(SHOPPING_LIST_KEY);
+  // Return empty array if no data is found.
+  if (!listJson) {
+      return [];
+  }
+
   try {
-    const listJson = localStorage.getItem(SHOPPING_LIST_KEY);
-    // Return empty array if no data is found.
-    if (!listJson) {
-        return [];
-    }
     const list = JSON.parse(listJson);
     // Basic validation to ensure we have an array.
     if (Array.isArray(list)) {
@@ -20,7 +21,8 @@ export const getShoppingList = (): ShoppingListItem[] => {
     return [];
   } catch (error) {
     console.error("Error parsing shopping list from localStorage. Data might be corrupted.", error);
-    // Do not remove the item. Log the error and return a clean state.
+    // Log the corrupted data to help with debugging.
+    console.error("Corrupted shopping list data from localStorage:", listJson);
     return [];
   }
 };
