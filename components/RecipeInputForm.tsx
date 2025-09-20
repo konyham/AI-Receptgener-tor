@@ -28,6 +28,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [hasSavedIngredients, setHasSavedIngredients] = useState(false);
   
   const isProcessingRef = useRef(false);
+  const debounceTimerRef = useRef<number | null>(null);
   const { showNotification } = useNotification();
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -106,13 +107,20 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     }
   }, [showNotification]);
 
-  const handleVoiceResult = useCallback(async (transcript: string) => {
-    if (isProcessingRef.current) return;
+  const handleVoiceResult = useCallback((transcript: string) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
 
-    isProcessingRef.current = true;
-    setIsProcessing(true);
+    setIsProcessing(true); // Show immediate feedback that something is happening
 
-    try {
+    debounceTimerRef.current = window.setTimeout(async () => {
+      if (isProcessingRef.current) return;
+
+      isProcessingRef.current = true;
+      // No need to set isProcessing again, it's already set
+
+      try {
         const lowerTranscript = transcript.toLowerCase().trim();
         const generateKeywords = [
             "jöhet a recept",
@@ -135,7 +143,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
             case 'add_ingredients':
                 const payload = command.payload as string[];
                 if (payload && payload.length > 0) {
-                    // Defensive coding: split any comma/and separated strings within the array
                     const newIngredients = payload.flatMap(item => 
                         item.split(/,\s*|\s+és\s+/).map(s => s.trim()).filter(Boolean)
                     );
@@ -174,12 +181,20 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
                 console.log("Unknown command or could not interpret:", transcript);
                 break;
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error interpreting form command:", error);
+        let errorMessage = "Hiba a hangparancs értelmezése közben.";
+        // Check for specific API rate limit error
+        if (typeof error.message === 'string' && error.message.includes('RESOURCE_EXHAUSTED')) {
+            errorMessage = "Túl sok kérés. A hangvezérlés szünetel. Kérjük, beszéljen lassabban.";
+            setVoiceControlActive(false); // Automatically pause voice control
+        }
+        showNotification(errorMessage, 'info');
     } finally {
         isProcessingRef.current = false;
         setIsProcessing(false);
     }
+    }, 3000); // 3-second delay to allow for longer pauses between words.
   }, [showNotification]);
 
   const {
@@ -255,7 +270,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
        {suggestions && (
-        <div ref={suggestionsRef} className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg animate-fade-in space-y-4">
+        <div ref={suggestionsRef} className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg animate-fade-in space-y-4 max-h-60 overflow-y-auto">
           <h3 className="text-lg font-bold text-yellow-800">Javaslatok a recept finomításához</h3>
           {suggestions.suggestedIngredients.length > 0 && (
             <div>

@@ -103,3 +103,27 @@ export interface ShoppingListItem {
   text: string;
   checked: boolean;
 }
+
+// New types for app-wide voice control
+export type AppView = 'generator' | 'favorites' | 'shopping-list';
+
+export type AppCommandAction =
+  | 'navigate'
+  | 'add_shopping_list_item'
+  | 'remove_shopping_list_item'
+  | 'check_shopping_list_item'
+  | 'uncheck_shopping_list_item'
+  | 'clear_checked_shopping_list'
+  | 'clear_all_shopping_list'
+  | 'view_favorite_recipe'
+  | 'delete_favorite_recipe'
+  | 'filter_favorites'
+  | 'clear_favorites_filter'
+  | 'expand_category'
+  | 'collapse_category'
+  | 'unknown';
+
+export interface AppCommand {
+    action: AppCommandAction;
+    payload?: string | { recipeName: string; category: string };
+}

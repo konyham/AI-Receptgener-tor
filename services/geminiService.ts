@@ -13,6 +13,9 @@ import {
   VoiceCommand,
   CookingMethod,
   VoiceCommandResult,
+  AppView,
+  AppCommand,
+  AppCommandAction,
 } from '../types';
 
 // FIX: Initialize the GoogleGenAI client with API key from environment variables as per guidelines.
@@ -239,7 +242,8 @@ export const interpretFormCommand = async (
     };
   } catch (error) {
     console.error('Error interpreting form command:', error);
-    return { action: 'unknown', payload: null };
+    // Re-throw the error so the UI layer can handle it, e.g., by showing a notification.
+    throw error;
   }
 };
 
@@ -331,7 +335,132 @@ export const interpretUserCommand = async (
     };
   } catch (error) {
     console.error('Error interpreting user command:', error);
-    return { command: VoiceCommand.UNKNOWN };
+    // Re-throw the error so the UI layer can handle it.
+    throw error;
+  }
+};
+
+const appCommandSchema = {
+    type: Type.OBJECT,
+    properties: {
+        action: {
+            type: Type.STRING,
+            enum: [
+                'navigate', 'add_shopping_list_item', 'remove_shopping_list_item',
+                'check_shopping_list_item', 'uncheck_shopping_list_item',
+                'clear_checked_shopping_list', 'clear_all_shopping_list',
+                'view_favorite_recipe', 'delete_favorite_recipe', 'filter_favorites',
+                'clear_favorites_filter', 'expand_category', 'collapse_category', 'unknown'
+            ]
+        },
+        payload: {
+            type: Type.STRING,
+            description: "Az akcióhoz tartozó adat, pl. oldal neve, tétel neve, kategória neve, recept neve."
+        }
+    },
+    required: ['action']
+};
+
+
+export const interpretAppCommand = async (
+  transcript: string,
+  currentPage: AppView,
+  context: {
+    categories?: string[];
+    recipesByCategory?: { [category: string]: string[] };
+    shoppingListItems?: string[];
+  }
+): Promise<AppCommand> => {
+  let prompt = `Értelmezd a következő magyar nyelvű hangparancsot egy recept alkalmazásban.
+    A felhasználó által kimondott szöveg: "${transcript}"
+    A felhasználó jelenleg a(z) "${currentPage}" oldalon van.
+
+    I. Navigációs parancsok (bármelyik oldalon működnek):
+    - Akció: 'navigate', payload: 'generator' | 'favorites' | 'shopping-list'
+    - Kulcsszavak: "menj a ...-hoz", "mutasd a ...-t", "vissza a generátorhoz"
+    - Példa: "mutasd a kedvenceimet" -> { "action": "navigate", "payload": "favorites" }
+
+    II. Kontextus-specifikus parancsok:
+    `;
+
+  if (currentPage === 'shopping-list') {
+    prompt += `
+    A felhasználó a BEVÁSÁRLÓLISTA oldalon van.
+    - Lehetséges tételek: ${JSON.stringify(context.shoppingListItems || [])}
+    - Parancsok:
+        - 'add_shopping_list_item': Tétel hozzáadása. Payload: a tétel neve (string). Kulcsszavak: "adj hozzá ...-t".
+        - 'remove_shopping_list_item': Tétel törlése. Payload: a tétel neve. A legközelebbi egyezést keresd a listából. Kulcsszavak: "töröld a ...-t".
+        - 'check_shopping_list_item': Tétel kipipálása. Payload: a tétel neve. Kulcsszavak: "pipáld ki a ...-t".
+        - 'uncheck_shopping_list_item': Pipálás visszavonása. Payload: a tétel neve. Kulcsszavak: "vedd ki a pipát a ...-ból".
+        - 'clear_checked_shopping_list': Kipipáltak törlése. Nincs payload. Kulcsszavak: "töröld a kipipáltakat".
+        - 'clear_all_shopping_list': Teljes lista törlése. Nincs payload. Kulcsszavak: "töröld az egész listát".
+    - Példa: "adj hozzá két liter tejet" -> { "action": "add_shopping_list_item", "payload": "két liter tej" }
+    - Példa: "töröld a kenyeret" -> { "action": "remove_shopping_list_item", "payload": "kenyér" }
+    `;
+  }
+
+  if (currentPage === 'favorites') {
+    prompt += `
+    A felhasználó a KEDVENCEK oldalon van.
+    - Lehetséges kategóriák: ${JSON.stringify(context.categories || [])}
+    - Lehetséges receptek (kategóriánként): ${JSON.stringify(context.recipesByCategory || {})}
+    - Parancsok:
+        - 'view_favorite_recipe': Recept megtekintése. Payload: a recept neve. A legközelebbi egyezést keresd a receptek közül. Kulcsszavak: "nyisd meg a ...-t", "mutasd a ...-t".
+        - 'delete_favorite_recipe': Recept törlése. Payload: a recept neve. Kulcsszavak: "töröld a ... receptet".
+        - 'filter_favorites': Szűrés kategóriára. Payload: a kategória neve. A legközelebbi egyezést keresd a kategóriák közül. Kulcsszavak: "szűrj a ...-ra", "mutasd csak a ...-t".
+        - 'clear_favorites_filter': Szűrés törlése. Nincs payload. Kulcsszavak: "töröld a szűrést", "mutasd az összeset".
+        - 'expand_category': Kategória lenyitása. Payload: a kategória neve. Kulcsszavak: "nyisd le a ...-t".
+        - 'collapse_category': Kategória becsukása. Payload: a kategória neve. Kulcsszavak: "csukd be a ...-t".
+    - Példa: "nyisd meg a csokitortát" -> { "action": "view_favorite_recipe", "payload": "csokitorta" }
+    - Példa: "szűrj a desszertekre" -> { "action": "filter_favorites", "payload": "desszertek" }
+    `;
+  }
+
+  prompt += `
+    III. Általános szabályok:
+    - Ha a parancs nem egyértelmű vagy nem illeszkedik a sémába, használj 'unknown' akciót.
+    - A payload mindig string legyen.
+    - A válaszod egyetlen JSON objektum legyen a megadott séma alapján.
+    `;
+    
+  try {
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: appCommandSchema,
+            thinkingConfig: { thinkingBudget: 0 },
+        },
+    });
+
+    const jsonText = response.text.trim();
+    const result = JSON.parse(jsonText);
+
+    // Find the full recipe details (name and category) for view/delete actions
+    if (result.action === 'view_favorite_recipe' || result.action === 'delete_favorite_recipe') {
+        const recipeNameToFind = (result.payload as string).toLowerCase();
+        let found = false;
+        if (context.recipesByCategory) {
+            for (const category in context.recipesByCategory) {
+                const recipeName = context.recipesByCategory[category].find(r => r.toLowerCase().includes(recipeNameToFind));
+                if (recipeName) {
+                    return {
+                        action: result.action as AppCommandAction,
+                        payload: { recipeName, category }
+                    };
+                }
+            }
+        }
+    }
+    
+    return {
+        action: (result.action as AppCommandAction) || 'unknown',
+        payload: result.payload || undefined,
+    };
+  } catch (error) {
+    console.error('Error interpreting app command:', error);
+    throw error;
   }
 };
 

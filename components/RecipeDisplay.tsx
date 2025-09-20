@@ -99,6 +99,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const [imageError, setImageError] = useState<string | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState<boolean>(false);
 
+  const debounceTimerRef = useRef<number | null>(null);
   const isInterpretingRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const { showNotification } = useNotification();
@@ -142,67 +143,81 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     };
   }, [generatedVideoUrl]);
 
-  const handleVoiceResult = useCallback(async (transcript: string) => {
-    if (isInterpretingRef.current) return;
+  const handleVoiceResult = useCallback((transcript: string) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
 
-    isInterpretingRef.current = true;
     setIsInterpreting(true);
-    try {
-      const { command, payload } = await interpretUserCommand(transcript);
-      let notificationMessage = '';
 
-      switch (command) {
-        case VoiceCommand.STOP:
-          notificationMessage = 'Parancs: Felolvasás leállítva';
-          setVoiceMode('idle');
-          break;
-        case VoiceCommand.NEXT:
-           notificationMessage = 'Parancs: Következő';
-           if (voiceMode === 'ingredients' || voiceMode === 'cooking') {
-             setCurrentStepIndex((prev) => prev + 1);
-           }
-          break;
-        case VoiceCommand.READ_INTRO:
-          notificationMessage = 'Parancs: Leírás felolvasása';
-          setVoiceMode('intro');
-          break;
-        case VoiceCommand.READ_INGREDIENTS:
-          notificationMessage = 'Parancs: Hozzávalók felolvasása';
-          setCurrentStepIndex(0);
-          setVoiceMode('ingredients');
-          break;
-        case VoiceCommand.START_COOKING:
-          notificationMessage = 'Parancs: Főzés indítása';
-          setCurrentStepIndex(0);
-          setVoiceMode('cooking');
-          break;
-        case VoiceCommand.START_TIMER:
-            if (payload) {
-                const { hours = 0, minutes = 0, seconds = 0 } = payload;
-                const timeParts = [];
-                if (hours > 0) timeParts.push(`${hours} óra`);
-                if (minutes > 0) timeParts.push(`${minutes} perc`);
-                if (seconds > 0) timeParts.push(`${seconds} másodperc`);
-                notificationMessage = `Időzítő indítása: ${timeParts.join(' ')}`;
-                setTimerInitialValues(payload);
-                setIsTimerOpen(true);
+    debounceTimerRef.current = window.setTimeout(async () => {
+      if (isInterpretingRef.current) return;
+
+      isInterpretingRef.current = true;
+      try {
+        const { command, payload } = await interpretUserCommand(transcript);
+        let notificationMessage = '';
+
+        switch (command) {
+          case VoiceCommand.STOP:
+            notificationMessage = 'Parancs: Felolvasás leállítva';
+            setVoiceMode('idle');
+            break;
+          case VoiceCommand.NEXT:
+            notificationMessage = 'Parancs: Következő';
+            if (voiceMode === 'ingredients' || voiceMode === 'cooking') {
+              setCurrentStepIndex((prev) => prev + 1);
             }
             break;
-        default:
-          break;
-      }
+          case VoiceCommand.READ_INTRO:
+            notificationMessage = 'Parancs: Leírás felolvasása';
+            setVoiceMode('intro');
+            break;
+          case VoiceCommand.READ_INGREDIENTS:
+            notificationMessage = 'Parancs: Hozzávalók felolvasása';
+            setCurrentStepIndex(0);
+            setVoiceMode('ingredients');
+            break;
+          case VoiceCommand.START_COOKING:
+            notificationMessage = 'Parancs: Főzés indítása';
+            setCurrentStepIndex(0);
+            setVoiceMode('cooking');
+            break;
+          case VoiceCommand.START_TIMER:
+            if (payload) {
+              const { hours = 0, minutes = 0, seconds = 0 } = payload;
+              const timeParts = [];
+              if (hours > 0) timeParts.push(`${hours} óra`);
+              if (minutes > 0) timeParts.push(`${minutes} perc`);
+              if (seconds > 0) timeParts.push(`${seconds} másodperc`);
+              notificationMessage = `Időzítő indítása: ${timeParts.join(' ')}`;
+              setTimerInitialValues(payload);
+              setIsTimerOpen(true);
+            }
+            break;
+          default:
+            break;
+        }
 
-      if (notificationMessage) {
-        showNotification(notificationMessage, 'info');
-      }
+        if (notificationMessage) {
+          showNotification(notificationMessage, 'info');
+        }
 
-    } catch (error) {
+      } catch (error: any) {
         console.error("Error processing voice command:", error);
-    } finally {
+        let errorMessage = "Hiba a hangparancs feldolgozása közben.";
+        // Check for specific API rate limit error
+        if (typeof error.message === 'string' && error.message.includes('RESOURCE_EXHAUSTED')) {
+          errorMessage = "Túl sok kérés. A hangvezérlés szünetel.";
+          setVoiceControlActive(false); // Automatically pause voice control
+        }
+        showNotification(errorMessage, 'info');
+      } finally {
         isInterpretingRef.current = false;
         setIsInterpreting(false);
-    }
-  }, [voiceMode, showNotification, currentStepIndex]);
+      }
+    }, 1000); // 1-second delay
+  }, [voiceMode, showNotification]);
 
   const { 
     isSupported: recognitionIsSupported, 

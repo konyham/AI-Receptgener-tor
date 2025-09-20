@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import type { Recipe, DietOption, MealType, Favorites, CookingMethod, RecipeSuggestions, ShoppingListItem } from './types';
-import { generateRecipe, getRecipeModificationSuggestions } from './services/geminiService';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import type { Recipe, DietOption, MealType, Favorites, CookingMethod, RecipeSuggestions, ShoppingListItem, AppView } from './types';
+import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
 import RecipeInputForm from './components/RecipeInputForm';
@@ -9,7 +9,9 @@ import FavoritesView from './components/FavoritesView';
 import ShoppingListView from './components/ShoppingListView';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorMessage from './components/ErrorMessage';
+import AppVoiceControl from './components/AppVoiceControl';
 import { useNotification } from './contexts/NotificationContext';
+import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 
 interface RecipeGenerationParams {
   ingredients: string;
@@ -20,7 +22,7 @@ interface RecipeGenerationParams {
 }
 
 const App: React.FC = () => {
-  const [page, setPage] = useState<'generator' | 'favorites' | 'shopping-list'>('generator');
+  const [page, setPage] = useState<AppView>('generator');
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [favorites, setFavorites] = useState<Favorites>({});
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
@@ -31,11 +33,133 @@ const App: React.FC = () => {
   const [suggestions, setSuggestions] = useState<RecipeSuggestions | null>(null);
   const { showNotification } = useNotification();
 
+  // State lifted from FavoritesView for voice control
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  
+  // App-level voice control state
+  const [isAppVoiceControlActive, setIsAppVoiceControlActive] = useState(true);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const debounceTimerRef = useRef<number | null>(null);
+  const isProcessingRef = useRef(false);
+
   useEffect(() => {
     setFavorites(favoritesService.getFavorites());
     setShoppingList(shoppingListService.getShoppingList());
   }, []);
   
+  // Voice control logic
+  const handleAppVoiceResult = useCallback((transcript: string) => {
+    if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+    }
+    setIsProcessingVoice(true);
+
+    debounceTimerRef.current = window.setTimeout(async () => {
+        if (isProcessingRef.current) return;
+        isProcessingRef.current = true;
+
+        const context = {
+            categories: Object.keys(favorites),
+            recipesByCategory: Object.entries(favorites).reduce((acc, [category, recipes]) => {
+                acc[category] = recipes.map(r => r.recipeName);
+                return acc;
+            }, {} as { [category: string]: string[] }),
+            shoppingListItems: shoppingList.map(item => item.text),
+        };
+        
+        try {
+            const command = await interpretAppCommand(transcript, page, context);
+            switch (command.action) {
+                case 'navigate':
+                    setPage(command.payload as AppView);
+                    showNotification(`Navigálás: ${command.payload}`, 'info');
+                    break;
+                case 'add_shopping_list_item':
+                    handleShoppingListAddItem(command.payload as string);
+                    showNotification(`Hozzáadva: ${command.payload}`, 'success');
+                    break;
+                case 'remove_shopping_list_item':
+                    const itemToRemove = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
+                    if (itemToRemove > -1) {
+                        handleShoppingListRemoveItem(itemToRemove);
+                        showNotification(`Törölve: ${shoppingList[itemToRemove].text}`, 'info');
+                    }
+                    break;
+                 case 'check_shopping_list_item':
+                    const itemToCheck = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
+                    if (itemToCheck > -1 && !shoppingList[itemToCheck].checked) {
+                        handleShoppingListUpdateItem(itemToCheck, { ...shoppingList[itemToCheck], checked: true });
+                        showNotification(`Kipipálva: ${shoppingList[itemToCheck].text}`, 'info');
+                    }
+                    break;
+                case 'uncheck_shopping_list_item':
+                    const itemToUncheck = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
+                    if (itemToUncheck > -1 && shoppingList[itemToUncheck].checked) {
+                        handleShoppingListUpdateItem(itemToUncheck, { ...shoppingList[itemToUncheck], checked: false });
+                    }
+                    break;
+                case 'clear_checked_shopping_list':
+                    handleShoppingListClearChecked();
+                    break;
+                case 'clear_all_shopping_list':
+                    handleShoppingListClearAll();
+                    break;
+                case 'view_favorite_recipe':
+                    const payloadView = command.payload as { recipeName: string; category: string };
+                    const recipeToView = favorites[payloadView.category]?.find(r => r.recipeName === payloadView.recipeName);
+                    if (recipeToView) {
+                        viewFavoriteRecipe(recipeToView);
+                        showNotification(`Megnyitva: ${payloadView.recipeName}`, 'info');
+                    }
+                    break;
+                case 'delete_favorite_recipe':
+                    const payloadDelete = command.payload as { recipeName: string; category: string };
+                    handleDeleteRecipe(payloadDelete.recipeName, payloadDelete.category);
+                    break;
+                case 'filter_favorites':
+                    setFilterCategory(command.payload as string);
+                    showNotification(`Szűrés: ${command.payload}`, 'info');
+                    break;
+                case 'clear_favorites_filter':
+                    setFilterCategory('all');
+                    showNotification('Szűrés törölve', 'info');
+                    break;
+                case 'expand_category':
+                     setExpandedCategories(prev => ({ ...prev, [command.payload as string]: true }));
+                     break;
+                case 'collapse_category':
+                     setExpandedCategories(prev => ({ ...prev, [command.payload as string]: false }));
+                     break;
+            }
+        } catch (err: any) {
+            console.error("Error interpreting app command:", err);
+            showNotification('Hiba a parancs értelmezésekor.', 'info');
+        } finally {
+            isProcessingRef.current = false;
+            setIsProcessingVoice(false);
+        }
+    }, 1500);
+  }, [page, favorites, shoppingList, showNotification]);
+
+  const {
+    isListening: isAppListening,
+    isSupported: isVoiceSupported,
+    startListening: startAppListening,
+    stopListening: stopAppListening,
+    permissionState,
+  } = useSpeechRecognition({ onResult: handleAppVoiceResult, continuous: true });
+
+  useEffect(() => {
+    // This voice control is only active on the main list pages, not during recipe generation or display.
+    const isAppPage = (page === 'favorites' || page === 'shopping-list') && !recipe;
+    if (isAppVoiceControlActive && isAppPage && !isAppListening) {
+      startAppListening();
+    } else if (!isAppVoiceControlActive || !isAppPage) {
+      stopAppListening();
+    }
+  }, [isAppVoiceControlActive, page, recipe, isAppListening, startAppListening, stopAppListening]);
+
   const handleGenerateRecipe = async (params: RecipeGenerationParams) => {
     setIsLoading(true);
     setError(null);
@@ -221,6 +345,10 @@ const App: React.FC = () => {
           onViewRecipe={viewFavoriteRecipe}
           onDeleteRecipe={handleDeleteRecipe}
           onDeleteCategory={handleDeleteCategory}
+          expandedCategories={expandedCategories}
+          onToggleCategory={(category) => setExpandedCategories(prev => ({...prev, [category]: !prev[category]}))}
+          filterCategory={filterCategory}
+          onSetFilterCategory={setFilterCategory}
         />
       );
     }
@@ -265,6 +393,16 @@ const App: React.FC = () => {
                     Bevásárlólista
                 </NavButton>
             </div>
+            {(page === 'favorites' || page === 'shopping-list') && !recipe && (
+                 <AppVoiceControl
+                    isSupported={isVoiceSupported}
+                    isActive={isAppVoiceControlActive}
+                    isListening={isAppListening}
+                    isProcessing={isProcessingVoice}
+                    onToggle={() => setIsAppVoiceControlActive(prev => !prev)}
+                    permissionState={permissionState}
+                />
+            )}
           <div className="bg-white p-6 md:p-8 rounded-2xl shadow-lg border border-gray-200">
             {renderContent()}
           </div>

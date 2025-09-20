@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Favorites, Recipe } from '../types';
 
 interface FavoritesViewProps {
@@ -6,6 +6,10 @@ interface FavoritesViewProps {
   onViewRecipe: (recipe: Recipe) => void;
   onDeleteRecipe: (recipeName: string, category: string) => void;
   onDeleteCategory: (category: string) => void;
+  expandedCategories: Record<string, boolean>;
+  onToggleCategory: (category: string) => void;
+  filterCategory: string;
+  onSetFilterCategory: (category: string) => void;
 }
 
 const FavoritesView: React.FC<FavoritesViewProps> = ({
@@ -13,13 +17,11 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   onViewRecipe,
   onDeleteRecipe,
   onDeleteCategory,
+  expandedCategories,
+  onToggleCategory,
+  filterCategory,
+  onSetFilterCategory,
 }) => {
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-
-  const toggleCategory = (category: string) => {
-    setExpandedCategories(prev => ({ ...prev, [category]: !prev[category] }));
-  };
   
   const categories = Object.keys(favorites);
 
@@ -52,7 +54,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
           <select
             id="category-filter"
             value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
+            onChange={(e) => onSetFilterCategory(e.target.value)}
             className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
           >
             <option value="all">Minden kategória</option>
@@ -68,7 +70,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
       {filteredCategories.map((category) => (
         <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
           <button
-            onClick={() => toggleCategory(category)}
+            onClick={() => onToggleCategory(category)}
             className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 focus:outline-none"
             aria-expanded={!!expandedCategories[category]}
           >
