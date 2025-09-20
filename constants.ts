@@ -15,7 +15,7 @@ export const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: MealType.LUNCH, label: 'Ebéd' },
   { value: MealType.DINNER, label: 'Vacsora' },
   { value: MealType.DESSERT, label: 'Desszert' },
-  { value: MealType.SNACK, label: 'Snack' },
+  { value: MealType.SNACK, label: 'Nassolnivaló' },
 ];
 
 export const COOKING_METHODS: { value: CookingMethod; label: string }[] = [

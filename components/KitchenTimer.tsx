@@ -67,7 +67,8 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
   
   const { showNotification } = useNotification();
   const audioContextRef = useRef<AudioContext | null>(null);
-  const alarmIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // FIX: In browser environments, setInterval returns a number, not a NodeJS.Timeout.
+  const alarmIntervalRef = useRef<number | null>(null);
   
   // Web Audio API implementation for reliable sound
   const playAlarm = () => {
@@ -151,7 +152,8 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
   };
   
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    // FIX: In browser environments, setInterval returns a number, not a NodeJS.Timeout.
+    let interval: number | null = null;
     if (isActive && time > 0) {
       interval = setInterval(() => {
         setTime((prevTime) => prevTime - 1);

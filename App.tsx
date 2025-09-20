@@ -189,7 +189,7 @@ const App: React.FC = () => {
       <main className="container mx-auto px-4 py-8 md:py-12">
         <header className="text-center mb-8">
           <h1 className="text-4xl md:text-5xl font-extrabold text-primary-900">
-            AI Recept Generátor
+            AI recept generátor - ahogy Konyha Miki gondolja
           </h1>
           <p className="mt-3 text-lg text-primary-700 max-w-2xl mx-auto">
             Készítsen finom recepteket, mentse el kedvenceit és használja a konyhai időzítőt!
