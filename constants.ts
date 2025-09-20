@@ -12,8 +12,11 @@ export const DIET_OPTIONS: { value: DietOption; label: string }[] = [
 
 export const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: MealType.BREAKFAST, label: 'Reggeli' },
+  { value: MealType.ELEVENSES, label: 'Tízórai' },
   { value: MealType.LUNCH, label: 'Ebéd' },
+  { value: MealType.AFTERNOON_SNACK, label: 'Uzsonna' },
   { value: MealType.DINNER, label: 'Vacsora' },
+  { value: MealType.SOUP, label: 'Leves' },
   { value: MealType.DESSERT, label: 'Desszert' },
   { value: MealType.SNACK, label: 'Nassolnivaló' },
 ];
