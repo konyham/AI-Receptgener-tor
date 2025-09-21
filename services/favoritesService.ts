@@ -24,10 +24,9 @@ export const getFavorites = (): Favorites => {
     console.error("Error parsing favorites from localStorage. Backing up corrupted data.", error);
     // Backup corrupted data for potential manual recovery.
     localStorage.setItem(`${FAVORITES_KEY}_corrupted_${Date.now()}`, favoritesJson);
-    // Remove the corrupted item so the app can start fresh on the next load.
-    localStorage.removeItem(FAVORITES_KEY);
+    // DO NOT remove the corrupted item. This prevents data loss on a parsing error.
     // Throw a user-friendly error to be caught by the UI layer.
-    throw new Error('A kedvenc receptek listája sérült, ezért nem sikerült betölteni. A sérült adatokról biztonsági mentés készült, és egy új, üres lista jött létre.');
+    throw new Error('A kedvenc receptek listája sérült, ezért nem sikerült betölteni. A sérült adatokról biztonsági mentés készült, és az eredeti adatok megmaradtak a tárolóban.');
   }
 };
 

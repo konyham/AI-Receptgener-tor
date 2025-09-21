@@ -6,9 +6,9 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 
 interface RecipeInputFormProps {
-  onSubmit: (params: { ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string }) => void;
+  onSubmit: (params: { ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string, withCost: boolean, withImage: boolean }) => void;
   isLoading: boolean;
-  initialFormData?: Partial<{ ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string }> | null;
+  initialFormData?: Partial<{ ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string, withCost: boolean, withImage: boolean }> | null;
   onFormPopulated?: () => void;
   suggestions?: RecipeSuggestions | null;
 }
@@ -22,6 +22,8 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [mealType, setMealType] = useState<MealType>(MealType.BREAKFAST);
   const [cookingMethod, setCookingMethod] = useState<CookingMethod>(CookingMethod.TRADITIONAL);
   const [specialRequest, setSpecialRequest] = useState('');
+  const [withCost, setWithCost] = useState(true);
+  const [withImage, setWithImage] = useState(true);
   
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [voiceControlActive, setVoiceControlActive] = useState(true);
@@ -53,6 +55,12 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
             setCookingMethod(initialFormData.cookingMethod);
         } else {
             setCookingMethod(CookingMethod.TRADITIONAL); // Reset to default
+        }
+        if (initialFormData.withCost !== undefined) {
+            setWithCost(initialFormData.withCost);
+        }
+        if (initialFormData.withImage !== undefined) {
+            setWithImage(initialFormData.withImage);
         }
         onFormPopulated();
     }
@@ -255,7 +263,9 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         diet,
         mealType,
         cookingMethod,
-        specialRequest
+        specialRequest,
+        withCost,
+        withImage,
       });
     }
   };
@@ -422,6 +432,29 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
           rows={2}
           className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
         ></textarea>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <label htmlFor="withCost" className="flex items-center p-3 border border-gray-300 rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors">
+            <input
+                type="checkbox"
+                id="withCost"
+                checked={withCost}
+                onChange={(e) => setWithCost(e.target.checked)}
+                className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            <span className="ml-3 text-gray-700 font-medium">Költségbecslés kérése</span>
+        </label>
+        <label htmlFor="withImage" className="flex items-center p-3 border border-gray-300 rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors">
+            <input
+                type="checkbox"
+                id="withImage"
+                checked={withImage}
+                onChange={(e) => setWithImage(e.target.checked)}
+                className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            <span className="ml-3 text-gray-700 font-medium">Ételfotó generálása</span>
+        </label>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

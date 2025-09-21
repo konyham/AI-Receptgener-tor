@@ -19,6 +19,8 @@ interface RecipeGenerationParams {
   mealType: MealType;
   cookingMethod: CookingMethod;
   specialRequest: string;
+  withCost: boolean;
+  withImage: boolean;
 }
 
 const App: React.FC = () => {
@@ -31,6 +33,7 @@ const App: React.FC = () => {
   const [lastGenerationParams, setLastGenerationParams] = useState<RecipeGenerationParams | null>(null);
   const [initialFormData, setInitialFormData] = useState<Partial<RecipeGenerationParams> | null>(null);
   const [suggestions, setSuggestions] = useState<RecipeSuggestions | null>(null);
+  const [shouldGenerateImage, setShouldGenerateImage] = useState(true);
   const { showNotification } = useNotification();
 
   // State lifted from FavoritesView for voice control
@@ -213,8 +216,9 @@ const App: React.FC = () => {
     setRecipe(null);
     setSuggestions(null); // Clear suggestions on new generation
     setLastGenerationParams(params);
+    setShouldGenerateImage(params.withImage);
     try {
-      const newRecipe = await generateRecipe(params.ingredients, params.diet, params.mealType, params.cookingMethod, params.specialRequest);
+      const newRecipe = await generateRecipe(params.ingredients, params.diet, params.mealType, params.cookingMethod, params.specialRequest, params.withCost);
       setRecipe(newRecipe);
       setPage('generator'); 
     } catch (err: any) {
@@ -332,6 +336,7 @@ const App: React.FC = () => {
           onSave={handleSaveRecipe}
           onAddItemsToShoppingList={handleShoppingListAddItems}
           isLoading={isLoading}
+          generateImage={shouldGenerateImage}
         />
       );
     }

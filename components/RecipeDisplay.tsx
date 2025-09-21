@@ -24,6 +24,7 @@ interface RecipeDisplayProps {
   onSave: (recipe: Recipe, category: string) => void;
   onAddItemsToShoppingList: (items: string[]) => void;
   isLoading: boolean;
+  generateImage: boolean;
 }
 
 type VoiceMode = 'idle' | 'intro' | 'ingredients' | 'cooking';
@@ -80,7 +81,7 @@ const DiabeticAdvice: React.FC<{ advice: string | undefined }> = ({ advice }) =>
 };
 
 
-const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave, onAddItemsToShoppingList, isLoading }) => {
+const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave, onAddItemsToShoppingList, isLoading, generateImage }) => {
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isInterpreting, setIsInterpreting] = useState(false);
@@ -105,16 +106,12 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const { showNotification } = useNotification();
 
   useEffect(() => {
-    // This effect handles fetching or generating an image for the current recipe.
-    const generateImage = async () => {
-      // If the recipe object itself contains an image URL (e.g., from a future, more capable storage), use it directly.
+    const generateImageForRecipe = async () => {
       if (recipe.imageUrl) {
         setImageUrl(recipe.imageUrl);
         return;
       }
 
-      // For new recipes OR for favorites that were saved without an image,
-      // we generate a new one to ensure a good visual experience.
       setIsImageLoading(true);
       setImageError(null);
       try {
@@ -123,7 +120,6 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         setImageUrl(url);
       } catch (err: any) {
         setImageError(err.message || 'Ismeretlen hiba történt az ételfotó generálása közben.');
-        // Only show a notification for brand new recipes to avoid being noisy when viewing favorites.
         if (!isFromFavorites) {
           showNotification('Az ételfotó generálása nem sikerült.', 'info');
         }
@@ -132,8 +128,14 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
       }
     };
 
-    generateImage();
-  }, [recipe, isFromFavorites, showNotification]);
+    if (generateImage) {
+        generateImageForRecipe();
+    } else {
+        setImageUrl(null);
+        setIsImageLoading(false);
+        setImageError(null);
+    }
+  }, [recipe, isFromFavorites, showNotification, generateImage]);
 
   useEffect(() => {
     return () => {
