@@ -69,31 +69,51 @@ const App: React.FC = () => {
 
   // Handlers for Shopping List - Placed here as they are fundamental
   const handleShoppingListAddItems = (items: string[]) => {
-    const updatedList = shoppingListService.addItems(items);
-    setShoppingList(updatedList);
-    showNotification(`${items.length} tétel hozzáadva a bevásárlólistához!`, 'success');
+    try {
+      const updatedList = shoppingListService.addItems(items);
+      setShoppingList(updatedList);
+      showNotification(`${items.length} tétel hozzáadva a bevásárlólistához!`, 'success');
+    } catch (err: any) {
+        showNotification(err.message, 'info');
+    }
   };
 
   const handleShoppingListUpdateItem = (index: number, updatedItem: ShoppingListItem) => {
+    try {
       const updatedList = shoppingListService.updateItem(index, updatedItem);
       setShoppingList(updatedList);
+    } catch (err: any) {
+        showNotification(err.message, 'info');
+    }
   };
 
   const handleShoppingListRemoveItem = (index: number) => {
+    try {
       const updatedList = shoppingListService.removeItem(index);
       setShoppingList(updatedList);
+    } catch (err: any) {
+        showNotification(err.message, 'info');
+    }
   };
 
   const handleShoppingListClearChecked = () => {
+    try {
       const updatedList = shoppingListService.clearChecked();
       setShoppingList(updatedList);
       showNotification('Kipipált tételek törölve.', 'info');
+    } catch (err: any) {
+        showNotification(err.message, 'info');
+    }
   };
   
   const handleShoppingListClearAll = () => {
+    try {
       const updatedList = shoppingListService.clearAll();
       setShoppingList(updatedList);
       showNotification('Bevásárlólista törölve.', 'info');
+    } catch (err: any) {
+        showNotification(err.message, 'info');
+    }
   };
   
   // Voice control logic
@@ -129,8 +149,8 @@ const App: React.FC = () => {
             case 'remove_shopping_list_item':
                 const itemToRemove = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
                 if (itemToRemove > -1) {
-                    handleShoppingListRemoveItem(itemToRemove);
                     showNotification(`Törölve: ${shoppingList[itemToRemove].text}`, 'info');
+                    handleShoppingListRemoveItem(itemToRemove);
                 }
                 break;
              case 'check_shopping_list_item':
@@ -197,7 +217,7 @@ const App: React.FC = () => {
         isProcessingRef.current = false;
         setIsProcessingVoice(false);
     }
-  }, [page, favorites, shoppingList, showNotification, handleShoppingListAddItems]);
+  }, [page, favorites, shoppingList, showNotification]);
 
   const {
     isListening: isAppListening,
@@ -274,21 +294,33 @@ const App: React.FC = () => {
   };
   
   const handleSaveRecipe = (recipeToSave: Recipe, category: string) => {
-    const updatedFavorites = favoritesService.addRecipeToFavorites(recipeToSave, category);
-    setFavorites(updatedFavorites);
-    showNotification(`Recept elmentve a(z) "${category}" kategóriába!`, 'success');
+    try {
+      const updatedFavorites = favoritesService.addRecipeToFavorites(recipeToSave, category);
+      setFavorites(updatedFavorites);
+      showNotification(`Recept elmentve a(z) "${category}" kategóriába!`, 'success');
+    } catch (err: any) {
+        showNotification(err.message, 'info');
+    }
   };
 
   const handleDeleteRecipe = (recipeName: string, category: string) => {
-    const updatedFavorites = favoritesService.removeRecipeFromFavorites(recipeName, category);
-    setFavorites(updatedFavorites);
-    showNotification('Recept törölve a kedvencek közül.', 'info');
+    try {
+      const updatedFavorites = favoritesService.removeRecipeFromFavorites(recipeName, category);
+      setFavorites(updatedFavorites);
+      showNotification('Recept törölve a kedvencek közül.', 'info');
+    } catch (err: any) {
+        showNotification(err.message, 'info');
+    }
   };
 
   const handleDeleteCategory = (category: string) => {
-    const updatedFavorites = favoritesService.removeCategory(category);
-    setFavorites(updatedFavorites);
-     showNotification(`"${category}" kategória törölve.`, 'info');
+    try {
+      const updatedFavorites = favoritesService.removeCategory(category);
+      setFavorites(updatedFavorites);
+      showNotification(`"${category}" kategória törölve.`, 'info');
+    } catch (err: any) {
+        showNotification(err.message, 'info');
+    }
   };
 
   const showGenerator = () => {
@@ -300,7 +332,11 @@ const App: React.FC = () => {
   const showFavorites = () => {
     setRecipe(null);
     setSuggestions(null);
-    setFavorites(favoritesService.getFavorites());
+    try {
+      setFavorites(favoritesService.getFavorites());
+    } catch (err: any) {
+        showNotification(err.message, 'info');
+    }
     setPage('favorites');
   };
   

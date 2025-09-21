@@ -4,6 +4,7 @@ import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS } from '../constants';
 import { interpretFormCommand } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
+import { safeSetLocalStorage } from '../utils/storage';
 
 interface RecipeInputFormProps {
   onSubmit: (params: { ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string, withCost: boolean, withImage: boolean }) => void;
@@ -97,9 +98,13 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
 
   const handleSaveIngredients = useCallback(() => {
     if (ingredients.length > 0) {
-      localStorage.setItem(INGREDIENTS_STORAGE_KEY, JSON.stringify(ingredients));
-      setHasSavedIngredients(true);
-      showNotification('Hozzávalók elmentve!', 'success');
+      try {
+        safeSetLocalStorage(INGREDIENTS_STORAGE_KEY, ingredients);
+        setHasSavedIngredients(true);
+        showNotification('Hozzávalók elmentve!', 'success');
+      } catch (err: any) {
+        showNotification(err.message, 'info');
+      }
     }
   }, [ingredients, showNotification]);
 

@@ -1,4 +1,5 @@
 import type { ShoppingListItem } from '../types';
+import { safeSetLocalStorage } from '../utils/storage';
 
 const SHOPPING_LIST_KEY = 'ai-recipe-generator-shopping-list';
 
@@ -27,11 +28,7 @@ export const getShoppingList = (): ShoppingListItem[] => {
 
 // Saves the list to localStorage.
 export const saveShoppingList = (list: ShoppingListItem[]): void => {
-  try {
-    localStorage.setItem(SHOPPING_LIST_KEY, JSON.stringify(list));
-  } catch (error) {
-    console.error("Error saving shopping list to localStorage", error);
-  }
+  safeSetLocalStorage(SHOPPING_LIST_KEY, list);
 };
 
 // Adds one or more items, avoiding duplicates.

@@ -13,3 +13,22 @@ export const isLocalStorageAvailable = (): boolean => {
     return false;
   }
 };
+
+/**
+ * A robust wrapper for localStorage.setItem that handles potential errors.
+ * @param key The key to save data under.
+ * @param value The value to save (will be JSON.stringified).
+ * @throws An error with a user-friendly message if saving fails.
+ */
+export const safeSetLocalStorage = (key: string, value: any): void => {
+  try {
+    const stringifiedValue = JSON.stringify(value);
+    window.localStorage.setItem(key, stringifiedValue);
+  } catch (error: any) {
+    console.error(`Error saving to localStorage with key "${key}"`, error);
+    if (error.name === 'QuotaExceededError') {
+      throw new Error('A böngésző tárolója megtelt. A mentéshez töröljön elemeket, vagy ürítse a webhely adatait.');
+    }
+    throw new Error('Ismeretlen hiba történt a mentés közben.');
+  }
+};

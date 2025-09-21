@@ -1,4 +1,5 @@
 import type { Recipe, Favorites } from '../types';
+import { safeSetLocalStorage } from '../utils/storage';
 
 const FAVORITES_KEY = 'ai-recipe-generator-favorites';
 
@@ -36,11 +37,7 @@ export const getFavorites = (): Favorites => {
  * @param favorites The favorites object to save.
  */
 export const saveFavorites = (favorites: Favorites): void => {
-  try {
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
-  } catch (error) {
-    console.error("Error saving favorites to localStorage", error);
-  }
+  safeSetLocalStorage(FAVORITES_KEY, favorites);
 };
 
 /**
