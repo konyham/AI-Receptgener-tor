@@ -89,9 +89,15 @@ export const addRecipeToFavorites = (recipe: Recipe, category: string): Favorite
   if (!favorites[category]) {
     favorites[category] = [];
   }
+
+  // Defensively create a copy and remove imageUrl to prevent localStorage quota issues.
+  // This ensures the image is never stored, even if the calling component sends it.
+  const recipeToSave = { ...recipe };
+  delete (recipeToSave as Partial<Recipe>).imageUrl;
+
   // Avoid adding duplicate recipes in the same category.
-  if (!favorites[category].some(r => r.recipeName === recipe.recipeName)) {
-    favorites[category].push(recipe);
+  if (!favorites[category].some(r => r.recipeName === recipeToSave.recipeName)) {
+    favorites[category].push(recipeToSave);
     saveFavorites(favorites);
   }
   return favorites;
