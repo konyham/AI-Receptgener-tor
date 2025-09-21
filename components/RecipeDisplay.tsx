@@ -439,7 +439,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     // To ensure favorites can always be saved without hitting browser storage limits,
     // we save the recipe data *without* the generated image's large data URL.
     // The image will be automatically re-generated whenever the favorite is viewed.
-    onSave(recipe, category);
+    const { imageUrl, ...recipeToSave } = recipe;
+    onSave(recipeToSave as Recipe, category);
     setIsSaveModalOpen(false);
   };
 
