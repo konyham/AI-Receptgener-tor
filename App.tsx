@@ -12,6 +12,7 @@ import ErrorMessage from './components/ErrorMessage';
 import AppVoiceControl from './components/AppVoiceControl';
 import { useNotification } from './contexts/NotificationContext';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
+import { isLocalStorageAvailable } from './utils/storage';
 
 interface RecipeGenerationParams {
   ingredients: string;
@@ -30,6 +31,7 @@ const App: React.FC = () => {
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [storageError, setStorageError] = useState<string | null>(null);
   const [lastGenerationParams, setLastGenerationParams] = useState<RecipeGenerationParams | null>(null);
   const [initialFormData, setInitialFormData] = useState<Partial<RecipeGenerationParams> | null>(null);
   const [suggestions, setSuggestions] = useState<RecipeSuggestions | null>(null);
@@ -46,6 +48,11 @@ const App: React.FC = () => {
   const isProcessingRef = useRef(false);
 
   useEffect(() => {
+    if (!isLocalStorageAvailable()) {
+      setStorageError(
+        "Az adatok mentése nem lehetséges, mert a böngésző helyi tárolója nem elérhető vagy le van tiltva. Kérjük, engedélyezze a 'sütiket' és a webhelyadatokat a böngésző beállításaiban a teljes funkcionalitás érdekében."
+      );
+    }
     try {
       setFavorites(favoritesService.getFavorites());
     } catch (err: any) {
@@ -400,6 +407,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="max-w-3xl mx-auto">
+            {storageError && <div className="mb-4"><ErrorMessage message={storageError} /></div>}
             <div className="mb-6 p-2 bg-white rounded-xl shadow-sm border border-gray-200 flex justify-center items-center gap-2">
                  <NavButton active={page === 'generator'} onClick={showGenerator}>
                     Recept Generátor
