@@ -124,11 +124,18 @@ export const generateRecipe = async (
     }
     const recipeData: Recipe = JSON.parse(jsonText);
     return recipeData;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating recipe:', error);
-    if (error instanceof SyntaxError) {
-        throw new Error('Hiba történt a recept adatainak feldolgozása közben. Próbálkozzon újra.');
+    const errorMessage = (error?.message || '').toLowerCase();
+
+    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+      throw new Error('Elérte a napi kvótáját a receptgeneráláshoz. A ingyenes kvóta általában 24 óránként frissül. Kérjük, próbálja újra később, vagy ellenőrizze a fiókbeállításait.');
     }
+
+    if (error instanceof SyntaxError) {
+        throw new Error('Hiba történt a recept adatainak feldolgozása közben. Az AI által adott válasz hibás formátumú volt.');
+    }
+    
     throw new Error(
       'Nem sikerült receptet generálni. Kérjük, próbálja újra később.'
     );
@@ -443,7 +450,6 @@ export const interpretAppCommand = async (
     // Find the full recipe details (name and category) for view/delete actions
     if (result.action === 'view_favorite_recipe' || result.action === 'delete_favorite_recipe') {
         const recipeNameToFind = (result.payload as string).toLowerCase();
-        let found = false;
         if (context.recipesByCategory) {
             for (const category in context.recipesByCategory) {
                 const recipeName = context.recipesByCategory[category].find(r => r.toLowerCase().includes(recipeNameToFind));
@@ -586,8 +592,12 @@ VIZUÁLIS STÍLUS:
     } else {
         throw new Error('Az API nem adott vissza képet.');
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating recipe image:', error);
+    const errorMessage = (error?.message || '').toLowerCase();
+    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+      throw new Error('Elérte a napi kvótáját az ételfotó generálásához. Kérjük, próbálja újra később.');
+    }
     throw new Error('Nem sikerült ételfotót generálni. Kérjük, próbálja újra később.');
   }
 };
@@ -638,8 +648,12 @@ export const getRecipeModificationSuggestions = async (
     }
     const suggestions: RecipeSuggestions = JSON.parse(jsonText);
     return suggestions;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating recipe suggestions:', error);
+    const errorMessage = (error?.message || '').toLowerCase();
+    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+      throw new Error('Elérte a napi kvótáját a javaslatok generálásához. Kérjük, próbálja újra később.');
+    }
     if (error instanceof SyntaxError) {
         throw new Error('Hiba történt a javaslatok feldolgozása közben. Az AI által adott válasz hibás formátumú volt.');
     }

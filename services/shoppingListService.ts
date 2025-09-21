@@ -19,8 +19,8 @@ export const getShoppingList = (): ShoppingListItem[] => {
   } catch (error) {
     console.error("Error parsing shopping list from localStorage. Backing up corrupted data.", error);
     localStorage.setItem(`${SHOPPING_LIST_KEY}_corrupted_${Date.now()}`, listJson);
-    // REMOVED: Do not delete the original data to prevent data loss during development.
-    // localStorage.removeItem(SHOPPING_LIST_KEY);
+    // Remove the corrupted item so the app can start fresh on the next load.
+    localStorage.removeItem(SHOPPING_LIST_KEY);
     throw new Error('A bevásárlólista sérült, ezért nem sikerült betölteni. A sérült adatokról biztonsági mentés készült, és egy új, üres lista jött létre.');
   }
 };
