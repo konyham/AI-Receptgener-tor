@@ -53,17 +53,27 @@ const App: React.FC = () => {
         "Az adatok mentése nem lehetséges, mert a böngésző helyi tárolója nem elérhető vagy le van tiltva. Kérjük, engedélyezze a 'sütiket' és a webhelyadatokat a böngésző beállításaiban a teljes funkcionalitás érdekében."
       );
     }
+    // Load favorites with resilience
     try {
-      setFavorites(favoritesService.getFavorites());
+      const { favorites, recoveryNotification } = favoritesService.getFavorites();
+      setFavorites(favorites);
+      if (recoveryNotification) {
+          showNotification(recoveryNotification, 'info');
+      }
     } catch (err: any) {
       showNotification(err.message, 'info');
-      setFavorites({}); // Start with empty favorites on corruption
+      setFavorites({}); // Start with empty favorites on unrecoverable corruption
     }
+    // Load shopping list with resilience
     try {
-      setShoppingList(shoppingListService.getShoppingList());
+      const { list, recoveryNotification } = shoppingListService.getShoppingList();
+      setShoppingList(list);
+       if (recoveryNotification) {
+          showNotification(recoveryNotification, 'info');
+      }
     } catch (err: any) {
       showNotification(err.message, 'info');
-      setShoppingList([]); // Start with empty list on corruption
+      setShoppingList([]); // Start with empty list on unrecoverable corruption
     }
   }, [showNotification]);
 
@@ -333,9 +343,14 @@ const App: React.FC = () => {
     setRecipe(null);
     setSuggestions(null);
     try {
-      setFavorites(favoritesService.getFavorites());
+      const { favorites, recoveryNotification } = favoritesService.getFavorites();
+      setFavorites(favorites);
+      if (recoveryNotification) {
+          showNotification(recoveryNotification, 'info');
+      }
     } catch (err: any) {
         showNotification(err.message, 'info');
+        setFavorites({}); // Keep fallback for fatal errors
     }
     setPage('favorites');
   };
