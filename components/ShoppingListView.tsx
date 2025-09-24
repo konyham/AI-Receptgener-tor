@@ -46,9 +46,10 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     const encodedTitle = encodeURIComponent(title);
     const encodedText = encodeURIComponent(checklistItems);
     
-    // FINAL FIX: This endpoint is specifically for creating notes and is more reliable
-    // than trying to manipulate the main app's hash routes.
-    const keepUrl = `https://keep.google.com/keep/createnote?title=${encodedTitle}&text=${encodedText}`;
+    // The /keep/createnote endpoint now results in a 404 error.
+    // This new URL targets the web app's client-side router for the default user account (u/0),
+    // which is a more resilient, albeit still undocumented, method.
+    const keepUrl = `https://keep.google.com/u/0/#create?title=${encodedTitle}&text=${encodedText}`;
 
     window.open(keepUrl, '_blank', 'noopener,noreferrer');
   };
