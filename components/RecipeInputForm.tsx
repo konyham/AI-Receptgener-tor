@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions } from '../types';
-import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS } from '../constants';
+import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES } from '../constants';
 import { interpretFormCommand } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
@@ -299,6 +299,9 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
       }
   };
 
+  const selectedMethodInfo = COOKING_METHODS.find(m => m.value === cookingMethod);
+  const capacity = COOKING_METHOD_CAPACITIES[cookingMethod];
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
        {suggestions && (
@@ -534,7 +537,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
           <label htmlFor="cookingMethod" className="block text-lg font-semibold text-gray-700 mb-2">
             Elkészítés módja
           </label>
-           <div className="flex items-center gap-2">
+           <div className="flex flex-col gap-2">
               <select
                 id="cookingMethod"
                 value={cookingMethod}
@@ -547,6 +550,16 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
                   </option>
                 ))}
               </select>
+              {capacity && selectedMethodInfo && (
+                <div className="flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 animate-fade-in">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    <span>
+                        Tájékoztató: A(z) <strong>{selectedMethodInfo.label}</strong> legfeljebb <strong>{capacity} személyre</strong> javasolt főzni.
+                    </span>
+                </div>
+              )}
            </div>
         </div>
       </div>
