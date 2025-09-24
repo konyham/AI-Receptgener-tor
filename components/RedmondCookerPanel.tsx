@@ -1,135 +1,125 @@
 import React from 'react';
 
+// Helper component for dual-language button text
+const ButtonText: React.FC<{ x: number; y: number; text1: string; text2: string; size1?: number; size2?: number; fontWeight?: string; fill?: string }> = ({ x, y, text1, text2, size1 = 12, size2 = 9, fontWeight = 'normal', fill = "#E5E7EB" }) => (
+  <g textAnchor="middle" fill={fill} fontFamily="Roboto Condensed, sans-serif">
+    <text x={x} y={y} fontSize={size1} fontWeight={fontWeight}>{text1}</text>
+    <text x={x} y={y + 13} fontSize={size2} fill="#9CA3AF" fontWeight="normal">{text2}</text>
+  </g>
+);
+
+// Helper component for program items on the LCD screen
+const ProgramItem: React.FC<{ y: number; text1: string; text2: string; active?: boolean }> = ({ y, text1, text2, active }) => (
+    <g transform={`translate(0, ${y})`}>
+        {active && <rect x="5" y="-12" width="160" height="15" fill="#1f2937" opacity="0.5" rx="2" />}
+        <text x="10" y="0" fontFamily="sans-serif" fontSize="11" fill={active ? "#FBBF24" : "#1f2937"} fontWeight="bold">{text1}</text>
+        <text x="155" y="0" fontFamily="sans-serif" textAnchor="end" fontSize="10" fill="#4b5563" fontWeight="normal">{text2}</text>
+    </g>
+);
+
+
 const RedmondCookerPanel: React.FC = () => {
-
-  const Button: React.FC<{ x: number; y: number; width: number; height: number; text1: string; text2?: string; text3?: string; light?: 'orange' | 'red'; active?: boolean }> = ({ x, y, width, height, text1, text2, text3, light, active }) => (
-    <g transform={`translate(${x}, ${y})`} className="cursor-pointer">
-      <rect 
-        width={width} 
-        height={height} 
-        rx="8" 
-        fill={active ? "#4b5563" : "#2c3747"} 
-        stroke="#4b5563" 
-        strokeWidth="2"
-      />
-      <text x={width / 2} y={text3 ? 28 : (text2 ? 34: 45)} textAnchor="middle" fill="#E5E7EB" fontSize="24" fontWeight="bold">{text1}</text>
-      {text2 && <text x={width / 2} y={58} textAnchor="middle" fill="#9CA3AF" fontSize="16">{text2}</text>}
-      {text3 && <text x={width / 2} y={72} textAnchor="middle" fill="#9CA3AF" fontSize="16">{text3}</text>}
-      {light && <circle cx={width - 20} cy={height / 2} r="8" fill={light === 'orange' ? '#f59e0b' : '#ef4444'} stroke="#111827" strokeWidth="2" />}
-    </g>
-  );
-
-  const ProgramItem: React.FC<{ y: number; text1: string; text2: string; selected?: boolean }> = ({ y, text1, text2, selected }) => (
-     <g transform={`translate(5, ${y})`}>
-      {selected && <rect x="-5" y="-12" width="220" height="24" rx="4" fill="#4b5563" />}
-      <text x="10" y="5" fill="#E5E7EB" fontSize="18" fontWeight={selected ? 'bold' : 'normal'}>{text1}</text>
-      <text x="200" y="5" fill="#9CA3AF" fontSize="18" textAnchor="end">{text2}</text>
-    </g>
-  );
-
-
   return (
     <div className="mt-8 p-4 md:p-6 bg-gray-100 border-2 border-gray-300 rounded-2xl no-print">
       <h3 className="text-xl font-semibold text-center text-gray-800 mb-4">REDMOND RMC-M70 Kezelőpanel Referencia</h3>
       <div className="bg-gray-800 p-2 rounded-lg shadow-inner">
-        <svg viewBox="0 0 1000 700" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
-          {/* Main Panel Background */}
-          <rect x="10" y="10" width="980" height="680" rx="30" fill="#1f2937" stroke="#4b5563" strokeWidth="3" />
+        <svg viewBox="0 0 800 450" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+             <linearGradient id="panelGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#2c3747" />
+              <stop offset="100%" stopColor="#1f2937" />
+            </linearGradient>
+            <linearGradient id="displayGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#95a27c" />
+              <stop offset="100%" stopColor="#818e69" />
+            </linearGradient>
+            <style>
+              {`@import url('https://fonts.googleapis.com/css2?family=DS-Digital&family=Roboto+Condensed:wght@400;700&display=swap');`}
+            </style>
+          </defs>
           
-          {/* Brand */}
-          <text x="500" y="70" textAnchor="middle" fontSize="48" fontWeight="bold" fill="#E5E7EB" letterSpacing="6">REDMOND</text>
+          {/* Main Panel Body */}
+          <rect x="5" y="5" width="790" height="440" rx="30" fill="url(#panelGradient)" stroke="#111827" strokeWidth="2"/>
+          <rect x="15" y="15" width="770" height="420" rx="20" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1"/>
           
+          <text x="400" y="55" textAnchor="middle" fontSize="32" fontWeight="bold" fill="#E5E7EB" letterSpacing="4" fontFamily="Roboto Condensed, sans-serif">REDMOND</text>
+          <text x="400" y="80" textAnchor="middle" fontSize="12" fontWeight="normal" fill="#9CA3AF" letterSpacing="2" fontFamily="Roboto Condensed, sans-serif">MULTICOOKER</text>
+
           {/* Central Display Area */}
-          <g transform="translate(240, 100)">
-            <rect width="520" height="300" rx="10" fill="#111827" stroke="#4b5563" strokeWidth="2" />
-            <rect x="5" y="5" width="510" height="290" rx="5" fill="#93a2b1" />
+          <g transform="translate(180, 100)">
+            <rect width="440" height="200" rx="5" fill="#111827" />
+            <rect x="2" y="2" width="436" height="196" rx="3" fill="url(#displayGradient)" />
 
-            {/* Program List */}
-            <g transform="translate(15, 25)">
-                <ProgramItem y={0} text1="MULTIPOVAR" text2="МУЛЬТИПОВАР" selected />
-                <ProgramItem y={30} text1="PÁROLÁS" text2="ПАР" />
-                <ProgramItem y={60} text1="SÜTÉS" text2="ЖАРКА" />
-                <ProgramItem y={90} text1="LEVES" text2="СУП" />
-                <ProgramItem y={120} text1="GŐZÖLÉS" text2="ВАРКА НА ПАРУ" />
-                <ProgramItem y={150} text1="TÉSZTA" text2="МАКАРОНЫ" />
-                <ProgramItem y={180} text1="PÖRKÖLT" text2="ТУШЕНИЕ" />
-                <ProgramItem y={210} text1="TEJBEKÁSA" text2="МОЛОЧНАЯ КАША" />
-                <ProgramItem y={240} text1="PÁROLT RIZS" text2="КРУПЫ" />
-                <ProgramItem y={270} text1="JOGHURT" text2="ЙОГУРТ" />
+            {/* Program List (Left side of display) */}
+            <g transform="translate(15, 20)">
+                <ProgramItem y={0} text1="• ПАР" text2="Párolás" />
+                <ProgramItem y={18} text1="• ЖАРКА" text2="Sütés" />
+                <ProgramItem y={36} text1="• ВАРКА" text2="Főzés" />
+                <ProgramItem y={54} text1="• ТУШЕНИЕ" text2="Ragu" active/>
+                <ProgramItem y={72} text1="• ПЛОВ" text2="Piláf" />
+                <ProgramItem y={90} text1="• СУП" text2="Leves" />
+                <ProgramItem y={108} text1="• МАКАРОНЫ" text2="Tészta" />
+                <ProgramItem y={126} text1="• ВЫПЕЧКА" text2="Sütemény" />
+                <ProgramItem y={144} text1="• КРУПЫ" text2="Gabona" />
+                <ProgramItem y={162} text1="• МОЛОЧНАЯ КАША" text2="Tejbekása" />
             </g>
 
-            {/* Display Center */}
-            <g transform="translate(260, 25)">
-                <rect width="240" height="260" rx="5" fill="#aab5c2" />
-                <text x="120" y="40" textAnchor="middle" fontSize="18" fill="#1F2937">FŐZÉSI MÓD</text>
-                <text x="120" y="60" textAnchor="middle" fontSize="14" fill="#1F2937">РЕЖИМ</text>
-                <text x="120" y="140" textAnchor="middle" fontFamily="'DSEG7 Classic', 'monospace'" fontSize="96" fill="#111827">00:00</text>
-                 <g transform="translate(20, 200)">
-                    <text x="0" y="0" fontSize="14" fill="#1F2937">HŐMÉRSÉKLET</text>
-                    <circle cx="100" cy="-5" r="8" stroke="#1F2937" strokeWidth="2" fill="none" />
-                    <path d="M 97 -5 L 103 -5 M 100 -8 L 100 -2" stroke="#1F2937" strokeWidth="2" />
-                    <text x="120" y="0" fontSize="14" fill="#1F2937">IDŐ</text>
-                    <circle cx="150" cy="-5" r="8" stroke="#1F2937" strokeWidth="2" fill="none" />
-                    <path d="M 150 -5 L 150 -9 L 153 -9" stroke="#1F2937" strokeWidth="2" fill="none" />
-                 </g>
-                 <g transform="translate(20, 230)">
-                    <text x="0" y="0" fontSize="14" fill="#1F2937">TERMÉKTÍPUS</text>
-                    <text x="120" y="0" fontSize="14" fill="#1F2937">HÚS HAL ZÖLDSÉG</text>
+            {/* Main Timer & Status (Right side of display) */}
+            <g transform="translate(200, 15)">
+                {/* Time Display */}
+                <g>
+                    <text x="110" y="80" textAnchor="middle" fill="#1f2937" fontSize="100" fontFamily="'DS-Digital', 'monospace'">01:30</text>
+                    <text x="55" y="110" textAnchor="middle" fill="#1f2937" fontSize="20" fontFamily="sans-serif">ЧАСЫ</text>
+                    <text x="165" y="110" textAnchor="middle" fill="#1f2937" fontSize="20" fontFamily="sans-serif">МИН</text>
+                </g>
+                 
+                 {/* Status Indicators */}
+                 <g transform="translate(10, 140)">
+                    <text x="0" y="0" fontFamily="sans-serif" fontSize="12" fill="#1f2937" fontWeight="bold">t°C</text>
+                    <text x="0" y="20" fontFamily="sans-serif" fontSize="12" fill="#1f2937" fontWeight="bold">ОТЛОЖЕННЫЙ СТАРТ</text>
+                    <text x="0" y="40" fontFamily="sans-serif" fontSize="12" fill="#1f2937" fontWeight="bold">ПОДОГРЕВ</text>
                  </g>
             </g>
+
+          </g>
+          
+          {/* Top Row Buttons */}
+           <g transform="translate(250, 315)">
+             <rect width="130" height="50" rx="5" fill="#1f2937" stroke="#4b5563" strokeWidth="1.5" />
+             <ButtonText x={65} y={20} text1="t°C / ЧАСЫ" text2="TEMP / ÓRA" />
+          </g>
+          <g transform="translate(420, 315)">
+             <rect width="130" height="50" rx="5" fill="#1f2937" stroke="#4b5563" strokeWidth="1.5" />
+             <ButtonText x={65} y={20} text1="МИНУТЫ" text2="PERC" />
           </g>
 
-          {/* Left Buttons */}
-          <g transform="translate(30, 120)">
-            <Button x={0} y={0} width="180" height="90" text1="HŐMÉRSÉKLET" text2="ТЕМПЕРАТУРА" />
-            <Button x={0} y={110} width="180" height="90" text1="ÓRA, PERC" text2="ЧАС, МИН" />
-            <Button x={0} y={220} width="180" height="90" text1="KÉSLELTETETT" text2="INDÍTÁS" text3="ОТСРОЧКА СТАРТА" />
+          {/* Central Menu Button */}
+          <g transform="translate(335, 375)">
+             <rect width="130" height="50" rx="5" fill="#1f2937" stroke="#4b5563" strokeWidth="1.5" />
+             <ButtonText x={65} y={28} text1="МЕНЮ" text2="MENÜ" size1={16} fontWeight="bold"/>
           </g>
 
-          {/* Right Buttons */}
-          <g transform="translate(790, 120)">
-            <Button x={0} y={0} width="180" height={90} text1="MENÜ" text2="МЕНЮ" />
-            <rect x="0" y="110" width="180" height="150" rx="8" fill="#2c3747" stroke="#4b5563" strokeWidth="2" />
-            <text x="90" y="150" textAnchor="middle" fill="#E5E7EB" fontSize="20" fontWeight="bold">TERMÉKTÍPUS</text>
-            <text x="90" y="170" textAnchor="middle" fill="#9CA3AF" fontSize="14">ТИП ПРОДУКТА</text>
-            <line x1="20" y1="185" x2="160" y2="185" stroke="#4b5563" strokeWidth="2" transform="translate(790, 110)" />
-            <text x="90" y="220" textAnchor="middle" fill="#E5E7EB" fontSize="18">HÚS / МЯСО</text>
-            <text x="90" y="245" textAnchor="middle" fill="#9CA3AF" fontSize="18">HAL / РЫБА</text>
+          {/* Bottom Row Buttons */}
+          <g transform="translate(30, 340)">
+             <rect width="170" height="50" rx="5" fill="#1f2937" stroke="#4b5563" strokeWidth="1.5" />
+             <ButtonText x={85} y={20} text1="ОТЛОЖЕННЫЙ СТАРТ" text2="KÉSLELTETETT INDÍTÁS" />
           </g>
 
-
-          {/* Bottom Buttons */}
-          <g transform="translate(30, 440)">
-             <Button x={0} y={0} width="350" height="90" text1="MELEGENTARTÁS / FELMELEGÍTÉS" text2="ПОДОГРЕВ / ОТМЕНА" light="orange" />
-          </g>
-          <g transform="translate(410, 440)">
-             <Button x={0} y={0} width="560" height="90" text1="START" text2="СТАРТ" active={true} />
+           <g transform="translate(600, 340)">
+             <rect width="170" height="50" rx="5" fill="#1f2937" stroke="#4b5563" strokeWidth="1.5" />
+             <ButtonText x={85} y={20} text1="ПОДОГРЕВ / ОТМЕНА" text2="MELEGENTARTÁS / TÖRLÉS" />
           </g>
 
-          {/* Program list part 2 */}
-           <g transform="translate(30, 560)">
-             <rect width="940" height="110" rx="8" fill="#2c3747" stroke="#4b5563" strokeWidth="2" />
-             <text x="30" y="40" fill="#E5E7EB" fontSize="20">SÜTEMÉNY</text>
-             <text x="30" y="65" fill="#9CA3AF" fontSize="16">ВЫПЕЧКА</text>
-
-             <text x="200" y="40" fill="#E5E7EB" fontSize="20">PÁROLÁS</text>
-             <text x="200" y="65" fill="#9CA3AF" fontSize="16">ТУШЕНИЕ</text>
-
-             <text x="370" y="40" fill="#E5E7EB" fontSize="20">PILÁF</text>
-             <text x="370" y="65" fill="#9CA3AF" fontSize="16">ПЛОВ</text>
-             
-             <text x="540" y="40" fill="#E5E7EB" fontSize="20">LEVES</text>
-             <text x="540" y="65" fill="#9CA3AF" fontSize="16">СУП</text>
-
-             <text x="710" y="40" fill="#E5E7EB" fontSize="20">KENYÉR</text>
-             <text x="710" y="65" fill="#9CA3AF" fontSize="16">ХЛЕБ</text>
-
-             <text x="880" y="40" fill="#E5E7EB" fontSize="20">PIZZA</text>
-             <text x="880" y="65" fill="#9CA3AF" fontSize="16">ПИЦЦА</text>
-           </g>
-
+          {/* Start Button */}
+           <g transform="translate(670, 150)">
+             <circle cx="50" cy="50" r="48" fill="#e11d48" stroke="#fecdd3" strokeWidth="3" />
+             <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="2" />
+             <ButtonText x={50} y={45} text1="СТАРТ" text2="START" size1={20} fontWeight="bold" fill="white" />
+          </g>
+          
         </svg>
       </div>
+      <p className="text-center text-xs text-gray-500 mt-2">Ez a panel a REDMOND RMC-M70 modell vizuális másolata a könnyebb kezelhetőség érdekében.</p>
     </div>
   );
 };

@@ -210,23 +210,19 @@ export const getRecipeModificationSuggestions = async (
 
 // FIX: Added missing function to generate a recipe image.
 export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
-    // Extracting key ingredients to provide more context to the image model.
-    // This helps ground the generation and prevent hallucinations like showing a pie for a soup.
-    const keyIngredients = recipe.ingredients.slice(0, 5).join(', ').replace(/ \(.*\)/g, '').trim(); // Get first 5 ingredients, remove parenthetical quantities
+    const keyIngredients = recipe.ingredients.slice(0, 5).join(', ').replace(/ \(.*\)/g, '').trim();
 
-    const prompt = `Készíts egy professzionális, fotórealisztikus és étvágygerjesztő ételfotót a következő ételről: "${recipe.recipeName}".
+    const prompt = `
+    TÉMA: Egy étvágygerjesztő, professzionális, fotórealisztikus ételfotó a következő ételről: "${recipe.recipeName}".
 
-Ez egy sós étel. A főbb hozzávalók a következők: ${keyIngredients}.
+    STÍLUS: Modern szakácskönyvbe illő, világos, éles, a fókusz a tálalt ételen van. A háttér egyszerű és enyhén elmosódott.
 
-Az étel leírása: "${recipe.description}".
+    LEÍRÁS: ${recipe.description}. A főbb összetevők: ${keyIngredients}.
 
-A végső képnek a következőképpen kell kinéznie:
-- Kiváló minőségű, világos és éles.
-- Teljes mértékben a gyönyörűen tálalt, kész ételre fókuszáljon.
-- A háttér legyen egyszerű és enyhén elmosódott (bokeh effektus), hogy kiemelje az ételt.
-- A stílus egy modern szakácskönyv fotójára hasonlítson.
+    KULCSFONTOSSÁGÚ UTASÍTÁS: A kép KIZÁRÓLAG az ételt ábrázolja, gyönyörűen tálalva.
 
-FONTOS: A képnek pontosan ábrázolnia kell az ételt a neve és a hozzávalói alapján. Például, ha ez egy leves, akkor levest mutasson. NE mutasson desszerteket, tortákat, pitéket vagy bármilyen oda nem illő ételt. A kép nem tartalmazhat szöveget vagy vízjeleket.`;
+    NEGATÍV PROMPT: Semmilyen körülmények között NE ábrázoljon a kép embereket, kezeket, állatokat (különösen kutyákat, macskákat), rajzfilmfigurákat, vagy bármilyen, az ételhez nem kapcsolódó tárgyat. A képen ne legyen szöveg vagy vízjel.
+    `;
 
     try {
         const response = await ai.models.generateImages({
