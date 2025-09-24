@@ -14,6 +14,7 @@ export interface Recipe {
   diabeticAdvice?: string;
   imageUrl?: string;
   estimatedCost?: string;
+  cookingMethod?: CookingMethod;
 }
 
 export enum DietOption {
@@ -40,6 +41,9 @@ export enum CookingMethod {
   TRADITIONAL = 'traditional',
   SMART_COOKER = 'smart_cooker',
   THERMOMIXER = 'thermomixer',
+  CUCKOO_RICE_COOKER = 'cuckoo_rice_cooker',
+  REDMOND_SMART_COOKER = 'redmond_smart_cooker',
+  CROCK_POT_SLOW_COOKER = 'crock_pot_slow_cooker',
 }
 
 export enum VoiceCommand {

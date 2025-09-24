@@ -109,6 +109,15 @@ export const generateRecipe = async (
 
   prompt += ` Adj egy rövid, étvágygerjesztő leírást, az előkészítési és főzési időt, az adagok számát, a hozzávalók listáját pontos mennyiségekkel, és az elkészítési lépéseket. Fontos: Minden hozzávalónál add meg a mennyiséget grammban vagy darabban, ÉS egy alternatív, mérleg nélküli mértékegységben is (pl. bögre, evőkanál, teáskanál, dl, ml), ahol ez értelmezhető. Például: "250g liszt (kb. 2 bögre)". A válasz JSON formátumban legyen.`;
 
+  // Hiba javítása: Dinamikusan módosítjuk a sémát, hogy a modell ne adjon költségbecslést, ha nem kérték.
+  // Létrehozunk egy mély másolatot a sémából, hogy ne módosítsuk az eredeti objektumot.
+  const dynamicRecipeSchema = JSON.parse(JSON.stringify(recipeSchema));
+  if (!withCost) {
+    // Ha nincs szükség költségbecslésre, töröljük az 'estimatedCost' tulajdonságot a sémából.
+    // Ez megakadályozza, hogy a modell "segítőkészen" kitöltse ezt a mezőt, ha nem kértük.
+    delete dynamicRecipeSchema.properties.estimatedCost;
+  }
+
   try {
     // FIX: Use ai.models.generateContent with appropriate model and configuration.
     const response = await ai.models.generateContent({
@@ -116,7 +125,7 @@ export const generateRecipe = async (
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
-        responseSchema: recipeSchema,
+        responseSchema: dynamicRecipeSchema, // A dinamikusan módosított sémát használjuk.
       },
     });
 
@@ -126,6 +135,7 @@ export const generateRecipe = async (
       throw new Error('Az API üres választ adott.');
     }
     const recipeData: Recipe = JSON.parse(jsonText);
+    recipeData.cookingMethod = cookingMethod;
     return recipeData;
   } catch (error: any) {
     console.error('Error generating recipe:', error);
@@ -142,6 +152,166 @@ export const generateRecipe = async (
     throw new Error(
       'Nem sikerült receptet generálni. Kérjük, próbálja újra később.'
     );
+  }
+};
+
+// FIX: Added missing function to generate recipe modification suggestions.
+export const getRecipeModificationSuggestions = async (
+  ingredients: string,
+  recipeName: string
+): Promise<RecipeSuggestions> => {
+  const prompt = `Adott egy recept "${recipeName}" névvel, ami a következő alapanyagokat használja: ${ingredients}.
+  Adj javaslatokat a recept továbbfejlesztéséhez.
+  1. Javasolj 3-5 további hozzávalót, amivel izgalmasabbá tehető.
+  2. Adj 2-3 ötletet a recept módosítására (pl. más fűszerezés, más köret, egy extra lépés).
+  A válaszod egy JSON objektum legyen a következő séma szerint:
+  {
+    "suggestedIngredients": ["javasolt hozzávaló 1", "javasolt hozzávaló 2"],
+    "modificationIdeas": ["módosítási ötlet 1", "módosítási ötlet 2"]
+  }`;
+
+  const schema = {
+    type: Type.OBJECT,
+    properties: {
+      suggestedIngredients: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: 'Javasolt további hozzávalók listája.',
+      },
+      modificationIdeas: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: 'Ötletek a recept módosítására.',
+      },
+    },
+    required: ['suggestedIngredients', 'modificationIdeas'],
+  };
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: schema,
+      },
+    });
+
+    const jsonText = response.text.trim();
+    if (!jsonText) {
+        throw new Error('Az API üres választ adott a javaslatkérésre.');
+    }
+    return JSON.parse(jsonText);
+  } catch (error: any) {
+    console.error('Error generating recipe suggestions:', error);
+    throw new Error('Nem sikerült javaslatokat generálni. Próbálja újra később.');
+  }
+};
+
+// FIX: Added missing function to generate a recipe image.
+export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
+    // Extracting key ingredients to provide more context to the image model.
+    // This helps ground the generation and prevent hallucinations like showing a pie for a soup.
+    const keyIngredients = recipe.ingredients.slice(0, 5).join(', ').replace(/ \(.*\)/g, '').trim(); // Get first 5 ingredients, remove parenthetical quantities
+
+    const prompt = `Készíts egy professzionális, fotórealisztikus és étvágygerjesztő ételfotót a következő ételről: "${recipe.recipeName}".
+
+Ez egy sós étel. A főbb hozzávalók a következők: ${keyIngredients}.
+
+Az étel leírása: "${recipe.description}".
+
+A végső képnek a következőképpen kell kinéznie:
+- Kiváló minőségű, világos és éles.
+- Teljes mértékben a gyönyörűen tálalt, kész ételre fókuszáljon.
+- A háttér legyen egyszerű és enyhén elmosódott (bokeh effektus), hogy kiemelje az ételt.
+- A stílus egy modern szakácskönyv fotójára hasonlítson.
+
+FONTOS: A képnek pontosan ábrázolnia kell az ételt a neve és a hozzávalói alapján. Például, ha ez egy leves, akkor levest mutasson. NE mutasson desszerteket, tortákat, pitéket vagy bármilyen oda nem illő ételt. A kép nem tartalmazhat szöveget vagy vízjeleket.`;
+
+    try {
+        const response = await ai.models.generateImages({
+            model: 'imagen-4.0-generate-001',
+            prompt: prompt,
+            config: {
+              numberOfImages: 1,
+              outputMimeType: 'image/jpeg',
+              aspectRatio: '4:3',
+            },
+        });
+        
+        if (response.generatedImages && response.generatedImages.length > 0) {
+            return response.generatedImages[0].image.imageBytes;
+        } else {
+            throw new Error('Az API nem adott vissza képet.');
+        }
+    } catch (error) {
+        console.error('Error generating recipe image:', error);
+        throw new Error('Hiba történt az ételfotó generálása közben.');
+    }
+};
+
+// FIX: Added missing function to start recipe video generation.
+export const generateRecipeVideo = async (recipe: Recipe): Promise<Operation<GenerateVideosResponse>> => {
+    const prompt = `Készíts egy rövid, kb. 30 másodperces, pörgős videót, ami bemutatja a "${recipe.recipeName}" elkészítésének főbb lépéseit.
+    A videó legyen étvágygerjesztő és kövesse a recept leírását: "${recipe.description}".
+    Mutassa be a hozzávalókat, a főzési folyamat leglátványosabb részeit, és a végén a tálalt ételt.`;
+
+    try {
+        const operation = await ai.models.generateVideos({
+            model: 'veo-2.0-generate-001',
+            prompt: prompt,
+            config: {
+                numberOfVideos: 1,
+            },
+        });
+        return operation;
+    } catch (error: any) {
+        console.error('Error starting video generation:', error);
+        throw new Error('Hiba történt a videó generálásának elindítása közben.');
+    }
+};
+
+// FIX: Added missing function to get the status of a video generation operation.
+export const getVideosOperationStatus = async (operation: Operation<GenerateVideosResponse>): Promise<Operation<GenerateVideosResponse>> => {
+    try {
+        const updatedOperation = await ai.operations.getVideosOperation({ operation: operation });
+        return updatedOperation;
+    } catch (error: any) {
+        console.error('Error getting video operation status:', error);
+        throw new Error('Hiba történt a videó állapotának lekérdezése közben.');
+    }
+};
+
+// FIX: Added missing function to calculate recipe cost on demand.
+export const calculateRecipeCost = async (recipe: Recipe): Promise<string> => {
+  const ingredientsList = recipe.ingredients.join(', ');
+  const prompt = `Végezz egy becsült költségszámítást a következő hozzávalókból álló recepthez magyar forintban (Ft): ${ingredientsList}.
+    A számításhoz használd a következő átlagos magyarországi bolti árakat referenciaként (az árakat arányosítsd a receptben szereplő mennyiségekkel): csirkemell: 2500 Ft/kg, sertéskaraj: 2800 Ft/kg, rizs: 800 Ft/kg, krumpli: 400 Ft/kg, liszt: 300 Ft/kg, cukor: 500 Ft/kg, tojás: 80 Ft/db, tej: 450 Ft/liter, hagyma: 400 Ft/kg, fokhagyma: 200 Ft/fej, étolaj: 900 Ft/liter, vaj/margarin: 4000 Ft/kg, paradicsom: 1000 Ft/kg, paprika: 1200 Ft/kg, sajt (trappista): 3500 Ft/kg. Ha egy hozzávaló nincs a listán, használj egy reális piaci becslést. A végeredményt egyetlen stringként add meg a 'cost' mezőben egy JSON objektumon belül, pl. '{"cost": "kb. 2100 Ft"}'.`;
+    
+  const schema = {
+    type: Type.OBJECT,
+    properties: {
+        cost: { type: Type.STRING, description: 'A recept teljes becsült költsége forintban (Ft).' }
+    },
+    required: ['cost'],
+  };
+
+  try {
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+        },
+    });
+
+    const jsonText = response.text.trim();
+    const result = JSON.parse(jsonText);
+    return result.cost;
+  } catch (error: any) {
+    console.error('Error calculating recipe cost:', error);
+    throw new Error('Hiba történt a költségbecslés közben.');
   }
 };
 
@@ -249,417 +419,166 @@ export const interpretFormCommand = async (
       payload = result.selectionPayload;
     }
 
+    // FIX: Completed the return statement to include the payload and handle unknown actions.
     return {
       action: (result.action as FormAction) || 'unknown',
-      payload: payload,
+      payload,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error interpreting form command:', error);
-    // Re-throw the error so the UI layer can handle it, e.g., by showing a notification.
-    throw error;
+    if (error instanceof SyntaxError) {
+        throw new Error('Hiba történt a parancs értelmezése közben. Az AI által adott válasz hibás formátumú volt.');
+    }
+    throw new Error('Nem sikerült a hangparancsot értelmezni.');
   }
 };
 
-const commandSchema = {
+// FIX: Added missing function to interpret app-wide commands.
+export const interpretAppCommand = async (
+  transcript: string,
+  currentView: AppView,
+  context: {
+    categories: string[];
+    recipesByCategory: { [category: string]: string[] };
+    shoppingListItems: string[];
+  }
+): Promise<AppCommand> => {
+  const prompt = `
+    Értelmezd a következő magyar nyelvű parancsot egy receptalkalmazás kontextusában.
+    A parancs: "${transcript}"
+    Jelenlegi nézet: "${currentView}"
+
+    Elérhető kontextus:
+    - Kedvenc kategóriák: ${context.categories.join(', ') || 'nincs'}
+    - Kedvenc receptek (kategóriánként): ${JSON.stringify(context.recipesByCategory)}
+    - Bevásárlólista elemei: ${context.shoppingListItems.join(', ') || 'üres'}
+
+    A feladatod, hogy a parancsot egy JSON objektummá alakítsd a megadott séma szerint.
+    A 'payload' mezőt csak akkor add meg, ha releváns az akcióhoz.
+
+    Akciók és példák:
+    - 'navigate': Navigáció a megadott nézetre ('generator', 'favorites', 'shopping-list').
+      - "menj a kedvencekhez" -> { "action": "navigate", "payload": "favorites" }
+    - 'add_shopping_list_item': Tétel(ek) hozzáadása a bevásárlólistához. A payload egy string, vesszővel elválasztva, ha több tétel van.
+      - "adj hozzá tejet és kenyeret a listához" -> { "action": "add_shopping_list_item", "payload": "tej,kenyér" }
+    - 'remove_shopping_list_item': Tétel eltávolítása a listáról. A payload a tétel neve. A legpontosabb egyezést válaszd.
+      - "töröld a tejet a listáról" -> { "action": "remove_shopping_list_item", "payload": "tej" }
+    - 'check_shopping_list_item': Tétel kipipálása.
+      - "pipáld ki a kenyeret" -> { "action": "check_shopping_list_item", "payload": "kenyér" }
+    - 'uncheck_shopping_list_item': Tétel pipájának eltávolítása.
+      - "vedd le a pipát a kenyérről" -> { "action": "uncheck_shopping_list_item", "payload": "kenyér" }
+    - 'clear_checked_shopping_list': Kipipált tételek törlése.
+      - "töröld a kipipáltakat" -> { "action": "clear_checked_shopping_list" }
+    - 'clear_all_shopping_list': Teljes lista törlése.
+      - "töröld az egész listát" -> { "action": "clear_all_shopping_list" }
+    - 'view_favorite_recipe': Kedvenc recept megtekintése. A payload egy objektum a recept nevével és kategóriájával.
+      - "nyisd meg a pörköltet a főételek közül" -> { "action": "view_favorite_recipe", "payload": { "recipeName": "Pörkölt", "category": "Főételek" } }
+    - 'delete_favorite_recipe': Kedvenc recept törlése.
+      - "töröld a pörköltet a főételek közül" -> { "action": "delete_favorite_recipe", "payload": { "recipeName": "Pörkölt", "category": "Főételek" } }
+    - 'filter_favorites': Kedvencek szűrése kategóriára.
+      - "szűrj a levesekre" -> { "action": "filter_favorites", "payload": "Levesek" }
+    - 'clear_favorites_filter': Szűrés törlése.
+      - "mutasd az összeset" -> { "action": "clear_favorites_filter" }
+    - 'expand_category': Kategória lenyitása.
+      - "nyisd le a főételeket" -> { "action": "expand_category", "payload": "Főételek" }
+    - 'collapse_category': Kategória becsukása.
+      - "csukd be a főételeket" -> { "action": "collapse_category", "payload": "Főételek" }
+    - 'unknown': Ha a parancs nem értelmezhető.
+  `;
+
+  const schema = {
     type: Type.OBJECT,
     properties: {
-        command: {
-            type: Type.STRING,
-            enum: ['NEXT', 'STOP', 'READ_INTRO', 'READ_INGREDIENTS', 'START_COOKING', 'START_TIMER', 'UNKNOWN']
-        },
-        payload: {
+      action: { type: Type.STRING },
+      payload: {
+        oneOf: [
+          { type: Type.STRING },
+          {
             type: Type.OBJECT,
             properties: {
-                hours: { type: Type.INTEGER, description: 'Az időzítőhöz tartozó órák száma.' },
-                minutes: { type: Type.INTEGER, description: 'Az időzítőhöz tartozó percek száma.' },
-                seconds: { type: Type.INTEGER, description: 'Az időzítőhöz tartozó másodpercek száma.' },
+              recipeName: { type: Type.STRING },
+              category: { type: Type.STRING },
             },
-            description: "A 'START_TIMER' parancshoz tartozó időtartam."
-        }
+          },
+        ],
+      },
     },
-    required: ['command']
-};
-
-export const interpretUserCommand = async (
-  transcript: string
-): Promise<VoiceCommandResult> => {
-  // A mapping of keywords to commands to improve accuracy and reduce LLM reliance for simple commands.
-  const directCommands: { [key: string]: VoiceCommand } = {
-    'következő': VoiceCommand.NEXT,
-    'tovább': VoiceCommand.NEXT,
-    'stop': VoiceCommand.STOP,
-    'állj': VoiceCommand.STOP,
-    'elég': VoiceCommand.STOP,
-    'bemutatkozás': VoiceCommand.READ_INTRO,
-    'recept bemutatása': VoiceCommand.READ_INTRO,
-    'leírás': VoiceCommand.READ_INTRO,
-    'hozzávalók': VoiceCommand.READ_INGREDIENTS,
-    'összetevők': VoiceCommand.READ_INGREDIENTS,
-    'főzés': VoiceCommand.START_COOKING,
-    'főzés indítása': VoiceCommand.START_COOKING,
-    'kezdjük': VoiceCommand.START_COOKING,
-    'elkészítés': VoiceCommand.START_COOKING,
+    required: ['action'],
   };
 
-  // Check for direct command matches first.
-  const lowerTranscript = transcript.toLowerCase().trim();
-  for (const key in directCommands) {
-    if (lowerTranscript.includes(key)) {
-      return { command: directCommands[key] };
-    }
-  }
-
-  // If no direct match, use the LLM for more nuanced interpretation.
-  const prompt = `Értelmezd a következő magyar nyelvű parancsot egy recept felolvasása közben.
-    A parancs: "${transcript}"
-
-    Azonosítsd a parancsot a következő lehetőségek közül:
-    - 'NEXT': Ha a felhasználó a következő lépésre/hozzávalóra kíváncsi (pl. "következő", "tovább", "mi a következő?").
-    - 'STOP': Ha a felhasználó le akarja állítani a felolvasást (pl. "állj", "stop", "elég lesz").
-    - 'READ_INTRO': Ha a felhasználó a recept bemutatását kéri (pl. "olvasd fel a bemutatót", "miről szól a recept?").
-    - 'READ_INGREDIENTS': Ha a felhasználó a hozzávalók listáját kéri (pl. "mik a hozzávalók?", "összetevők").
-    - 'START_COOKING': Ha a felhasználó az elkészítési lépések felolvasását kéri (pl. "kezdjük a főzést", "jöhet az elkészítés").
-    - 'START_TIMER': Ha a felhasználó időzítőt szeretne indítani. Bontsd le a kért időt órára, percre és másodpercre a payload-ban. Példák: "indíts egy 10 perces időzítőt" -> { command: 'START_TIMER', payload: { minutes: 10 } }, "időzítő másfél órára" -> { command: 'START_TIMER', payload: { hours: 1, minutes: 30 } }.
-    - 'UNKNOWN': Ha a parancs nem illeszkedik a fentiekbe.
-
-    A válaszod egy JSON objektum legyen, ami tartalmaz egy 'command' kulcsot a megfelelő értékkel, és szükség esetén a 'payload' kulcsot.
-    `;
-
   try {
-    // FIX: Use ai.models.generateContent for simple command classification.
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
-        responseSchema: commandSchema,
-        // For low-latency command interpretation, disable thinking.
-        thinkingConfig: { thinkingBudget: 0 },
+        responseSchema: schema,
       },
     });
 
-    // FIX: Extract text, parse JSON, and return the identified command.
     const jsonText = response.text.trim();
     const result = JSON.parse(jsonText);
-
     return {
-        command: (result.command as VoiceCommand) || VoiceCommand.UNKNOWN,
-        payload: result.payload || undefined,
-    };
-  } catch (error) {
-    console.error('Error interpreting user command:', error);
-    // Re-throw the error so the UI layer can handle it.
-    throw error;
-  }
-};
-
-const appCommandSchema = {
-    type: Type.OBJECT,
-    properties: {
-        action: {
-            type: Type.STRING,
-            enum: [
-                'navigate', 'add_shopping_list_item', 'remove_shopping_list_item',
-                'check_shopping_list_item', 'uncheck_shopping_list_item',
-                'clear_checked_shopping_list', 'clear_all_shopping_list',
-                'view_favorite_recipe', 'delete_favorite_recipe', 'filter_favorites',
-                'clear_favorites_filter', 'expand_category', 'collapse_category', 'unknown'
-            ]
-        },
-        payload: {
-            type: Type.STRING,
-            description: "Az akcióhoz tartozó adat, pl. oldal neve, tétel neve, kategória neve, recept neve."
-        }
-    },
-    required: ['action']
-};
-
-
-export const interpretAppCommand = async (
-  transcript: string,
-  currentPage: AppView,
-  context: {
-    categories?: string[];
-    recipesByCategory?: { [category: string]: string[] };
-    shoppingListItems?: string[];
-  }
-): Promise<AppCommand> => {
-  let prompt = `Értelmezd a következő magyar nyelvű hangparancsot egy recept alkalmazásban.
-    A felhasználó által kimondott szöveg: "${transcript}"
-    A felhasználó jelenleg a(z) "${currentPage}" oldalon van.
-
-    I. Navigációs parancsok (bármelyik oldalon működnek):
-    - Akció: 'navigate', payload: 'generator' | 'favorites' | 'shopping-list'
-    - Kulcsszavak: "menj a ...-hoz", "mutasd a ...-t", "vissza a generátorhoz"
-    - Példa: "mutasd a kedvenceimet" -> { "action": "navigate", "payload": "favorites" }
-
-    II. Kontextus-specifikus parancsok:
-    `;
-
-  if (currentPage === 'shopping-list') {
-    prompt += `
-    A felhasználó a BEVÁSÁRLÓLISTA oldalon van.
-    - Lehetséges tételek: ${JSON.stringify(context.shoppingListItems || [])}
-    - Parancsok:
-        - 'add_shopping_list_item': Tétel hozzáadása. Payload: a tétel neve (string). Kulcsszavak: "adj hozzá ...-t".
-        - 'remove_shopping_list_item': Tétel törlése. Payload: a tétel neve. A legközelebbi egyezést keresd a listából. Kulcsszavak: "töröld a ...-t".
-        - 'check_shopping_list_item': Tétel kipipálása. Payload: a tétel neve. Kulcsszavak: "pipáld ki a ...-t".
-        - 'uncheck_shopping_list_item': Pipálás visszavonása. Payload: a tétel neve. Kulcsszavak: "vedd ki a pipát a ...-ból".
-        - 'clear_checked_shopping_list': Kipipáltak törlése. Nincs payload. Kulcsszavak: "töröld a kipipáltakat".
-        - 'clear_all_shopping_list': Teljes lista törlése. Nincs payload. Kulcsszavak: "töröld az egész listát".
-    - Példa: "adj hozzá két liter tejet" -> { "action": "add_shopping_list_item", "payload": "két liter tej" }
-    - Példa: "töröld a kenyeret" -> { "action": "remove_shopping_list_item", "payload": "kenyér" }
-    `;
-  }
-
-  if (currentPage === 'favorites') {
-    prompt += `
-    A felhasználó a KEDVENCEK oldalon van.
-    - Lehetséges kategóriák: ${JSON.stringify(context.categories || [])}
-    - Lehetséges receptek (kategóriánként): ${JSON.stringify(context.recipesByCategory || {})}
-    - Parancsok:
-        - 'view_favorite_recipe': Recept megtekintése. Payload: a recept neve. A legközelebbi egyezést keresd a receptek közül. Kulcsszavak: "nyisd meg a ...-t", "mutasd a ...-t".
-        - 'delete_favorite_recipe': Recept törlése. Payload: a recept neve. Kulcsszavak: "töröld a ... receptet".
-        - 'filter_favorites': Szűrés kategóriára. Payload: a kategória neve. A legközelebbi egyezést keresd a kategóriák közül. Kulcsszavak: "szűrj a ...-ra", "mutasd csak a ...-t".
-        - 'clear_favorites_filter': Szűrés törlése. Nincs payload. Kulcsszavak: "töröld a szűrést", "mutasd az összeset".
-        - 'expand_category': Kategória lenyitása. Payload: a kategória neve. Kulcsszavak: "nyisd le a ...-t".
-        - 'collapse_category': Kategória becsukása. Payload: a kategória neve. Kulcsszavak: "csukd be a ...-t".
-    - Példa: "nyisd meg a csokitortát" -> { "action": "view_favorite_recipe", "payload": "csokitorta" }
-    - Példa: "szűrj a desszertekre" -> { "action": "filter_favorites", "payload": "desszertek" }
-    `;
-  }
-
-  prompt += `
-    III. Általános szabályok:
-    - Ha a parancs nem egyértelmű vagy nem illeszkedik a sémába, használj 'unknown' akciót.
-    - A payload mindig string legyen.
-    - A válaszod egyetlen JSON objektum legyen a megadott séma alapján.
-    `;
-    
-  try {
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: appCommandSchema,
-            thinkingConfig: { thinkingBudget: 0 },
-        },
-    });
-
-    const jsonText = response.text.trim();
-    const result = JSON.parse(jsonText);
-
-    // Find the full recipe details (name and category) for view/delete actions
-    if (result.action === 'view_favorite_recipe' || result.action === 'delete_favorite_recipe') {
-        const recipeNameToFind = (result.payload as string).toLowerCase();
-        if (context.recipesByCategory) {
-            for (const category in context.recipesByCategory) {
-                const recipeName = context.recipesByCategory[category].find(r => r.toLowerCase().includes(recipeNameToFind));
-                if (recipeName) {
-                    return {
-                        action: result.action as AppCommandAction,
-                        payload: { recipeName, category }
-                    };
-                }
-            }
-        }
-    }
-    
-    return {
-        action: (result.action as AppCommandAction) || 'unknown',
-        payload: result.payload || undefined,
+        action: result.action as AppCommandAction,
+        payload: result.payload,
     };
   } catch (error) {
     console.error('Error interpreting app command:', error);
-    throw error;
+    throw new Error('Nem sikerült az alkalmazás parancsot értelmezni.');
   }
 };
 
+// FIX: Added missing function to interpret commands within the recipe display view.
+export const interpretUserCommand = async (transcript: string): Promise<VoiceCommandResult> => {
+    const prompt = `
+        Értelmezd a következő magyar nyelvű parancsot egy recept olvasása közben.
+        A parancs: "${transcript}"
 
-// FIX: The `Operation` generic type takes only one argument.
-export const generateRecipeVideo = async (recipe: Recipe): Promise<Operation<GenerateVideosResponse>> => {
-  const keyIngredients = recipe.ingredients.slice(0, 5).join(', ');
-  const keyInstructions = recipe.instructions.slice(0, 3).map(inst => inst.substring(0, 100)).join('. ');
+        A feladatod, hogy a parancsot egy JSON objektummá alakítsd a megadott séma szerint.
+        A parancsok a következők lehetnek:
+        - 'NEXT': A következő lépés vagy hozzávaló kérése. Kulcsszavak: "következő", "tovább", "mi a következő".
+        - 'STOP': A felolvasás leállítása. Kulcsszavak: "állj", "stop", "elég".
+        - 'READ_INTRO': A recept leírásának felolvasása. Kulcsszavak: "olvasd a leírást", "miről szól a recept".
+        - 'READ_INGREDIENTS': A hozzávalók listájának felolvasása az elejétől. Kulcsszavak: "hozzávalók", "mik kellenek hozzá".
+        - 'START_COOKING': Az elkészítési lépések felolvasása az elejétől. Kulcsszavak: "főzés", "kezdjük el", "start cooking".
+        - 'START_TIMER': Időzítő indítása. A parancsból ki kell nyerned az óra, perc, másodperc értékeket.
+            - "indíts egy 5 perces időzítőt" -> { "command": "START_TIMER", "payload": { "minutes": 5 } }
+            - "időzítő 1 óra 30 percre" -> { "command": "START_TIMER", "payload": { "hours": 1, "minutes": 30 } }
+        - 'UNKNOWN': Ha a parancs nem illik a fentiekbe.
 
-  const prompt = `Készíts egy rövid, dinamikus főzővideót a(z) "${recipe.recipeName}" elkészítéséről. 
-  A videó stílusa legyen étvágygerjesztő, mint egy profi food blogger videója.
-  - Kezdődjön a friss hozzávalók (például: ${keyIngredients}) közeli képével.
-  - Mutassa be a főzési folyamat kulcsfontosságú lépéseit, például a hozzávalók összekeverését, a sütést vagy főzést. Fókuszáljon a leglátványosabb részekre, mint például: ${keyInstructions}.
-  - A videó csúcspontja a gyönyörűen tálalt, kész étel legyen.
-  - Használjon közeli felvételeket és lassított mozgást a drámai hatás érdekében.`;
+        A válaszod egy JSON objektum legyen a megadott séma szerint.
+    `;
 
-  try {
-    const operation = await ai.models.generateVideos({
-      model: 'veo-2.0-generate-001',
-      prompt: prompt,
-      config: {
-        numberOfVideos: 1,
-      },
-    });
-    return operation;
-  } catch (error: any) {
-    console.error('Error starting video generation:', error);
-    let errorMessage = '';
-    if (error && typeof error.message === 'string') {
-        errorMessage = error.message.toLowerCase();
-    }
-    
-    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted')) {
-      throw new Error('Elérte a videógenerálási kvótáját. Lehetséges, hogy a ingyenes keret kimerült. Kérjük, ellenőrizze a fiókbeállításait, vagy próbálja újra később.');
-    }
-    
-    throw new Error('Nem sikerült elindítani a videó generálását.');
-  }
-};
-
-// FIX: The `Operation` generic type takes only one argument.
-export const getVideosOperationStatus = async (operation: Operation<GenerateVideosResponse>): Promise<Operation<GenerateVideosResponse>> => {
-    try {
-        const updatedOperation = await ai.operations.getVideosOperation({ operation: operation });
-        return updatedOperation;
-    } catch (error) {
-        console.error('Error polling video generation status:', error);
-        throw new Error('Hiba történt a videó állapotának lekérdezése közben.');
-    }
-};
-
-/**
- * Intelligensen megtisztítja a hozzávaló stringjét, hogy csak az alapanyag nevét adja vissza.
- * Eltávolítja a mennyiségeket, mértékegységeket, zárójeles részeket és gyakori jelzőket.
- * @param ingredient A nyers hozzávaló string (pl. "250g liszt (BL55)").
- * @returns A tiszta alapanyag neve (pl. "liszt").
- */
-const cleanIngredientForImagePrompt = (ingredient: string): string => {
-  let cleaned = ingredient.toLowerCase().replace(/\(.*\)/g, '').trim();
-  
-  const patternsToRemove = [
-    // Matches numbers (e.g., 2, 1.5, 1/2, 1-2) and common units
-    /^\d+[\/\d\s.-]*\s*(g|dkg|kg|db|csomag|evőkanál|ek|teáskanál|tk|dl|ml|bögre|csipet|gerezd|fej|csokor|szál|levél)?\s*/,
-    // Matches word-based quantities
-    /^(egy|két|három|négy|öt|pár|fél)\s+/,
-    // Matches common phrases
-    /^(ízlés szerint|egy csipet|egy kevés)\s+/,
-    // Matches common adjectives/descriptors, will be applied repeatedly
-    /^(nagy|kicsi|közepes|friss|őrölt|apróra vágott|szeletelt|finomra vágott|durvára vágott|felkockázott|reszelt|forró|hideg)\s+/
-  ];
-
-  let lastCleaned = '';
-  // Loop until the string stops changing to remove chained descriptors
-  while (lastCleaned !== cleaned) {
-    lastCleaned = cleaned;
-    patternsToRemove.forEach(pattern => {
-      cleaned = cleaned.replace(pattern, '').trim();
-    });
-  }
-  
-  return cleaned;
-};
-
-
-export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
-  const allCleanIngredients = recipe.ingredients
-    .map(cleanIngredientForImagePrompt)
-    .filter(Boolean)
-    .join(', ');
-
-  const prompt = `GENERÁLÁSI UTASÍTÁS ÉTELFOTÓHOZ.
-
-TÉMA: Professzionális, rendkívül valósághű és étvágygerjesztő ételfotó a következő ételről: "${recipe.recipeName}". A leírás segít a vizuális megjelenítésben: "${recipe.description}".
-
-SZIGORÚ TARTALMI SZABÁLYOK:
-1.  ENGEDÉLYEZETT HOZZÁVALÓK: A fotón KIZÁRÓLAG az alábbi listában szereplő alapanyagokból készült étel, vagy maguk az alapanyagok szerepelhetnek. A teljes lista: ${allCleanIngredients}.
-2.  TILTOTT ELEMEK: Szigorúan tilos BÁRMILYEN MÁS összetevőt hozzáadni a képhez, ami nincs a fenti listában. A cél a recepthez való 100%-os vizuális hűség. Különösen Tilos a képen megjeleníteni (hacsak nem szerepelnek a fenti listában): paradicsom, uborka, paprika, salátalevél, citromkarika, narancskarika, retek, olajbogyó, vagy bármilyen más, a recepthez nem tartozó díszítőelem.
-3.  FÓKUSZ: A főétel legyen a középpontban. Ne adj hozzá felesleges köreteket, ha azok nem részei a receptnek.
-
-VIZUÁLIS STÍLUS:
-- Tálalás: Elegáns és modern.
-- Háttér: Világos, letisztult, minimálisan texturált (pl. márvány, fa, vagy egyszínű felület).
-- Fényképezés: Éles, részletgazdag, mintha egy profi ételfotós készítette volna egy gasztromagazinba.
-- Szöveg: A képen TILOS bármilyen szöveg, felirat vagy betű.`;
-
-  try {
-    const response = await ai.models.generateImages({
-        model: 'imagen-4.0-generate-001',
-        prompt: prompt,
-        config: {
-          numberOfImages: 1,
-          outputMimeType: 'image/jpeg',
-          aspectRatio: '4:3',
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            command: { type: Type.STRING, enum: Object.values(VoiceCommand) },
+            payload: {
+                type: Type.OBJECT,
+                properties: {
+                    hours: { type: Type.INTEGER },
+                    minutes: { type: Type.INTEGER },
+                    seconds: { type: Type.INTEGER },
+                },
+            },
         },
-    });
+        required: ['command'],
+    };
 
-    if (response.generatedImages && response.generatedImages.length > 0) {
-        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-        return base64ImageBytes;
-    } else {
-        throw new Error('Az API nem adott vissza képet.');
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: schema,
+            },
+        });
+        const jsonText = response.text.trim();
+        const result = JSON.parse(jsonText);
+        return result as VoiceCommandResult;
+    } catch (error) {
+        console.error('Error interpreting user command:', error);
+        throw new Error('Nem sikerült a felhasználói parancsot értelmezni.');
     }
-  } catch (error: any) {
-    console.error('Error generating recipe image:', error);
-    const errorMessage = (error?.message || '').toLowerCase();
-    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
-      throw new Error('Elérte a napi kvótáját az ételfotó generálásához. Kérjük, próbálja újra később.');
-    }
-    throw new Error('Nem sikerült ételfotót generálni. Kérjük, próbálja újra később.');
-  }
-};
-
-
-const suggestionSchema = {
-  type: Type.OBJECT,
-  properties: {
-    suggestedIngredients: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: "3-5 javasolt hozzávaló, ami jól kiegészítené a receptet.",
-    },
-    modificationIdeas: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: "2-3 kreatív ötlet a recept módosítására vagy izgalmasabbá tételére.",
-    },
-  },
-  required: ['suggestedIngredients', 'modificationIdeas'],
-};
-
-export const getRecipeModificationSuggestions = async (
-  ingredients: string,
-  recipeName: string
-): Promise<RecipeSuggestions> => {
-  const prompt = `Adott egy(e) "${recipeName}" nevű recept, amely a következő alapanyagokból készült: ${ingredients}.
-  Kérlek, adj javaslatokat a recept továbbfejlesztéséhez.
-  1.  Javasolj 3-5 további, gyakori háztartási alapanyagot, ami jól illene ehhez a recepthez.
-  2.  Adj 2-3 kreatív ötletet, hogyan lehetne a receptet módosítani, feldobni vagy egy másik változatát elkészíteni (pl. "próbáld ki füstölt paprikával a mélyebb ízért", vagy "csirke helyett használj pulykamellet").
-
-  A válaszodat a megadott JSON séma szerint add meg.`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: suggestionSchema,
-        maxOutputTokens: 1024,
-        thinkingConfig: { thinkingBudget: 256 },
-      },
-    });
-    const jsonText = response.text.trim();
-    if (!jsonText) {
-      throw new Error('Az API üres választ adott a javaslatkérésre.');
-    }
-    const suggestions: RecipeSuggestions = JSON.parse(jsonText);
-    return suggestions;
-  } catch (error: any) {
-    console.error('Error generating recipe suggestions:', error);
-    const errorMessage = (error?.message || '').toLowerCase();
-    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
-      throw new Error('Elérte a napi kvótáját a javaslatok generálásához. Kérjük, próbálja újra később.');
-    }
-    if (error instanceof SyntaxError) {
-        throw new Error('Hiba történt a javaslatok feldolgozása közben. Az AI által adott válasz hibás formátumú volt.');
-    }
-    throw new Error('Nem sikerült javaslatokat generálni. Kérjük, próbálja újra később.');
-  }
 };

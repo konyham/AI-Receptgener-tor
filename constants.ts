@@ -1,4 +1,5 @@
 
+
 import { DietOption, MealType, CookingMethod } from './types';
 
 export const DIET_OPTIONS: { value: DietOption; label: string }[] = [
@@ -25,4 +26,7 @@ export const COOKING_METHODS: { value: CookingMethod; label: string }[] = [
   { value: CookingMethod.TRADITIONAL, label: 'Hagyományos' },
   { value: CookingMethod.SMART_COOKER, label: 'Okoskukta' },
   { value: CookingMethod.THERMOMIXER, label: 'Monsieur Cuisine Connect termomixer' },
+  { value: CookingMethod.CUCKOO_RICE_COOKER, label: 'CUCKOO CRP-M1001SK okos rizsfőző (kínai menüs)' },
+  { value: CookingMethod.REDMOND_SMART_COOKER, label: 'REDMOND RMC-M70 okosfőző (orosz menüs)' },
+  { value: CookingMethod.CROCK_POT_SLOW_COOKER, label: 'CROCK-POT SCCPRC507B-60 lassúfőző' },
 ];

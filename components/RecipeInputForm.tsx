@@ -129,6 +129,12 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     }
   }, [showNotification]);
 
+  const handleSpeechError = useCallback((error: string) => {
+    if (error === 'not-allowed') {
+        showNotification('A mikrofon használata le lett tiltva. A funkció használatához engedélyezze a böngészőben.', 'info');
+    }
+  }, [showNotification]);
+
   const handleVoiceResult = useCallback(async (transcript: string) => {
     if (isProcessingRef.current) return;
 
@@ -199,7 +205,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     } catch (error: any) {
         console.error("Error interpreting form command:", error);
         let errorMessage = "Hiba a hangparancs értelmezése közben.";
-        // FIX: Changed `err` to `error` to match the variable defined in the catch block.
         const errorString = (typeof error.message === 'string') ? error.message : JSON.stringify(error);
         
         if (errorString.includes('RESOURCE_EXHAUSTED') || errorString.includes('429')) {
@@ -226,6 +231,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   } = useSpeechRecognition({
     onResult: handleVoiceResult,
     continuous: false,
+    onError: handleSpeechError,
   });
 
   useEffect(() => {

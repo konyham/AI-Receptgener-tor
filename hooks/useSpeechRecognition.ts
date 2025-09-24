@@ -4,6 +4,7 @@ import type { SpeechRecognition } from '../types';
 interface UseSpeechRecognitionOptions {
   onResult: (transcript: string) => void;
   continuous?: boolean;
+  onError?: (errorType: string) => void;
 }
 
 type PermissionState = 'prompt' | 'granted' | 'denied' | 'checking';
@@ -11,6 +12,7 @@ type PermissionState = 'prompt' | 'granted' | 'denied' | 'checking';
 export const useSpeechRecognition = ({
   onResult,
   continuous = false,
+  onError,
 }: UseSpeechRecognitionOptions) => {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
@@ -19,6 +21,8 @@ export const useSpeechRecognition = ({
 
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   useEffect(() => {
     if (typeof navigator.permissions === 'undefined') {
@@ -101,9 +105,11 @@ export const useSpeechRecognition = ({
     recognition.onerror = (event) => {
       if (event.error === 'not-allowed') {
         setPermissionState('denied');
-        console.error("Speech recognition error: Microphone access was denied.");
+        console.warn("Speech recognition info: Microphone access was denied by the user.");
+        onErrorRef.current?.(event.error);
       } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
         console.warn(`Speech recognition error: ${event.error}`);
+        onErrorRef.current?.(event.error);
       }
     };
 

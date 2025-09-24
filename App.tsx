@@ -35,7 +35,6 @@ const App: React.FC = () => {
   const [lastGenerationParams, setLastGenerationParams] = useState<RecipeGenerationParams | null>(null);
   const [initialFormData, setInitialFormData] = useState<Partial<RecipeGenerationParams> | null>(null);
   const [suggestions, setSuggestions] = useState<RecipeSuggestions | null>(null);
-  const [shouldGenerateImage, setShouldGenerateImage] = useState(true);
   const { showNotification } = useNotification();
 
   // State lifted from FavoritesView for voice control
@@ -135,7 +134,8 @@ const App: React.FC = () => {
 
     const context = {
         categories: Object.keys(favorites),
-        recipesByCategory: Object.entries(favorites).reduce((acc, [category, recipes]) => {
+        // FIX: Explicitly typing the parameters of the 'reduce' callback to prevent 'recipes' from being inferred as 'unknown'.
+        recipesByCategory: Object.entries(favorites).reduce((acc, [category, recipes]: [string, Recipe[]]) => {
             acc[category] = recipes.map(r => r.recipeName);
             return acc;
         }, {} as { [category: string]: string[] }),
@@ -149,12 +149,17 @@ const App: React.FC = () => {
                 setPage(command.payload as AppView);
                 showNotification(`Navigálás: ${command.payload}`, 'info');
                 break;
+            // FIX: The type of `command.payload.split(',')` can be incorrectly inferred as `unknown`.
+            // Explicitly typing the `items` variable as `string[]` ensures type safety and allows usage of array methods.
             case 'add_shopping_list_item':
-                const itemsToAdd = (command.payload as string).split(',').map(s => s.trim()).filter(Boolean);
-                if (itemsToAdd.length > 0) {
-                    handleShoppingListAddItems(itemsToAdd);
+                if (typeof command.payload === 'string') {
+                    const items: string[] = command.payload.split(',');
+                    const itemsToAdd = items.map(s => s.trim()).filter(Boolean);
+                    if (itemsToAdd.length > 0) {
+                        handleShoppingListAddItems(itemsToAdd);
+                    }
+                    showNotification(`Hozzáadva: ${command.payload}`, 'success');
                 }
-                showNotification(`Hozzáadva: ${command.payload}`, 'success');
                 break;
             case 'remove_shopping_list_item':
                 const itemToRemove = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
@@ -229,13 +234,23 @@ const App: React.FC = () => {
     }
   }, [page, favorites, shoppingList, showNotification]);
 
+  const handleAppSpeechError = useCallback((error: string) => {
+    if (error === 'not-allowed') {
+        showNotification('A mikrofon használata le lett tiltva. A funkció használatához engedélyezze a böngészőben.', 'info');
+    }
+  }, [showNotification]);
+
   const {
     isListening: isAppListening,
     isSupported: isVoiceSupported,
     startListening: startAppListening,
     stopListening: stopAppListening,
     permissionState,
-  } = useSpeechRecognition({ onResult: handleAppVoiceResult, continuous: false });
+  } = useSpeechRecognition({ 
+    onResult: handleAppVoiceResult, 
+    continuous: false,
+    onError: handleAppSpeechError,
+  });
 
   useEffect(() => {
     // This voice control is only active on the main list pages, not during recipe generation or display.
@@ -253,7 +268,6 @@ const App: React.FC = () => {
     setRecipe(null);
     setSuggestions(null); // Clear suggestions on new generation
     setLastGenerationParams(params);
-    setShouldGenerateImage(params.withImage);
     try {
       const newRecipe = await generateRecipe(params.ingredients, params.diet, params.mealType, params.cookingMethod, params.specialRequest, params.withCost);
       setRecipe(newRecipe);
@@ -394,7 +408,8 @@ const App: React.FC = () => {
           onSave={handleSaveRecipe}
           onAddItemsToShoppingList={handleShoppingListAddItems}
           isLoading={isLoading}
-          generateImage={shouldGenerateImage}
+          onRecipeUpdate={setRecipe}
+          shouldGenerateImageInitially={lastGenerationParams?.withImage ?? true}
         />
       );
     }

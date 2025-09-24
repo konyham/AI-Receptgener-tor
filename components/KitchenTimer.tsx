@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 
@@ -67,7 +67,6 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
   
   const { showNotification } = useNotification();
   const audioContextRef = useRef<AudioContext | null>(null);
-  // FIX: In browser environments, setInterval returns a number, not a NodeJS.Timeout.
   const alarmIntervalRef = useRef<number | null>(null);
   
   // Web Audio API implementation for reliable sound
@@ -102,6 +101,12 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
     oscillator.start(context.currentTime);
     oscillator.stop(context.currentTime + 0.5);
   };
+  
+  const handleSpeechError = useCallback((error: string) => {
+    if (error === 'not-allowed') {
+        showNotification('A riasztás hangvezérléses leállításához engedélyezze a mikrofont.', 'info');
+    }
+  }, [showNotification]);
 
   const handleVoiceCommand = (transcript: string) => {
     const command = transcript.toLowerCase().trim();
@@ -115,6 +120,7 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
   const { isListening, startListening, stopListening, permissionState } = useSpeechRecognition({
     onResult: handleVoiceCommand,
     continuous: false,
+    onError: handleSpeechError,
   });
 
   const calculateTotalSeconds = () => hours * 3600 + minutes * 60 + seconds;
@@ -139,7 +145,6 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
 
   const stopAlarm = () => {
     if (alarmIntervalRef.current) {
-        // FIX: Use window.clearInterval to ensure the browser's implementation is used, which expects a number.
         window.clearInterval(alarmIntervalRef.current);
         alarmIntervalRef.current = null;
     }
@@ -153,10 +158,8 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
   };
   
   useEffect(() => {
-    // FIX: In browser environments, setInterval returns a number, not a NodeJS.Timeout.
     let interval: number | null = null;
     if (isActive && time > 0) {
-      // FIX: Use window.setInterval to ensure the browser's implementation is used, which returns a number.
       interval = window.setInterval(() => {
         setTime((prevTime) => prevTime - 1);
       }, 1000);
@@ -172,7 +175,6 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
   useEffect(() => {
     if (isAlarming) {
         playAlarm(); // Play once immediately
-        // FIX: Use window.setInterval to ensure the browser's implementation is used, which returns a number.
         alarmIntervalRef.current = window.setInterval(playAlarm, 1200);
     } else {
         stopAlarm();

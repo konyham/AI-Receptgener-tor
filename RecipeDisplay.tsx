@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import type { Operation, GenerateVideosResponse } from '@google/genai';
-import { Recipe, VoiceCommand, Favorites } from './types';
-import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage } from './services/geminiService';
+import { Recipe, VoiceCommand, Favorites, CookingMethod } from './types';
+import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage, calculateRecipeCost } from './services/geminiService';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { useNotification } from './contexts/NotificationContext';
 import KitchenTimer from './components/KitchenTimer';
@@ -12,6 +12,7 @@ import VideoPlayerModal from './components/VideoPlayerModal';
 import ImageDisplayModal from './components/ImageDisplayModal';
 import ErrorMessage from './components/ErrorMessage';
 import InstructionCarousel from './components/InstructionCarousel';
+import RedmondCookerPanel from './components/RedmondCookerPanel';
 
 
 // FIX: Added missing props to the interface to match the usage in App.tsx.
@@ -22,7 +23,10 @@ interface RecipeDisplayProps {
   isFromFavorites: boolean;
   favorites: Favorites;
   onSave: (recipe: Recipe, category: string) => void;
+  onAddItemsToShoppingList: (items: string[]) => void;
   isLoading: boolean;
+  onRecipeUpdate: (updatedRecipe: Recipe) => void;
+  shouldGenerateImageInitially: boolean;
 }
 
 type VoiceMode = 'idle' | 'intro' | 'ingredients' | 'cooking';
@@ -78,8 +82,71 @@ const DiabeticAdvice: React.FC<{ advice: string | undefined }> = ({ advice }) =>
     );
 };
 
+const addWatermark = (base64Image: string, recipeName: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const scale = Math.max(1, img.width / 800); // Scale font size for larger images
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                return reject(new Error('Nem sikerült a vászon kontextusát lekérni.'));
+            }
 
-const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave, isLoading }) => {
+            // 1. Eredeti kép rajzolása
+            ctx.drawImage(img, 0, 0);
+
+            // 2. Vízjel szövegének és stílusának előkészítése
+            const appName = "Konyha Miki AI";
+            const recipeTitle = recipeName;
+            const padding = 20 * scale;
+
+            // 3. Recept nevének stílusa és mérése
+            ctx.font = `bold ${28 * scale}px "Helvetica Neue", Arial, sans-serif`;
+            const recipeMetrics = ctx.measureText(recipeTitle);
+            const recipeX = canvas.width - recipeMetrics.width - padding;
+            const recipeY = canvas.height - padding;
+
+            // 4. Alkalmazás nevének stílusa és mérése
+            ctx.font = `italic ${18 * scale}px "Helvetica Neue", Arial, sans-serif`;
+            const appMetrics = ctx.measureText(appName);
+            const appX = canvas.width - appMetrics.width - padding;
+            const appY = recipeY - (32 * scale);
+
+            // 5. Félig áttetsző háttér rajzolása mindkét sorhoz
+            const bgX = Math.min(recipeX, appX) - (10 * scale);
+            const bgY = appY - (22 * scale);
+            const bgWidth = Math.max(recipeMetrics.width, appMetrics.width) + (20 * scale);
+            const bgHeight = (60 * scale);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
+
+            // 6. Szöveg rajzolása a háttérre
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.textBaseline = 'bottom';
+            
+            ctx.font = `italic ${18 * scale}px "Helvetica Neue", Arial, sans-serif`;
+            ctx.fillText(appName, appX, appY);
+
+            ctx.font = `bold ${28 * scale}px "Helvetica Neue", Arial, sans-serif`;
+            ctx.fillText(recipeTitle, recipeX, recipeY);
+
+            // 7. Visszatérés az új képpel
+            resolve(canvas.toDataURL('image/jpeg', 0.9)); // JPEG használata minőséggel a kisebb méretért
+        };
+        img.onerror = (err) => {
+            console.error("A kép betöltése a vízjelezéshez sikertelen:", err);
+            reject(new Error('A kép betöltése a vízjelezéshez sikertelen.'));
+        };
+        // A bejövő base64 a nyers bájt, szüksége van a data URL prefixre
+        img.src = `data:image/jpeg;base64,${base64Image}`;
+    });
+};
+
+
+const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave, onAddItemsToShoppingList, isLoading, onRecipeUpdate, shouldGenerateImageInitially }) => {
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isInterpreting, setIsInterpreting] = useState(false);
@@ -93,45 +160,40 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [videoGenerationError, setVideoGenerationError] = useState<string | null>(null);
 
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isImageLoading, setIsImageLoading] = useState<boolean>(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState<boolean>(false);
+  const [isCostLoading, setIsCostLoading] = useState<boolean>(false);
+  const [costError, setCostError] = useState<string | null>(null);
 
+
+  const debounceTimerRef = useRef<number | null>(null);
   const isInterpretingRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const { showNotification } = useNotification();
 
-  useEffect(() => {
-    // This effect handles fetching or generating an image for the current recipe.
-    const generateImage = async () => {
-      // If the recipe object itself contains an image URL (e.g., from a future, more capable storage), use it directly.
-      if (recipe.imageUrl) {
-        setImageUrl(recipe.imageUrl);
-        return;
-      }
-
-      // For new recipes OR for favorites that were saved without an image,
-      // we generate a new one to ensure a good visual experience.
-      setIsImageLoading(true);
-      setImageError(null);
-      try {
+  const handleGenerateImage = useCallback(async () => {
+    if (isImageLoading) return;
+    setIsImageLoading(true);
+    setImageError(null);
+    try {
         const base64Image = await generateRecipeImage(recipe);
-        const url = `data:image/jpeg;base64,${base64Image}`;
-        setImageUrl(url);
-      } catch (err: any) {
-        setImageError(err.message || 'Ismeretlen hiba történt az ételfotó generálása közben.');
-        // Only show a notification for brand new recipes to avoid being noisy when viewing favorites.
-        if (!isFromFavorites) {
-          showNotification('Az ételfotó generálása nem sikerült.', 'info');
-        }
-      } finally {
+        const watermarkedImage = await addWatermark(base64Image, recipe.recipeName);
+        onRecipeUpdate({ ...recipe, imageUrl: watermarkedImage });
+    } catch (err: any) {
+        const errorMsg = err.message || 'Ismeretlen hiba történt az ételfotó generálása közben.';
+        setImageError(errorMsg);
+        showNotification('Az ételfotó generálása nem sikerült.', 'info');
+    } finally {
         setIsImageLoading(false);
-      }
-    };
+    }
+  }, [recipe, onRecipeUpdate, isImageLoading, showNotification]);
 
-    generateImage();
-  }, [recipe, isFromFavorites, showNotification]);
+  useEffect(() => {
+    if (shouldGenerateImageInitially && !recipe.imageUrl) {
+        handleGenerateImage();
+    }
+  }, [shouldGenerateImageInitially, recipe.imageUrl, handleGenerateImage]);
 
   useEffect(() => {
     return () => {
@@ -141,67 +203,87 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     };
   }, [generatedVideoUrl]);
 
-  const handleVoiceResult = useCallback(async (transcript: string) => {
-    if (isInterpretingRef.current) return;
+  const handleSpeechError = useCallback((error: string) => {
+    if (error === 'not-allowed') {
+        showNotification('A hangvezérléshez engedélyezze a mikrofon használatát a böngészőben.', 'info');
+    }
+  }, [showNotification]);
 
-    isInterpretingRef.current = true;
+  const handleVoiceResult = useCallback((transcript: string) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
     setIsInterpreting(true);
-    try {
-      const { command, payload } = await interpretUserCommand(transcript);
-      let notificationMessage = '';
 
-      switch (command) {
-        case VoiceCommand.STOP:
-          notificationMessage = 'Parancs: Felolvasás leállítva';
-          setVoiceMode('idle');
-          break;
-        case VoiceCommand.NEXT:
-           notificationMessage = 'Parancs: Következő';
-           if (voiceMode === 'ingredients' || voiceMode === 'cooking') {
-             setCurrentStepIndex((prev) => prev + 1);
-           }
-          break;
-        case VoiceCommand.READ_INTRO:
-          notificationMessage = 'Parancs: Leírás felolvasása';
-          setVoiceMode('intro');
-          break;
-        case VoiceCommand.READ_INGREDIENTS:
-          notificationMessage = 'Parancs: Hozzávalók felolvasása';
-          setCurrentStepIndex(0);
-          setVoiceMode('ingredients');
-          break;
-        case VoiceCommand.START_COOKING:
-          notificationMessage = 'Parancs: Főzés indítása';
-          setCurrentStepIndex(0);
-          setVoiceMode('cooking');
-          break;
-        case VoiceCommand.START_TIMER:
-            if (payload) {
-                const { hours = 0, minutes = 0, seconds = 0 } = payload;
-                const timeParts = [];
-                if (hours > 0) timeParts.push(`${hours} óra`);
-                if (minutes > 0) timeParts.push(`${minutes} perc`);
-                if (seconds > 0) timeParts.push(`${seconds} másodperc`);
-                notificationMessage = `Időzítő indítása: ${timeParts.join(' ')}`;
-                setTimerInitialValues(payload);
-                setIsTimerOpen(true);
+    debounceTimerRef.current = window.setTimeout(async () => {
+      if (isInterpretingRef.current) return;
+
+      isInterpretingRef.current = true;
+      try {
+        const { command, payload } = await interpretUserCommand(transcript);
+        let notificationMessage = '';
+
+        switch (command) {
+          case VoiceCommand.STOP:
+            notificationMessage = 'Parancs: Felolvasás leállítva';
+            setVoiceMode('idle');
+            break;
+          case VoiceCommand.NEXT:
+            notificationMessage = 'Parancs: Következő';
+            if (voiceMode === 'ingredients' || voiceMode === 'cooking') {
+              setCurrentStepIndex((prev) => prev + 1);
             }
             break;
-        default:
-          break;
-      }
+          case VoiceCommand.READ_INTRO:
+            notificationMessage = 'Parancs: Leírás felolvasása';
+            setVoiceMode('intro');
+            break;
+          case VoiceCommand.READ_INGREDIENTS:
+            notificationMessage = 'Parancs: Hozzávalók felolvasása';
+            setCurrentStepIndex(0);
+            setVoiceMode('ingredients');
+            break;
+          case VoiceCommand.START_COOKING:
+            notificationMessage = 'Parancs: Főzés indítása';
+            setCurrentStepIndex(0);
+            setVoiceMode('cooking');
+            break;
+          case VoiceCommand.START_TIMER:
+            if (payload) {
+              const { hours = 0, minutes = 0, seconds = 0 } = payload;
+              const timeParts = [];
+              if (hours > 0) timeParts.push(`${hours} óra`);
+              if (minutes > 0) timeParts.push(`${minutes} perc`);
+              if (seconds > 0) timeParts.push(`${seconds} másodperc`);
+              notificationMessage = `Időzítő indítása: ${timeParts.join(' ')}`;
+              setTimerInitialValues(payload);
+              setIsTimerOpen(true);
+            }
+            break;
+          default:
+            break;
+        }
 
-      if (notificationMessage) {
-        showNotification(notificationMessage, 'info');
-      }
+        if (notificationMessage) {
+          showNotification(notificationMessage, 'info');
+        }
 
-    } catch (error) {
+      } catch (error: any) {
         console.error("Error processing voice command:", error);
-    } finally {
+        let errorMessage = "Hiba a hangparancs feldolgozása közben.";
+        // Check for specific API rate limit error
+        if (typeof error.message === 'string' && error.message.includes('RESOURCE_EXHAUSTED')) {
+          errorMessage = "Túl sok kérés. A hangvezérlés szünetel.";
+          setVoiceControlActive(false); // Automatically pause voice control
+        }
+        showNotification(errorMessage, 'info');
+      } finally {
         isInterpretingRef.current = false;
         setIsInterpreting(false);
-    }
-  }, [voiceMode, showNotification, currentStepIndex]);
+      }
+    }, 2000); // 2-second delay
+  }, [voiceMode, showNotification]);
 
   const { 
     isSupported: recognitionIsSupported, 
@@ -211,6 +293,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   } = useSpeechRecognition({
     onResult: handleVoiceResult,
     continuous: false,
+    onError: handleSpeechError,
   });
 
   const synthesisIsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -271,7 +354,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
       window.speechSynthesis.cancel();
       stopListening();
     };
-  }, [voiceMode, currentStepIndex, recipe, isSupported, voiceControlActive, permissionState]);
+  }, [voiceMode, currentStepIndex, recipe, isSupported, voiceControlActive, permissionState, startListening, stopListening]);
 
 
   const handleToggleVoiceControl = () => {
@@ -302,8 +385,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     // Sanitize the recipe name to create a filesystem-friendly filename.
     const safeFilename = recipe.recipeName.replace(/[^a-z0-9\u00C0-\u017F_-\s]/gi, '').trim() || 'recept';
     
-    const imageHtml = imageUrl
-      ? `<div style="text-align: center; margin: 1.5rem 0; break-inside: avoid;"><img src="${imageUrl}" alt="Fotó a receptről: ${recipe.recipeName}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: cover; display: inline-block;"></div>`
+    const imageHtml = recipe.imageUrl
+      ? `<div style="text-align: center; margin: 1.5rem 0; break-inside: avoid;"><img src="${recipe.imageUrl}" alt="Fotó a receptről: ${recipe.recipeName}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: cover; display: inline-block;"></div>`
       : '';
 
     const printHtml = `
@@ -344,8 +427,9 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
               margin: 1.5rem 0;
               border: 1px solid #dcfce7; /* primary-100 */
               break-inside: avoid;
+              flex-wrap: wrap;
             }
-            .meta-info div { flex: 1; }
+            .meta-info div { flex: 1; min-width: 120px; }
             .meta-info span { font-weight: 600; display: block; font-size: 0.875rem; color: #166534; /* primary-800 */ }
             .nutritional-info { margin: 1.5rem 0; break-inside: avoid; }
             .nutritional-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem; }
@@ -362,6 +446,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
             <div><span>Előkészítés:</span> ${recipe.prepTime}</div>
             <div><span>Főzési idő:</span> ${recipe.cookTime}</div>
             <div><span>Adag:</span> ${recipe.servings}</div>
+            ${recipe.estimatedCost ? `<div><span>Becsült költség:</span> ${recipe.estimatedCost}</div>` : ''}
           </div>
           ${(recipe.calories || recipe.carbohydrates) ? `
           <div class="nutritional-info">
@@ -419,7 +504,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     // To ensure favorites can always be saved without hitting browser storage limits,
     // we save the recipe data *without* the generated image's large data URL.
     // The image will be automatically re-generated whenever the favorite is viewed.
-    onSave(recipe, category);
+    const { imageUrl, ...recipeToSave } = recipe;
+    onSave(recipeToSave as Recipe, category);
     setIsSaveModalOpen(false);
   };
 
@@ -478,6 +564,90 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     }
   };
 
+  const handleCalculateCost = async () => {
+    if (isCostLoading) return;
+    setIsCostLoading(true);
+    setCostError(null);
+    try {
+        const cost = await calculateRecipeCost(recipe);
+        onRecipeUpdate({ ...recipe, estimatedCost: cost });
+        showNotification('Költségbecslés elkészült!', 'success');
+    } catch (err: any) {
+        const errorMsg = err.message || 'Nem sikerült a költségbecslés.';
+        setCostError(errorMsg);
+        showNotification(errorMsg, 'info');
+    } finally {
+        setIsCostLoading(false);
+    }
+  };
+
+  const handleShare = async () => {
+    const fullRecipeText = `
+*${recipe.recipeName}*
+
+${recipe.description}
+
+*Hozzávalók:*
+${recipe.ingredients.map(ing => `- ${ing}`).join('\n')}
+
+*Elkészítés:*
+${recipe.instructions.map((inst, i) => `${i + 1}. ${inst}`).join('\n')}
+
+Recept generálva Konyha Miki segítségével!
+    `.trim();
+
+    // Fallback 1: Web Share API (modern, főleg mobil)
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: recipe.recipeName,
+                text: fullRecipeText,
+                url: window.location.href,
+            });
+            showNotification('Recept megosztva!', 'success');
+            return;
+        } catch (error) {
+            if (error instanceof Error && error.name !== 'AbortError') {
+                 console.warn('Web Share API failed, falling back to clipboard.', error);
+            }
+        }
+    }
+
+    // Fallback 2: Modern Clipboard API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(fullRecipeText);
+            showNotification('Recept a vágólapra másolva!', 'success');
+            return;
+        } catch (error) {
+            console.warn('Clipboard API failed, falling back to execCommand.', error);
+        }
+    }
+
+    // Fallback 3: Régi (de megbízható) execCommand
+    const textArea = document.createElement("textarea");
+    textArea.value = fullRecipeText;
+    textArea.style.position = "fixed";
+    textArea.style.top = "-9999px";
+    textArea.style.left = "-9999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showNotification('Recept a vágólapra másolva!', 'success');
+        } else {
+            throw new Error('document.execCommand("copy") returned false.');
+        }
+    } catch (err) {
+        console.error('All sharing and copying methods failed.', err);
+        showNotification('A megosztás és a vágólapra másolás sem sikerült.', 'info');
+    } finally {
+        document.body.removeChild(textArea);
+    }
+  };
+
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
 
   return (
@@ -492,13 +662,13 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
               <div className="aspect-[4/3] w-full bg-gray-200 rounded-lg animate-pulse"></div>
             )}
             {imageError && !isImageLoading && <ErrorMessage message={imageError} />}
-            {imageUrl && !isImageLoading && (
+            {recipe.imageUrl && !isImageLoading && (
               <button 
                 onClick={() => setIsImageModalOpen(true)} 
                 className="w-full block rounded-lg overflow-hidden shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-all duration-300"
                 aria-label="Ételfotó megtekintése nagyban"
               >
-                <img src={imageUrl} alt={`Fotó a receptről: ${recipe.recipeName}`} className="w-full h-full object-cover" />
+                <img src={recipe.imageUrl} alt={`Fotó a receptről: ${recipe.recipeName}`} className="w-full h-full object-cover" />
               </button>
             )}
           </div>
@@ -525,6 +695,18 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
                       <span>{recipe.servings}</span>
                   </div>
               </div>
+              {recipe.estimatedCost && (
+                <div className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M8.433 7.418c.158-.103.346-.196.567-.267v1.698a2.5 2.5 0 00-1.162-.328zM11.567 9.182c.158.103.346.196.567-.267V7.849a2.5 2.5 0 00-1.162.328v1.005z" />
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.5 4.5 0 00-1.879 3.197A1 1 0 108.25 10.5h.025a2.5 2.5 0 014.975 0h.025a1 1 0 101.879-1.217A4.5 4.5 0 0011 5.092V5zM10 13a1 1 0 011 1v.01a1 1 0 11-2 0V14a1 1 0 011-1z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                        <span className="font-semibold block text-sm">Becsült költség</span>
+                        <span>{recipe.estimatedCost}</span>
+                    </div>
+                </div>
+              )}
           </div>
         </div>
 
@@ -538,6 +720,22 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
                     Mentés a kedvencekbe
                 </button>
+                <button onClick={handleShare} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
+                    Recept megosztása
+                </button>
+                {!recipe.estimatedCost && (
+                    <button onClick={handleCalculateCost} disabled={isCostLoading} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isCostLoading ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path d="M8.433 7.418c.158-.103.346-.196.567-.267v1.698a2.5 2.5 0 00-1.162-.328zM11.567 9.182c.158.103.346.196.567-.267V7.849a2.5 2.5 0 00-1.162.328v1.005z" /><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.5 4.5 0 00-1.879 3.197A1 1 0 108.25 10.5h.025a2.5 2.5 0 014.975 0h.025a1 1 0 101.879-1.217A4.5 4.5 0 0011 5.092V5zM10 13a1 1 0 011 1v.01a1 1 0 11-2 0V14a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                        {isCostLoading ? 'Számítás...' : 'Költségbecslés'}
+                    </button>
+                )}
+                {!recipe.imageUrl && (
+                    <button onClick={handleGenerateImage} disabled={isImageLoading} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isImageLoading ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
+                        {isImageLoading ? 'Generálás...' : 'Ételkép generálása'}
+                    </button>
+                )}
                  <button onClick={handleGenerateVideo} disabled={isGeneratingVideo} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
                     {isGeneratingVideo ? 'Videó készül...' : 'Videó generálása'}
@@ -551,7 +749,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
                     Recept nyomtatása
                 </button>
             </div>
-
+            {costError && <div className="mb-4"><ErrorMessage message={costError} /></div>}
             {isSupported ? (
                 <div className="my-6 p-4 bg-primary-50 border border-primary-200 rounded-lg space-y-4 no-print">
                     <div className="flex items-center justify-center gap-2 text-primary-800">
@@ -591,7 +789,17 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-4">
-                <h3 className="text-2xl font-semibold text-primary-700 border-b-2 border-primary-200 pb-2">Hozzávalók</h3>
+                <div className="flex justify-between items-center border-b-2 border-primary-200 pb-2">
+                    <h3 className="text-2xl font-semibold text-primary-700">Hozzávalók</h3>
+                    <button
+                        onClick={() => onAddItemsToShoppingList(recipe.ingredients)}
+                        className="flex items-center gap-1.5 text-sm bg-primary-100 text-primary-800 font-semibold px-3 py-1 rounded-full hover:bg-primary-200 transition-colors"
+                        aria-label="Összes hozzávaló a bevásárlólistára"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H4.72l-.21-1.257A1 1 0 003 1z" /><path d="M16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" /></svg>
+                        Listára
+                    </button>
+                </div>
                 <ul className="space-y-2 list-disc list-inside text-gray-700">
                   {recipe.ingredients.map((ingredient, index) => (
                     <li key={index} className={`py-1 px-2 rounded ${voiceMode === 'ingredients' && index === currentStepIndex ? 'bg-primary-100 font-semibold' : ''}`}>{ingredient}</li>
@@ -609,6 +817,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
               </div>
             </div>
           </div>
+          {recipe.cookingMethod === CookingMethod.REDMOND_SMART_COOKER && <RedmondCookerPanel />}
       </div>
        <div className="mt-6 no-print flex flex-col sm:flex-row gap-3">
          {!isFromFavorites && (
@@ -653,7 +862,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
       />
       {isGeneratingVideo && <VideoGenerationModal progressMessage={videoGenerationProgress} />}
       {generatedVideoUrl && <VideoPlayerModal videoUrl={generatedVideoUrl} recipeName={recipe.recipeName} onClose={() => setGeneratedVideoUrl(null)} />}
-      {isImageModalOpen && imageUrl && <ImageDisplayModal imageUrl={imageUrl} recipeName={recipe.recipeName} onClose={() => setIsImageModalOpen(false)} />}
+      {isImageModalOpen && recipe.imageUrl && <ImageDisplayModal imageUrl={recipe.imageUrl} recipeName={recipe.recipeName} onClose={() => setIsImageModalOpen(false)} />}
     </>
   );
 };
