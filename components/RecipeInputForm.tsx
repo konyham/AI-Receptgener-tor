@@ -23,8 +23,8 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [mealType, setMealType] = useState<MealType>(MealType.BREAKFAST);
   const [cookingMethod, setCookingMethod] = useState<CookingMethod>(CookingMethod.TRADITIONAL);
   const [specialRequest, setSpecialRequest] = useState('');
-  const [withCost, setWithCost] = useState(true);
-  const [withImage, setWithImage] = useState(true);
+  const [withCost, setWithCost] = useState(false);
+  const [withImage, setWithImage] = useState(false);
   
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [voiceControlActive, setVoiceControlActive] = useState(true);

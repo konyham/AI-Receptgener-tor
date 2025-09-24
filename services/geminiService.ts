@@ -1,5 +1,3 @@
-
-
 // FIX: This file was created to implement the missing Gemini API service logic.
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import { GoogleGenAI, Type, Operation, GenerateVideosResponse } from '@google/genai';
@@ -209,6 +207,10 @@ export const getRecipeModificationSuggestions = async (
     return JSON.parse(jsonText);
   } catch (error: any) {
     console.error('Error generating recipe suggestions:', error);
+    const errorMessage = (error?.message || '').toLowerCase();
+    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+      throw new Error('Elérte a napi kvótáját. Kérjük, próbálja újra később.');
+    }
     throw new Error('Nem sikerült javaslatokat generálni. Próbálja újra később.');
   }
 };
@@ -249,8 +251,12 @@ Abszolút szabályok: A képen KIZÁRÓLAG az étel szerepelhet. SZIGORÚAN TILO
         } else {
             throw new Error('Az API nem adott vissza képet.');
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error generating recipe image:', error);
+        const errorMessage = (error?.message || '').toLowerCase();
+        if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+            throw new Error('Elérte a képgenerálási kvótáját erre az időszakra. Kérjük, próbálja újra később, vagy generáljon képet a következő recepthez.');
+        }
         throw new Error('Hiba történt az ételfotó generálása közben.');
     }
 };
@@ -272,6 +278,10 @@ export const generateRecipeVideo = async (recipe: Recipe): Promise<Operation<Gen
         return operation;
     } catch (error: any) {
         console.error('Error starting video generation:', error);
+        const errorMessage = (error?.message || '').toLowerCase();
+        if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+            throw new Error('Elérte a videógenerálási kvótáját. Kérjük, próbálja újra később.');
+        }
         throw new Error('Hiba történt a videó generálásának elindítása közben.');
     }
 };
@@ -283,6 +293,10 @@ export const getVideosOperationStatus = async (operation: Operation<GenerateVide
         return updatedOperation;
     } catch (error: any) {
         console.error('Error getting video operation status:', error);
+        const errorMessage = (error?.message || '').toLowerCase();
+        if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+            throw new Error('Túl sok kérés a videó állapotára. Kérjük, várjon egy kicsit.');
+        }
         throw new Error('Hiba történt a videó állapotának lekérdezése közben.');
     }
 };
@@ -316,6 +330,10 @@ export const calculateRecipeCost = async (recipe: Recipe): Promise<string> => {
     return result.cost;
   } catch (error: any) {
     console.error('Error calculating recipe cost:', error);
+    const errorMessage = (error?.message || '').toLowerCase();
+    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+      throw new Error('Elérte a napi kvótáját. Kérjük, próbálja újra később.');
+    }
     throw new Error('Hiba történt a költségbecslés közben.');
   }
 };
@@ -431,6 +449,10 @@ export const interpretFormCommand = async (
     };
   } catch (error: any) {
     console.error('Error interpreting form command:', error);
+    const errorMessage = (error?.message || '').toLowerCase();
+    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+      throw new Error('Elérte a hangvezérlési kvótáját. Kérjük, próbálja újra később.');
+    }
     if (error instanceof SyntaxError) {
         throw new Error('Hiba történt a parancs értelmezése közben. Az AI által adott válasz hibás formátumú volt.');
     }
@@ -527,8 +549,12 @@ export const interpretAppCommand = async (
         action: result.action as AppCommandAction,
         payload: result.payload,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error interpreting app command:', error);
+    const errorMessage = (error?.message || '').toLowerCase();
+    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+      throw new Error('Elérte a hangvezérlési kvótáját. Kérjük, próbálja újra később.');
+    }
     throw new Error('Nem sikerült az alkalmazás parancsot értelmezni.');
   }
 };
@@ -582,8 +608,12 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
         const jsonText = response.text.trim();
         const result = JSON.parse(jsonText);
         return result as VoiceCommandResult;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error interpreting user command:', error);
+        const errorMessage = (error?.message || '').toLowerCase();
+        if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+            throw new Error('Elérte a hangvezérlési kvótáját. Kérjük, próbálja újra később.');
+        }
         throw new Error('Nem sikerült a felhasználói parancsot értelmezni.');
     }
 };

@@ -641,6 +641,20 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     }
   };
 
+  const handleCopyRecipeName = async () => {
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(recipe.recipeName);
+            showNotification(`'${recipe.recipeName}' a vágólapra másolva!`, 'success');
+        } else {
+            showNotification('A vágólapra másolás nem támogatott ebben a böngészőben.', 'info');
+        }
+    } catch (err) {
+        console.error('Hiba a recept nevének másolása közben:', err);
+        showNotification('Nem sikerült a másolás.', 'info');
+    }
+  };
+
   const handleShare = async () => {
     const fullRecipeText = `
 *${recipe.recipeName}*
@@ -787,9 +801,12 @@ Recept generálva Konyha Miki segítségével!
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
                     Konyhai időzítő
                 </button>
-                 <button onClick={handlePrint} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v-2a1 1 0 011-1h8a1 1 0 011 1v2h1a2 2 0 002-2v-3a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm-8 8H5a1 1 0 01-1-1v-1a1 1 0 011-1h.01L5 9h10l.01.01H15a1 1 0 011 1v1a1 1 0 01-1 1h-2v2a1 1 0 01-1-1H8a1 1 0 01-1-1v-2H5z" clipRule="evenodd" /></svg>
-                    Recept nyomtatása
+                 <button onClick={handleCopyRecipeName} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                      <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                    </svg>
+                    Név másolása
                 </button>
             </div>
             {costError && <div className="mb-4"><ErrorMessage message={costError} /></div>}

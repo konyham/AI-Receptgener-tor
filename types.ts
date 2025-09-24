@@ -38,6 +38,7 @@ export enum MealType {
   ELEVENSES = 'elevenses',
   AFTERNOON_SNACK = 'afternoon_snack',
   SOUP = 'soup',
+  PASTA_MAKING = 'pasta_making',
 }
 
 export enum CookingMethod {

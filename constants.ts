@@ -20,6 +20,7 @@ export const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: MealType.SOUP, label: 'Leves' },
   { value: MealType.DESSERT, label: 'Desszert' },
   { value: MealType.SNACK, label: 'Nassolnivaló' },
+  { value: MealType.PASTA_MAKING, label: 'Tésztakészítés' },
 ];
 
 export const COOKING_METHODS: { value: CookingMethod; label: string }[] = [
