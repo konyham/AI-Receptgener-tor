@@ -114,6 +114,7 @@ const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
                 cookingMethodLabel ? `Elkészítés: ${cookingMethodLabel}` : null,
                 mealTypeLabel ? `Étkezés: ${mealTypeLabel}` : null,
                 dietLabel ? `Diéta: ${dietLabel}` : null,
+                "AI-val készítette Konyha Miki"
             ].filter((v): v is string => v !== null);
 
             const topRightInfo = [

@@ -228,38 +228,19 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
         .replace(/\s\s+/g, ' ')
         .trim();
     
-    const cookingMethodLabel = COOKING_METHODS.find(c => c.value === recipe.cookingMethod)?.label || 'hagyományos módon készült';
-
     const prompt = `
-*** KÉPGENERÁLÁSI UTASÍTÁS ***
+Tárgy: Profi, fotórealisztikus, magazin minőségű ételfotó a következő ételről: "${cleanRecipeName}".
 
-**1. ABSZOLÚT ELSŐDLEGES CÉL (NEM MEGVÁLTOZTATHATÓ):**
-Készíts egy fotórealisztikus, profi, magazin minőségű képet a következő konkrét ételről: "${cleanRecipeName}".
-A végső képnek KIZÁRÓLAG ÉS PONTOSAN EZT AZ ÉTELT KELL ÁBRÁZOLNIA.
+Vizuális stílus: Az étel legyen gusztusosan, profi módon kitálalva egy letisztult, egyszerű tányéron. Használj természetes fényeket, lágy, elmosódott (bokeh) konyhai háttérrel, hogy a fókusz teljes mértékben az ételen legyen. Az étel vizuális megjelenése feleljen meg a leírásának: "${recipe.description}".
 
-**2. VIZUÁLIS LEÍRÁS ÉS KULCSELEMEK:**
-- **Étel neve:** ${cleanRecipeName}
-- **Leírás:** ${recipe.description}
-- **Elkészítés módja:** ${cookingMethodLabel}
-- **Teljes hozzávalólista a vizuális referenciához:** ${recipe.ingredients.join(', ')}
-- **Tálalás:** Az étel legyen profi módon kitálalva egy letisztult, egyszerű tányéron vagy egy hozzá illő tálban. A tálalás legyen gusztusos és étvágygerjesztő.
-- **Környezet:** Használj természetes fényeket, lágy, elmosódott (bokeh) háttérrel, hogy kiemeld az ételt. A háttér egy egyszerű konyhai vagy étkezői környezet legyen.
-
-**3. SZIGORÚ TILTÁSOK (NEGATÍV PROMPTOK):**
-A kép SEMMILYEN KÖRÜLMÉNYEK KÖZÖTT nem tartalmazhatja a következőket:
-- **ROSSZ ÉTEL:** Bármilyen más étel, ami nem a(z) "${cleanRecipeName}" a leírás alapján. Például, ha a recept egy csirkeleves, NE generálj képet egy pitéről, steakről vagy salátáról.
-- **ÁLLATOK:** ABSZOLÚT TILOS macska, kutya, madár vagy bármilyen más állat ábrázolása.
-- **EMBEREK:** TILOS ember, kéz, arc vagy bármilyen testrész ábrázolása.
-- **SZÖVEG ÉS LOGÓK:** TILOS szöveg, betű, vízjel vagy márkalogó.
-- **NEM FOTÓREALISZTIKUS ELEMEK:** TILOS rajz, festmény vagy illusztráció. A stílusnak 100%-ban fotórealisztikusnak kell lennie.
-
-**4. VÉGSŐ ÖNELLENŐRZÉS:**
-A kép kiadása előtt ellenőrizd a következőket:
-- A kép kizárólag a(z) "${cleanRecipeName}" nevű ételt ábrázolja? IGEN/NEM
-- A vizuális megjelenés megfelel a leírásnak, az elkészítési módnak és a kulcsfontosságú hozzávalóknak? IGEN/NEM
-- Minden tiltott elem (rossz étel, állatok, emberek, szöveg) hiányzik a képről? IGEN/NEM
-- **Ha bármelyikre NEM a válasz, dobd el a képet és generálj egy újat, amely szigorúan betartja az összes szabályt.**
-    `;
+Abszolút és megváltoztathatatlan szabályok és tiltások:
+- A képen KIZÁRÓLAG az étel szerepelhet.
+- SZIGORÚAN TILOS: Bármilyen állat (különösen kutya, macska, madár).
+- SZIGORÚAN TILOS: Bármilyen ember, kéz, arc vagy testrész.
+- SZIGORÚAN TILOS: Bármilyen szöveg, betű, logó vagy vízjel.
+- SZIGORÚAN TILOS: Bármilyen rajzolt, festett vagy nem fotórealisztikus elem.
+- SZIGORÚAN TILOS: Bármilyen más étel, ami nem a(z) "${cleanRecipeName}".
+`;
 
     try {
         const response = await ai.models.generateImages({
