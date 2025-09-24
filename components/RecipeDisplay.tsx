@@ -12,7 +12,6 @@ import VideoPlayerModal from './VideoPlayerModal';
 import ImageDisplayModal from './ImageDisplayModal';
 import ErrorMessage from './ErrorMessage';
 import InstructionCarousel from './InstructionCarousel';
-import RedmondCookerPanel from './RedmondCookerPanel';
 
 
 // FIX: Added missing props to the interface to match the usage in App.tsx.
@@ -849,7 +848,6 @@ Recept generálva Konyha Miki segítségével!
               </div>
             </div>
           </div>
-          {recipe.cookingMethod === CookingMethod.REDMOND_SMART_COOKER && <RedmondCookerPanel />}
       </div>
        <div className="mt-6 no-print flex flex-col sm:flex-row gap-3">
          {!isFromFavorites && (
