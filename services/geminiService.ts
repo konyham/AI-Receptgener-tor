@@ -213,19 +213,16 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
     const keyIngredients = recipe.ingredients.slice(0, 5).join(', ').replace(/ \(.*\)/g, '').trim();
 
     const prompt = `
-Fotórealisztikus, profi ételfotó a következő ételről: "${recipe.recipeName}".
+Készíts egy profi, fotórealisztikus ételfotót.
 
-FŐ TÉMA: A kész, tálalt étel.
+TÁRGY: Egy tányér a következő ételből: "${recipe.recipeName}".
+STÍLUS: Magazin minőségű ételfotó, világos, természetes fénnyel. A fókusz az ételen van.
+LEÍRÁS: ${recipe.description}. A képen legyenek láthatóak a fő összetevők: ${keyIngredients}.
+TÁLALÁS: Modern, letisztult tányéron vagy tálban, étvágygerjesztően elrendezve.
+HÁTTÉR: Semleges, enyhén elmosódott konyhai környezet.
 
-VIZUÁLIS LEÍRÁS:
-- Az étel leírása: "${recipe.description}".
-- Főbb összetevők, amiknek látszódniuk kell: ${keyIngredients}.
-- Tálalás: Modern, letisztult tányéron vagy tálban. Az étel frissnek és étvágygerjesztőnek tűnik.
-- Megvilágítás: Világos, természetes fény.
-- Háttér: Egyszerű, enyhén elmosódott konyhai vagy éttermi környezet.
-
-KIZÁRANDÓ ELEMEK (NEGATÍV PROMPT):
-A képen SOHA ne szerepeljenek: emberek, kezek, állatok, rajzfilmfigurák, szöveg, logók, vízjelek, vagy az ételhez nem illő tárgyak. A kép kizárólag a tálalt ételről szóljon.
+SZIGORÚAN KIZÁRANDÓ (NEGATÍV PROMPT):
+A képen NEM SZEREPELHET semmilyen állat (főleg kutya vagy macska), ember, kéz, rajzfigura, szöveg, vagy logó. A kép KIZÁRÓLAG az ételt ábrázolja.
     `;
 
     try {
