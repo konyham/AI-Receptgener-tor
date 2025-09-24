@@ -40,14 +40,15 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     if (list.length === 0) return;
 
     const title = "AI bevásárlólista";
-    // A Google Keep a '[ ] ' előtagot jelölőnégyzetként ismeri fel.
-    const textBody = list.map(item => `[ ] ${item.text}`).join('\n');
+    // Using `[ ] ` with a space is a more compatible format for checklists.
+    const checklistItems = list.map(item => `[ ] ${item.text}`).join('\n');
 
     const encodedTitle = encodeURIComponent(title);
-    const encodedText = encodeURIComponent(textBody);
+    const encodedText = encodeURIComponent(checklistItems);
     
-    // FIX: A Google Keep URL-címének javítása a jegyzet helyes feltöltéséhez
-    const keepUrl = `https://keep.google.com/#NOTE/title=${encodedTitle}&text=${encodedText}`;
+    // FINAL FIX: This endpoint is specifically for creating notes and is more reliable
+    // than trying to manipulate the main app's hash routes.
+    const keepUrl = `https://keep.google.com/keep/createnote?title=${encodedTitle}&text=${encodedText}`;
 
     window.open(keepUrl, '_blank', 'noopener,noreferrer');
   };
