@@ -15,6 +15,9 @@ export interface Recipe {
   imageUrl?: string;
   estimatedCost?: string;
   cookingMethod?: CookingMethod;
+  // FIX: Add optional 'diet' and 'mealType' to the Recipe interface to resolve errors in RecipeDisplay.tsx.
+  diet?: DietOption;
+  mealType?: MealType;
 }
 
 export enum DietOption {

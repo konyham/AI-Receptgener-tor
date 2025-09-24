@@ -12,6 +12,7 @@ import VideoPlayerModal from './VideoPlayerModal';
 import ImageDisplayModal from './ImageDisplayModal';
 import ErrorMessage from './ErrorMessage';
 import InstructionCarousel from './InstructionCarousel';
+import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS } from '../constants';
 
 
 // FIX: Added missing props to the interface to match the usage in App.tsx.
@@ -81,7 +82,7 @@ const DiabeticAdvice: React.FC<{ advice: string | undefined }> = ({ advice }) =>
     );
 };
 
-const addWatermark = (base64Image: string, recipeName: string): Promise<string> => {
+const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
@@ -95,22 +96,43 @@ const addWatermark = (base64Image: string, recipeName: string): Promise<string> 
             canvas.height = img.height;
             ctx.drawImage(img, 0, 0);
 
+            // --- Configuration ---
             const scale = Math.max(1, img.width / 800);
             const padding = 20 * scale;
+            const titleFont = `bold ${32 * scale}px "Helvetica Neue", Arial, sans-serif`;
+            const infoFont = `${16 * scale}px "Helvetica Neue", Arial, sans-serif`;
+            const titleLineHeight = 38 * scale;
+            const infoLineHeight = 22 * scale;
             const maxWidth = canvas.width - (padding * 2);
+
+            // --- Text Preparation ---
+            const { recipeName, calories, carbohydrates, protein, fat } = recipe;
+
+            const dietLabel = DIET_OPTIONS.find(d => d.value === recipe.diet)?.label;
+            const mealTypeLabel = MEAL_TYPES.find(m => m.value === recipe.mealType)?.label;
+            const cookingMethodLabel = COOKING_METHODS.find(c => c.value === recipe.cookingMethod)?.label;
+            
+            const generalInfo = [
+                dietLabel ? `Diéta: ${dietLabel}` : null,
+                mealTypeLabel ? `Étkezés: ${mealTypeLabel}` : null,
+                cookingMethodLabel ? `Elkészítés: ${cookingMethodLabel}` : null,
+            ].filter((v): v is string => v !== null);
+
+            const nutritionInfo = [
+                calories ? `Kalória: ${calories}` : null,
+                carbohydrates ? `Szénhidrát: ${carbohydrates}` : null,
+                protein ? `Fehérje: ${protein}` : null,
+                fat ? `Zsír: ${fat}` : null,
+            ].filter((v): v is string => v !== null);
 
             const wrapText = (context: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
                 const words = text.split(' ');
-                if (words.length === 0) return [];
                 const lines: string[] = [];
                 let currentLine = words[0] || '';
-
                 for (let i = 1; i < words.length; i++) {
                     const word = words[i];
                     const testLine = currentLine + ' ' + word;
-                    const metrics = context.measureText(testLine);
-                    const testWidth = metrics.width;
-                    if (testWidth > maxWidth && i > 0) {
+                    if (context.measureText(testLine).width > maxWidth && i > 0) {
                         lines.push(currentLine);
                         currentLine = word;
                     } else {
@@ -121,49 +143,54 @@ const addWatermark = (base64Image: string, recipeName: string): Promise<string> 
                 return lines;
             };
 
-            const appName = "Konyha Miki AI";
-            const recipeTitleFont = `bold ${28 * scale}px "Helvetica Neue", Arial, sans-serif`;
-            const appNameFont = `italic ${18 * scale}px "Helvetica Neue", Arial, sans-serif`;
-            const lineHeight = 32 * scale;
-            const appNameLineHeight = 22 * scale;
+            ctx.font = titleFont;
+            const titleLines = wrapText(ctx, recipeName, maxWidth);
+
+            // --- Background Calculation & Drawing ---
+            const infoColumnsHeight = Math.max(generalInfo.length, nutritionInfo.length) * infoLineHeight;
+            const separatorHeight = nutritionInfo.length > 0 || generalInfo.length > 0 ? (15 * scale) : 0;
             
-            ctx.font = recipeTitleFont;
-            const recipeLines = wrapText(ctx, recipeName, maxWidth);
+            const totalTextHeight = (titleLines.length * titleLineHeight) + separatorHeight + infoColumnsHeight;
+            const bgHeight = totalTextHeight + (padding * 2);
+            const bgY = canvas.height - bgHeight;
 
-            ctx.font = appNameFont;
-            const appNameWidth = ctx.measureText(appName).width;
-            
-            const maxTextWidth = Math.max(
-                ...recipeLines.map(line => {
-                    ctx.font = recipeTitleFont;
-                    return ctx.measureText(line).width;
-                }),
-                appNameWidth
-            );
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+            ctx.fillRect(0, bgY, canvas.width, bgHeight);
 
-            const totalTextHeight = (recipeLines.length * lineHeight) + appNameLineHeight;
-            const bgHeight = totalTextHeight + (padding * 0.5);
-            const bgWidth = maxTextWidth + padding;
-            const bgX = canvas.width - bgWidth - (padding / 2);
-            const bgY = canvas.height - bgHeight - (padding / 2);
-
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-            ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
-
+            // --- Text Drawing ---
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.textBaseline = 'bottom';
-            ctx.textAlign = 'right';
+            ctx.textBaseline = 'top';
+            let currentY = bgY + padding;
 
-            const textX = canvas.width - padding;
+            // Draw Title
+            ctx.font = titleFont;
+            ctx.textAlign = 'left';
+            titleLines.forEach(line => {
+                ctx.fillText(line, padding, currentY);
+                currentY += titleLineHeight;
+            });
+            
+            if (separatorHeight > 0) {
+                currentY += separatorHeight / 2;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.fillRect(padding, currentY, maxWidth, 1 * scale);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                currentY += separatorHeight / 2;
+            }
 
-            ctx.font = appNameFont;
-            let currentY = bgY + appNameLineHeight + (padding * 0.25);
-            ctx.fillText(appName, textX, currentY);
 
-            ctx.font = recipeTitleFont;
-            recipeLines.forEach((line) => {
-                currentY += lineHeight;
-                ctx.fillText(line, textX, currentY);
+            // Draw Info Columns
+            ctx.font = infoFont;
+            const col1X = padding;
+            const col2X = canvas.width / 2 + padding / 2;
+            const colStartY = currentY;
+
+            generalInfo.forEach((line, index) => {
+                ctx.fillText(line, col1X, colStartY + (index * infoLineHeight));
+            });
+
+            nutritionInfo.forEach((line, index) => {
+                ctx.fillText(line, col2X, colStartY + (index * infoLineHeight));
             });
 
             resolve(canvas.toDataURL('image/jpeg', 0.9));
@@ -209,7 +236,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     setImageError(null);
     try {
         const base64Image = await generateRecipeImage(recipe);
-        const watermarkedImage = await addWatermark(base64Image, recipe.recipeName);
+        const watermarkedImage = await addWatermark(base64Image, recipe);
         onRecipeUpdate({ ...recipe, imageUrl: watermarkedImage });
     } catch (err: any) {
         const errorMsg = err.message || 'Ismeretlen hiba történt az ételfotó generálása közben.';

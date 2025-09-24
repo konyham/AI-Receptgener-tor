@@ -1,3 +1,4 @@
+
 // FIX: This file was created to implement the missing Gemini API service logic.
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import { GoogleGenAI, Type, Operation, GenerateVideosResponse } from '@google/genai';
@@ -136,6 +137,9 @@ export const generateRecipe = async (
     }
     const recipeData: Recipe = JSON.parse(jsonText);
     recipeData.cookingMethod = cookingMethod;
+    // FIX: Assign diet and mealType to the recipe data to ensure it's available for other components like RecipeDisplay.
+    recipeData.diet = diet;
+    recipeData.mealType = mealType;
     return recipeData;
   } catch (error: any) {
     console.error('Error generating recipe:', error);
@@ -146,7 +150,7 @@ export const generateRecipe = async (
     }
 
     if (error instanceof SyntaxError) {
-        throw new Error('Hiba történt a recept adatainak feldolgozása közben. Az AI által adott válasz hibás formátumú volt.');
+        throw new Error('Hiba történt a recept adatainak feldágozása közben. Az AI által adott válasz hibás formátumú volt.');
     }
     
     throw new Error(
@@ -212,17 +216,41 @@ export const getRecipeModificationSuggestions = async (
 export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
     const keyIngredients = recipe.ingredients.slice(0, 5).join(', ').replace(/ \(.*\)/g, '').trim();
 
+    // Sanitize the recipe name to remove potentially distracting brand names for the image prompt.
+    const cleanRecipeName = recipe.recipeName
+        .replace(/REDMOND/gi, '')
+        .replace(/CUCKOO/gi, '')
+        .replace(/CROCK-POT/gi, '')
+        .replace(/Monsieur Cuisine/gi, '')
+        .replace(/Okosfőzőben/gi, '')
+        .replace(/termomixerben/gi, '')
+        .replace(/lassúfőzőben/gi, '')
+        .replace(/okos rizsfőzőben/gi, '')
+        .replace(/- Ételfotó/gi, '')
+        .replace(/\s\s+/g, ' ')
+        .trim();
+
     const prompt = `
-Készíts egy profi, fotórealisztikus ételfotót.
+**FŐ UTASÍTÁS: Készíts egy FOTÓREALISZTIKUS ételfotót.** A kép egyetlen és kizárólagos tárgya a kitálalt étel legyen.
 
-TÁRGY: Egy tányér a következő ételből: "${recipe.recipeName}".
-STÍLUS: Magazin minőségű ételfotó, világos, természetes fénnyel. A fókusz az ételen van.
-LEÍRÁS: ${recipe.description}. A képen legyenek láthatóak a fő összetevők: ${keyIngredients}.
-TÁLALÁS: Modern, letisztult tányéron vagy tálban, étvágygerjesztően elrendezve.
-HÁTTÉR: Semleges, enyhén elmosódott konyhai környezet.
+**ÉTEL NEVE:** ${cleanRecipeName}
 
-SZIGORÚAN KIZÁRANDÓ (NEGATÍV PROMPT):
-A képen NEM SZEREPELHET semmilyen állat (főleg kutya vagy macska), ember, kéz, rajzfigura, szöveg, vagy logó. A kép KIZÁRÓLAG az ételt ábrázolja.
+**VIZUÁLIS LEÍRÁS:** ${recipe.description}. A fotón legyenek jól kivehetőek a fő összetevők: ${keyIngredients}. Az étel legyen étvágygerjesztően tálalva egy modern, letisztult tányéron vagy tálban.
+
+**STÍLUS:** Magazin minőségű, profi ételfotó. Világos, természetes fények, sekély mélységélesség (bokeh). A fókusz szigorúan az ételen van.
+
+**HÁTTÉR:** Semleges, teljesen elmosódott (out-of-focus) konyhai vagy éttermi háttér.
+
+**SZIGORÚAN TILOS (NEGATÍV PROMPT):**
+A képen NEM SZEREPELHET:
+- Bármilyen jármű (autó, motor, stb.)
+- Bármilyen épület (ház, iroda, stb.)
+- Bármilyen állat (kutya, macska, stb.)
+- Bármilyen ember, emberi testrész (kéz, arc, stb.)
+- Bármilyen szöveg, logó, rendszámtábla, márkanév.
+- Bármilyen rajzolt, animált vagy nem fotórealisztikus elem.
+
+A kép **CSAK ÉS KIZÁRÓLAG** a "${cleanRecipeName}" nevű ételt ábrázolhatja, kitálalva. Minden más értelmezés hiba.
     `;
 
     try {
