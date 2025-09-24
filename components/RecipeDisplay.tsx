@@ -87,60 +87,92 @@ const addWatermark = (base64Image: string, recipeName: string): Promise<string> 
         const img = new Image();
         img.onload = () => {
             const canvas = document.createElement('canvas');
-            const scale = Math.max(1, img.width / 800); // Scale font size for larger images
-            canvas.width = img.width;
-            canvas.height = img.height;
             const ctx = canvas.getContext('2d');
             if (!ctx) {
                 return reject(new Error('Nem sikerült a vászon kontextusát lekérni.'));
             }
 
-            // 1. Eredeti kép rajzolása
+            canvas.width = img.width;
+            canvas.height = img.height;
             ctx.drawImage(img, 0, 0);
 
-            // 2. Vízjel szövegének és stílusának előkészítése
-            const appName = "Konyha Miki AI";
-            const recipeTitle = recipeName;
+            const scale = Math.max(1, img.width / 800);
             const padding = 20 * scale;
+            const maxWidth = canvas.width - (padding * 2);
 
-            // 3. Recept nevének stílusa és mérése
-            ctx.font = `bold ${28 * scale}px "Helvetica Neue", Arial, sans-serif`;
-            const recipeMetrics = ctx.measureText(recipeTitle);
-            const recipeX = canvas.width - recipeMetrics.width - padding;
-            const recipeY = canvas.height - padding;
+            const wrapText = (context: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
+                const words = text.split(' ');
+                if (words.length === 0) return [];
+                const lines: string[] = [];
+                let currentLine = words[0] || '';
 
-            // 4. Alkalmazás nevének stílusa és mérése
-            ctx.font = `italic ${18 * scale}px "Helvetica Neue", Arial, sans-serif`;
-            const appMetrics = ctx.measureText(appName);
-            const appX = canvas.width - appMetrics.width - padding;
-            const appY = recipeY - (32 * scale);
+                for (let i = 1; i < words.length; i++) {
+                    const word = words[i];
+                    const testLine = currentLine + ' ' + word;
+                    const metrics = context.measureText(testLine);
+                    const testWidth = metrics.width;
+                    if (testWidth > maxWidth && i > 0) {
+                        lines.push(currentLine);
+                        currentLine = word;
+                    } else {
+                        currentLine = testLine;
+                    }
+                }
+                lines.push(currentLine);
+                return lines;
+            };
 
-            // 5. Félig áttetsző háttér rajzolása mindkét sorhoz
-            const bgX = Math.min(recipeX, appX) - (10 * scale);
-            const bgY = appY - (22 * scale);
-            const bgWidth = Math.max(recipeMetrics.width, appMetrics.width) + (20 * scale);
-            const bgHeight = (60 * scale);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            const appName = "Konyha Miki AI";
+            const recipeTitleFont = `bold ${28 * scale}px "Helvetica Neue", Arial, sans-serif`;
+            const appNameFont = `italic ${18 * scale}px "Helvetica Neue", Arial, sans-serif`;
+            const lineHeight = 32 * scale;
+            const appNameLineHeight = 22 * scale;
+            
+            ctx.font = recipeTitleFont;
+            const recipeLines = wrapText(ctx, recipeName, maxWidth);
+
+            ctx.font = appNameFont;
+            const appNameWidth = ctx.measureText(appName).width;
+            
+            const maxTextWidth = Math.max(
+                ...recipeLines.map(line => {
+                    ctx.font = recipeTitleFont;
+                    return ctx.measureText(line).width;
+                }),
+                appNameWidth
+            );
+
+            const totalTextHeight = (recipeLines.length * lineHeight) + appNameLineHeight;
+            const bgHeight = totalTextHeight + (padding * 0.5);
+            const bgWidth = maxTextWidth + padding;
+            const bgX = canvas.width - bgWidth - (padding / 2);
+            const bgY = canvas.height - bgHeight - (padding / 2);
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
             ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
 
-            // 6. Szöveg rajzolása a háttérre
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
             ctx.textBaseline = 'bottom';
-            
-            ctx.font = `italic ${18 * scale}px "Helvetica Neue", Arial, sans-serif`;
-            ctx.fillText(appName, appX, appY);
+            ctx.textAlign = 'right';
 
-            ctx.font = `bold ${28 * scale}px "Helvetica Neue", Arial, sans-serif`;
-            ctx.fillText(recipeTitle, recipeX, recipeY);
+            const textX = canvas.width - padding;
 
-            // 7. Visszatérés az új képpel
-            resolve(canvas.toDataURL('image/jpeg', 0.9)); // JPEG használata minőséggel a kisebb méretért
+            ctx.font = appNameFont;
+            let currentY = bgY + appNameLineHeight + (padding * 0.25);
+            ctx.fillText(appName, textX, currentY);
+
+            ctx.font = recipeTitleFont;
+            recipeLines.forEach((line) => {
+                currentY += lineHeight;
+                ctx.fillText(line, textX, currentY);
+            });
+
+            resolve(canvas.toDataURL('image/jpeg', 0.9));
         };
         img.onerror = (err) => {
             console.error("A kép betöltése a vízjelezéshez sikertelen:", err);
             reject(new Error('A kép betöltése a vízjelezéshez sikertelen.'));
         };
-        // A bejövő base64 a nyers bájt, szüksége van a data URL prefixre
         img.src = `data:image/jpeg;base64,${base64Image}`;
     });
 };
