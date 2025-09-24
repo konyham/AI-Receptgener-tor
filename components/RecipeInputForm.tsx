@@ -476,6 +476,11 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
               </svg>
               <span>
                   Tájékoztató: A(z) <strong>{selectedMethodInfo.label}</strong> legfeljebb <strong>{capacity} személyre</strong> javasolt főzni.
+                  {numberOfServings > capacity && (
+                    <>
+                      {' '}A megadott <strong>{numberOfServings} fős</strong> adagot várhatóan <strong>{Math.ceil(numberOfServings / capacity)} részletben</strong> tudod majd elkészíteni.
+                    </>
+                  )}
               </span>
           </div>
         )}

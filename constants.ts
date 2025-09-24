@@ -25,7 +25,7 @@ export const MEAL_TYPES: { value: MealType; label: string }[] = [
 
 export const COOKING_METHODS: { value: CookingMethod; label: string }[] = [
   { value: CookingMethod.TRADITIONAL, label: 'Hagyományos' },
-  { value: CookingMethod.SMART_COOKER, label: 'Okoskukta' },
+  { value: CookingMethod.SMART_COOKER, label: 'Westinghouse WKCPPC100 okoskukta (angolmenüs)' },
   { value: CookingMethod.THERMOMIXER, label: 'Monsieur Cuisine Connect termomixer' },
   { value: CookingMethod.CUCKOO_RICE_COOKER, label: 'CUCKOO CRP-M1001SK okos rizsfőző (kínai menüs)' },
   { value: CookingMethod.REDMOND_SMART_COOKER, label: 'REDMOND RMC-M70 okosfőző (orosz menüs)' },
