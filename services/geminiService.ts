@@ -1,4 +1,5 @@
 
+
 // FIX: This file was created to implement the missing Gemini API service logic.
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import { GoogleGenAI, Type, Operation, GenerateVideosResponse } from '@google/genai';
@@ -228,19 +229,9 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
         .replace(/\s\s+/g, ' ')
         .trim();
     
-    const prompt = `
-Tárgy: Profi, fotórealisztikus, magazin minőségű ételfotó a következő ételről: "${cleanRecipeName}".
-
-Vizuális stílus: Az étel legyen gusztusosan, profi módon kitálalva egy letisztult, egyszerű tányéron. Használj természetes fényeket, lágy, elmosódott (bokeh) konyhai háttérrel, hogy a fókusz teljes mértékben az ételen legyen. Az étel vizuális megjelenése feleljen meg a leírásának: "${recipe.description}".
-
-Abszolút és megváltoztathatatlan szabályok és tiltások:
-- A képen KIZÁRÓLAG az étel szerepelhet.
-- SZIGORÚAN TILOS: Bármilyen állat (különösen kutya, macska, madár).
-- SZIGORÚAN TILOS: Bármilyen ember, kéz, arc vagy testrész.
-- SZIGORÚAN TILOS: Bármilyen szöveg, betű, logó vagy vízjel.
-- SZIGORÚAN TILOS: Bármilyen rajzolt, festett vagy nem fotórealisztikus elem.
-- SZIGORÚAN TILOS: Bármilyen más étel, ami nem a(z) "${cleanRecipeName}".
-`;
+    const prompt = `Profi, fotórealisztikus, magazin minőségű ételfotó a következő ételről: "${cleanRecipeName}". Leírása: "${recipe.description}".
+Stílus: gusztusosan tálalva egy letisztult, egyszerű tányéron, természetes fények, lágy, elmosódott (bokeh) konyhai háttér, a fókusz teljes mértékben az ételen.
+Abszolút szabályok: A képen KIZÁRÓLAG az étel szerepelhet. SZIGORÚAN TILOS bármilyen állatot (kutya, macska), embert (kéz, arc), szöveget, vagy rajzolt elemet ábrázolni.`;
 
     try {
         const response = await ai.models.generateImages({

@@ -13,6 +13,7 @@ import ImageDisplayModal from './ImageDisplayModal';
 import ErrorMessage from './ErrorMessage';
 import InstructionCarousel from './InstructionCarousel';
 import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS } from '../constants';
+import ShareFallbackModal from './ShareFallbackModal';
 
 
 // FIX: Added missing props to the interface to match the usage in App.tsx.
@@ -221,6 +222,9 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const [isImageModalOpen, setIsImageModalOpen] = useState<boolean>(false);
   const [isCostLoading, setIsCostLoading] = useState<boolean>(false);
   const [costError, setCostError] = useState<string | null>(null);
+
+  const [isShareFallbackModalOpen, setIsShareFallbackModalOpen] = useState(false);
+  const [recipeTextToCopy, setRecipeTextToCopy] = useState('');
 
 
   const debounceTimerRef = useRef<number | null>(null);
@@ -652,7 +656,7 @@ ${recipe.instructions.map((inst, i) => `${i + 1}. ${inst}`).join('\n')}
 Recept generálva Konyha Miki segítségével!
     `.trim();
 
-    // Fallback 1: Web Share API (modern, főleg mobil)
+    // 1. Attempt Web Share API (native sharing, mainly on mobile)
     if (navigator.share) {
         try {
             await navigator.share({
@@ -660,48 +664,31 @@ Recept generálva Konyha Miki segítségével!
                 text: fullRecipeText,
                 url: window.location.href,
             });
-            showNotification('Recept megosztva!', 'success');
+            showNotification('Recept sikeresen megosztva!', 'success');
             return;
         } catch (error) {
-            if (error instanceof Error && error.name !== 'AbortError') {
-                 console.warn('Web Share API failed, falling back to clipboard.', error);
+            if (error instanceof Error && error.name === 'AbortError') {
+                return; // User cancelled, not an error.
             }
+            console.warn('Web Share API failed, falling back.', error);
         }
     }
 
-    // Fallback 2: Modern Clipboard API
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        try {
+    // 2. Attempt modern Clipboard API (requires secure context)
+    try {
+        if (navigator.clipboard?.writeText) {
             await navigator.clipboard.writeText(fullRecipeText);
             showNotification('Recept a vágólapra másolva!', 'success');
             return;
-        } catch (error) {
-            console.warn('Clipboard API failed, falling back to execCommand.', error);
         }
+    } catch (error) {
+        console.warn('Clipboard API failed, falling back to modal.', error);
     }
-
-    // Fallback 3: Régi (de megbízható) execCommand
-    const textArea = document.createElement("textarea");
-    textArea.value = fullRecipeText;
-    textArea.style.position = "fixed";
-    textArea.style.top = "-9999px";
-    textArea.style.left = "-9999px";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-        const successful = document.execCommand('copy');
-        if (successful) {
-            showNotification('Recept a vágólapra másolva!', 'success');
-        } else {
-            throw new Error('document.execCommand("copy") returned false.');
-        }
-    } catch (err) {
-        console.error('All sharing and copying methods failed.', err);
-        showNotification('A megosztás és a vágólapra másolás sem sikerült.', 'info');
-    } finally {
-        document.body.removeChild(textArea);
-    }
+    
+    // 3. Fallback to manual copy modal
+    setRecipeTextToCopy(fullRecipeText);
+    setIsShareFallbackModalOpen(true);
+    showNotification('Kérjük, manuálisan másolja a receptet.', 'info');
   };
 
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
@@ -918,6 +905,11 @@ Recept generálva Konyha Miki segítségével!
       {isGeneratingVideo && <VideoGenerationModal progressMessage={videoGenerationProgress} />}
       {generatedVideoUrl && <VideoPlayerModal videoUrl={generatedVideoUrl} recipeName={recipe.recipeName} onClose={() => setGeneratedVideoUrl(null)} />}
       {isImageModalOpen && recipe.imageUrl && <ImageDisplayModal imageUrl={recipe.imageUrl} recipeName={recipe.recipeName} onClose={() => setIsImageModalOpen(false)} />}
+      <ShareFallbackModal 
+        isOpen={isShareFallbackModalOpen}
+        onClose={() => setIsShareFallbackModalOpen(false)}
+        textToCopy={recipeTextToCopy}
+      />
     </>
   );
 };
