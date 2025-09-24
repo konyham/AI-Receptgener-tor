@@ -45,8 +45,9 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
 
     const encodedTitle = encodeURIComponent(title);
     const encodedText = encodeURIComponent(textBody);
-
-    const keepUrl = `https://keep.google.com/u/0/#create?title=${encodedTitle}&text=${encodedText}`;
+    
+    // FIX: A Google Keep URL-címének javítása a jegyzet helyes feltöltéséhez
+    const keepUrl = `https://keep.google.com/#NOTE/title=${encodedTitle}&text=${encodedText}`;
 
     window.open(keepUrl, '_blank', 'noopener,noreferrer');
   };
