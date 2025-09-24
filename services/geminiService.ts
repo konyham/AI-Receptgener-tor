@@ -1,7 +1,7 @@
 // FIX: This file was created to implement the missing Gemini API service logic.
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import { GoogleGenAI, Type, Operation, GenerateVideosResponse } from '@google/genai';
-import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS } from '../constants';
+import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES } from '../constants';
 import {
   DietOption,
   FormAction,
@@ -39,7 +39,7 @@ const recipeSchema = {
     },
     servings: {
       type: Type.STRING,
-      description: 'Hány adagra szól a recept, pl. "4 adag".',
+      description: 'Hány személyre szól a recept, pl. "4 személy". A válasznak pontosan meg kell egyeznie a promptban kért személlyel.',
     },
     ingredients: {
       type: Type.ARRAY,
@@ -76,7 +76,8 @@ export const generateRecipe = async (
   mealType: MealType,
   cookingMethod: CookingMethod,
   specialRequest: string,
-  withCost: boolean
+  withCost: boolean,
+  numberOfServings: number
 ): Promise<Recipe> => {
   const dietLabel = DIET_OPTIONS.find((d) => d.value === diet)?.label || '';
   const mealTypeLabel =
@@ -84,11 +85,17 @@ export const generateRecipe = async (
   const cookingMethodLabel =
     COOKING_METHODS.find((c) => c.value === cookingMethod)?.label || 'hagyományos';
 
-  let prompt = '';
+  let prompt = `Generálj egy ${mealTypeLabel} receptet, ami pontosan ${numberOfServings} személyre szól.`;
+
+  const maxCapacity = COOKING_METHOD_CAPACITIES[cookingMethod];
+  if (maxCapacity && numberOfServings > maxCapacity) {
+    prompt += ` A kiválasztott elkészítési mód ('${cookingMethodLabel}') maximum kapacitása kb. ${maxCapacity} fő. Ha a ${numberOfServings} fős adag meghaladja ezt, az instrukciókban adj egyértelmű útmutatást a több részletben való főzésre, vagy javasolj alternatívát.`;
+  }
+
   if (ingredients.trim()) {
-    prompt = `Generálj egy ${mealTypeLabel} receptet a következő alapanyagokból: ${ingredients}.`;
+    prompt += ` A recept a következő alapanyagokból készüljön: ${ingredients}.`;
   } else {
-    prompt = `Generálj egy meglepetés ${mealTypeLabel} receptet. Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad. Fontos: bár a hozzávalók meglepetések, a receptnek minden más megadott feltételnek (diéta, elkészítési mód, különleges kérés) szigorúan meg kell felelnie.`;
+    prompt += ` Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad. Fontos: bár a hozzávalók meglepetések, a receptnek minden más megadott feltételnek (diéta, elkészítési mód, személyek száma, különleges kérés) szigorúan meg kell felelnie.`;
   }
   
   prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabel}.`;
@@ -107,7 +114,7 @@ export const generateRecipe = async (
     prompt += ` Végezz egy becsült költségszámítást is a recepthez magyar forintban (Ft). A számításhoz használd a következő átlagos magyarországi bolti árakat referenciaként (az árakat arányosítsd a receptben szereplő mennyiségekkel): csirkemell: 2500 Ft/kg, sertéskaraj: 2800 Ft/kg, rizs: 800 Ft/kg, krumpli: 400 Ft/kg, liszt: 300 Ft/kg, cukor: 500 Ft/kg, tojás: 80 Ft/db, tej: 450 Ft/liter, hagyma: 400 Ft/kg, fokhagyma: 200 Ft/fej, étolaj: 900 Ft/liter, vaj/margarin: 4000 Ft/kg, paradicsom: 1000 Ft/kg, paprika: 1200 Ft/kg, sajt (trappista): 3500 Ft/kg. Ha egy hozzávaló nincs a listán, használj egy reális piaci becslést. A végeredményt egyetlen stringként add meg, pl. 'kb. 2100 Ft'.`;
   }
 
-  prompt += ` Adj egy rövid, étvágygerjesztő leírást, az előkészítési és főzési időt, az adagok számát, a hozzávalók listáját pontos mennyiségekkel, és az elkészítési lépéseket. Fontos: Minden hozzávalónál add meg a mennyiséget grammban vagy darabban, ÉS egy alternatív, mérleg nélküli mértékegységben is (pl. bögre, evőkanál, teáskanál, dl, ml), ahol ez értelmezhető. Például: "250g liszt (kb. 2 bögre)". A válasz JSON formátumban legyen.`;
+  prompt += ` Adj egy rövid, étvágygerjesztő leírást, az előkészítési és főzési időt, az adagok számát (formátum: "${numberOfServings} személy"), a hozzávalók listáját pontos mennyiségekkel, és az elkészítési lépéseket. Fontos: Minden hozzávalónál add meg a mennyiséget grammban vagy darabban, ÉS egy alternatív, mérleg nélküli mértékegységben is (pl. bögre, evőkanál, teáskanál, dl, ml), ahol ez értelmezhető. Például: "250g liszt (kb. 2 bögre)". A válasz JSON formátumban legyen.`;
 
   // Hiba javítása: Dinamikusan módosítjuk a sémát, hogy a modell ne adjon költségbecslést, ha nem kérték.
   // Létrehozunk egy mély másolatot a sémából, hogy ne módosítsuk az eredeti objektumot.

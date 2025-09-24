@@ -7,9 +7,9 @@ import { useNotification } from '../contexts/NotificationContext';
 import { safeSetLocalStorage } from '../utils/storage';
 
 interface RecipeInputFormProps {
-  onSubmit: (params: { ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string, withCost: boolean, withImage: boolean }) => void;
+  onSubmit: (params: { ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number }) => void;
   isLoading: boolean;
-  initialFormData?: Partial<{ ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string, withCost: boolean, withImage: boolean }> | null;
+  initialFormData?: Partial<{ ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number }> | null;
   onFormPopulated?: () => void;
   suggestions?: RecipeSuggestions | null;
 }
@@ -20,9 +20,10 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [ingredients, setIngredients] = useState<string[]>([]);
   const [currentIngredient, setCurrentIngredient] = useState('');
   const [diet, setDiet] = useState<DietOption>(DietOption.DIABETIC);
-  const [mealType, setMealType] = useState<MealType>(MealType.BREAKFAST);
+  const [mealType, setMealType] = useState<MealType>(MealType.LUNCH);
   const [cookingMethod, setCookingMethod] = useState<CookingMethod>(CookingMethod.TRADITIONAL);
   const [specialRequest, setSpecialRequest] = useState('');
+  const [numberOfServings, setNumberOfServings] = useState<number>(4);
   const [withCost, setWithCost] = useState(false);
   const [withImage, setWithImage] = useState(false);
   
@@ -56,6 +57,9 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
             setCookingMethod(initialFormData.cookingMethod);
         } else {
             setCookingMethod(CookingMethod.TRADITIONAL); // Reset to default
+        }
+        if (initialFormData.numberOfServings !== undefined) {
+            setNumberOfServings(initialFormData.numberOfServings);
         }
         if (initialFormData.withCost !== undefined) {
             setWithCost(initialFormData.withCost);
@@ -277,6 +281,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         specialRequest,
         withCost,
         withImage,
+        numberOfServings,
       });
     }
   };
@@ -443,6 +448,24 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
           rows={2}
           className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
         ></textarea>
+      </div>
+
+       <div>
+        <label htmlFor="numberOfServings" className="block text-lg font-semibold text-gray-700 mb-2">
+            Hány személyre készüljön?
+        </label>
+        <input
+            id="numberOfServings"
+            type="number"
+            value={numberOfServings}
+            onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                setNumberOfServings(val > 0 ? val : 1);
+            }}
+            min="1"
+            className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
+            aria-label="Személyek száma"
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
