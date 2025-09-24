@@ -214,8 +214,6 @@ export const getRecipeModificationSuggestions = async (
 
 // FIX: Added missing function to generate a recipe image.
 export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
-    const keyIngredients = recipe.ingredients.slice(0, 5).join(', ').replace(/ \(.*\)/g, '').trim();
-
     // Sanitize the recipe name to remove potentially distracting brand names for the image prompt.
     const cleanRecipeName = recipe.recipeName
         .replace(/REDMOND/gi, '')
@@ -229,28 +227,38 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
         .replace(/- Ételfotó/gi, '')
         .replace(/\s\s+/g, ' ')
         .trim();
+    
+    const cookingMethodLabel = COOKING_METHODS.find(c => c.value === recipe.cookingMethod)?.label || 'hagyományos módon készült';
 
     const prompt = `
-**FŐ UTASÍTÁS: Készíts egy FOTÓREALISZTIKUS ételfotót.** A kép egyetlen és kizárólagos tárgya a kitálalt étel legyen.
+*** KÉPGENERÁLÁSI UTASÍTÁS ***
 
-**ÉTEL NEVE:** ${cleanRecipeName}
+**1. ABSZOLÚT ELSŐDLEGES CÉL (NEM MEGVÁLTOZTATHATÓ):**
+Készíts egy fotórealisztikus, profi, magazin minőségű képet a következő konkrét ételről: "${cleanRecipeName}".
+A végső képnek KIZÁRÓLAG ÉS PONTOSAN EZT AZ ÉTELT KELL ÁBRÁZOLNIA.
 
-**VIZUÁLIS LEÍRÁS:** ${recipe.description}. A fotón legyenek jól kivehetőek a fő összetevők: ${keyIngredients}. Az étel legyen étvágygerjesztően tálalva egy modern, letisztult tányéron vagy tálban.
+**2. VIZUÁLIS LEÍRÁS ÉS KULCSELEMEK:**
+- **Étel neve:** ${cleanRecipeName}
+- **Leírás:** ${recipe.description}
+- **Elkészítés módja:** ${cookingMethodLabel}
+- **Teljes hozzávalólista a vizuális referenciához:** ${recipe.ingredients.join(', ')}
+- **Tálalás:** Az étel legyen profi módon kitálalva egy letisztult, egyszerű tányéron vagy egy hozzá illő tálban. A tálalás legyen gusztusos és étvágygerjesztő.
+- **Környezet:** Használj természetes fényeket, lágy, elmosódott (bokeh) háttérrel, hogy kiemeld az ételt. A háttér egy egyszerű konyhai vagy étkezői környezet legyen.
 
-**STÍLUS:** Magazin minőségű, profi ételfotó. Világos, természetes fények, sekély mélységélesség (bokeh). A fókusz szigorúan az ételen van.
+**3. SZIGORÚ TILTÁSOK (NEGATÍV PROMPTOK):**
+A kép SEMMILYEN KÖRÜLMÉNYEK KÖZÖTT nem tartalmazhatja a következőket:
+- **ROSSZ ÉTEL:** Bármilyen más étel, ami nem a(z) "${cleanRecipeName}" a leírás alapján. Például, ha a recept egy csirkeleves, NE generálj képet egy pitéről, steakről vagy salátáról.
+- **ÁLLATOK:** ABSZOLÚT TILOS macska, kutya, madár vagy bármilyen más állat ábrázolása.
+- **EMBEREK:** TILOS ember, kéz, arc vagy bármilyen testrész ábrázolása.
+- **SZÖVEG ÉS LOGÓK:** TILOS szöveg, betű, vízjel vagy márkalogó.
+- **NEM FOTÓREALISZTIKUS ELEMEK:** TILOS rajz, festmény vagy illusztráció. A stílusnak 100%-ban fotórealisztikusnak kell lennie.
 
-**HÁTTÉR:** Semleges, teljesen elmosódott (out-of-focus) konyhai vagy éttermi háttér.
-
-**SZIGORÚAN TILOS (NEGATÍV PROMPT):**
-A képen NEM SZEREPELHET:
-- Bármilyen jármű (autó, motor, stb.)
-- Bármilyen épület (ház, iroda, stb.)
-- Bármilyen állat (kutya, macska, stb.)
-- Bármilyen ember, emberi testrész (kéz, arc, stb.)
-- Bármilyen szöveg, logó, rendszámtábla, márkanév.
-- Bármilyen rajzolt, animált vagy nem fotórealisztikus elem.
-
-A kép **CSAK ÉS KIZÁRÓLAG** a "${cleanRecipeName}" nevű ételt ábrázolhatja, kitálalva. Minden más értelmezés hiba.
+**4. VÉGSŐ ÖNELLENŐRZÉS:**
+A kép kiadása előtt ellenőrizd a következőket:
+- A kép kizárólag a(z) "${cleanRecipeName}" nevű ételt ábrázolja? IGEN/NEM
+- A vizuális megjelenés megfelel a leírásnak, az elkészítési módnak és a kulcsfontosságú hozzávalóknak? IGEN/NEM
+- Minden tiltott elem (rossz étel, állatok, emberek, szöveg) hiányzik a képről? IGEN/NEM
+- **Ha bármelyikre NEM a válasz, dobd el a képet és generálj egy újat, amely szigorúan betartja az összes szabályt.**
     `;
 
     try {

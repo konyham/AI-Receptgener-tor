@@ -97,100 +97,97 @@ const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
             ctx.drawImage(img, 0, 0);
 
             // --- Configuration ---
-            const scale = Math.max(1, img.width / 800);
-            const padding = 20 * scale;
-            const titleFont = `bold ${32 * scale}px "Helvetica Neue", Arial, sans-serif`;
-            const infoFont = `${16 * scale}px "Helvetica Neue", Arial, sans-serif`;
-            const titleLineHeight = 38 * scale;
-            const infoLineHeight = 22 * scale;
-            const maxWidth = canvas.width - (padding * 2);
-
-            // --- Text Preparation ---
-            const { recipeName, calories, carbohydrates, protein, fat } = recipe;
-
+            const scale = Math.max(1, img.width / 1000);
+            const topPadding = 20 * scale;
+            const topFont = `bold ${20 * scale}px "Helvetica Neue", Arial, sans-serif`;
+            const topLineHeight = 28 * scale;
+            const shadowBlur = 5 * scale;
+            const shadowOffset = 2 * scale;
+            
+            // --- Top Text Preparation ---
+            const { calories, carbohydrates, protein, fat } = recipe;
             const dietLabel = DIET_OPTIONS.find(d => d.value === recipe.diet)?.label;
             const mealTypeLabel = MEAL_TYPES.find(m => m.value === recipe.mealType)?.label;
             const cookingMethodLabel = COOKING_METHODS.find(c => c.value === recipe.cookingMethod)?.label;
             
-            const generalInfo = [
-                dietLabel ? `Diéta: ${dietLabel}` : null,
-                mealTypeLabel ? `Étkezés: ${mealTypeLabel}` : null,
+            const topLeftInfo = [
                 cookingMethodLabel ? `Elkészítés: ${cookingMethodLabel}` : null,
+                mealTypeLabel ? `Étkezés: ${mealTypeLabel}` : null,
+                dietLabel ? `Diéta: ${dietLabel}` : null,
             ].filter((v): v is string => v !== null);
 
-            const nutritionInfo = [
+            const topRightInfo = [
                 calories ? `Kalória: ${calories}` : null,
                 carbohydrates ? `Szénhidrát: ${carbohydrates}` : null,
                 protein ? `Fehérje: ${protein}` : null,
                 fat ? `Zsír: ${fat}` : null,
             ].filter((v): v is string => v !== null);
 
-            const wrapText = (context: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
-                const words = text.split(' ');
-                const lines: string[] = [];
-                let currentLine = words[0] || '';
-                for (let i = 1; i < words.length; i++) {
-                    const word = words[i];
-                    const testLine = currentLine + ' ' + word;
-                    if (context.measureText(testLine).width > maxWidth && i > 0) {
-                        lines.push(currentLine);
-                        currentLine = word;
-                    } else {
-                        currentLine = testLine;
-                    }
-                }
-                lines.push(currentLine);
-                return lines;
-            };
-
-            ctx.font = titleFont;
-            const titleLines = wrapText(ctx, recipeName, maxWidth);
-
-            // --- Background Calculation & Drawing ---
-            const infoColumnsHeight = Math.max(generalInfo.length, nutritionInfo.length) * infoLineHeight;
-            const separatorHeight = nutritionInfo.length > 0 || generalInfo.length > 0 ? (15 * scale) : 0;
-            
-            const totalTextHeight = (titleLines.length * titleLineHeight) + separatorHeight + infoColumnsHeight;
-            const bgHeight = totalTextHeight + (padding * 2);
-            const bgY = canvas.height - bgHeight;
-
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-            ctx.fillRect(0, bgY, canvas.width, bgHeight);
-
-            // --- Text Drawing ---
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            // --- Top Text Drawing ---
+            ctx.font = topFont;
+            ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+            ctx.shadowColor = 'rgba(0, 0, 0, 1)';
+            ctx.shadowBlur = shadowBlur;
+            ctx.shadowOffsetX = shadowOffset;
+            ctx.shadowOffsetY = shadowOffset;
             ctx.textBaseline = 'top';
-            let currentY = bgY + padding;
 
-            // Draw Title
-            ctx.font = titleFont;
+            // Draw Top-Left Text
             ctx.textAlign = 'left';
-            titleLines.forEach(line => {
-                ctx.fillText(line, padding, currentY);
-                currentY += titleLineHeight;
+            topLeftInfo.forEach((line, i) => {
+                ctx.fillText(line, topPadding, topPadding + (i * topLineHeight));
             });
             
-            if (separatorHeight > 0) {
-                currentY += separatorHeight / 2;
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-                ctx.fillRect(padding, currentY, maxWidth, 1 * scale);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-                currentY += separatorHeight / 2;
-            }
-
-
-            // Draw Info Columns
-            ctx.font = infoFont;
-            const col1X = padding;
-            const col2X = canvas.width / 2 + padding / 2;
-            const colStartY = currentY;
-
-            generalInfo.forEach((line, index) => {
-                ctx.fillText(line, col1X, colStartY + (index * infoLineHeight));
+            // Draw Top-Right Text
+            ctx.textAlign = 'right';
+            topRightInfo.forEach((line, i) => {
+                ctx.fillText(line, canvas.width - topPadding, topPadding + (i * topLineHeight));
             });
+            
+            // --- Bottom Title Drawing ---
+            
+            // Reset shadow for title text which will have its own background
+            ctx.shadowColor = 'transparent';
 
-            nutritionInfo.forEach((line, index) => {
-                ctx.fillText(line, col2X, colStartY + (index * infoLineHeight));
+            const titlePadding = 20 * scale;
+            const titleFont = `bold ${40 * scale}px "Helvetica Neue", Arial, sans-serif`;
+            const titleLineHeight = 50 * scale;
+            const maxWidth = canvas.width - (titlePadding * 2);
+
+            ctx.font = titleFont;
+            const words = recipe.recipeName.split(' ');
+            let line = '';
+            const lines = [];
+
+            for (let n = 0; n < words.length; n++) {
+                const testLine = line + words[n] + ' ';
+                const metrics = ctx.measureText(testLine);
+                const testWidth = metrics.width;
+                if (testWidth > maxWidth && n > 0) {
+                    lines.push(line);
+                    line = words[n] + ' ';
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line);
+
+            const backgroundHeight = (lines.length * titleLineHeight) + titlePadding;
+            const backgroundY = canvas.height - backgroundHeight;
+
+            // Draw background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillRect(0, backgroundY, canvas.width, backgroundHeight);
+
+            // Draw text
+            ctx.fillStyle = '#FFFFFF';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const startY = backgroundY + (backgroundHeight / 2) - ((lines.length - 1) * titleLineHeight / 2);
+
+            lines.forEach((l, i) => {
+                ctx.fillText(l.trim(), canvas.width / 2, startY + (i * titleLineHeight));
             });
 
             resolve(canvas.toDataURL('image/jpeg', 0.9));
