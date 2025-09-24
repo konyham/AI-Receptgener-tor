@@ -35,6 +35,21 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     const item = list[index];
     onUpdateItem(index, { ...item, checked: !item.checked });
   };
+
+  const handleSaveToGoogleKeep = () => {
+    if (list.length === 0) return;
+
+    const title = "AI bevásárlólista";
+    // A Google Keep a '[ ] ' előtagot jelölőnégyzetként ismeri fel.
+    const textBody = list.map(item => `[ ] ${item.text}`).join('\n');
+
+    const encodedTitle = encodeURIComponent(title);
+    const encodedText = encodeURIComponent(textBody);
+
+    const keepUrl = `https://keep.google.com/u/0/#create?title=${encodedTitle}&text=${encodedText}`;
+
+    window.open(keepUrl, '_blank', 'noopener,noreferrer');
+  };
   
   const checkedCount = list.filter(item => item.checked).length;
 
@@ -90,7 +105,14 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
                 </li>
                 ))}
             </ul>
-            <div className="pt-4 flex flex-col sm:flex-row gap-2 justify-end">
+            <div className="pt-4 flex flex-col sm:flex-row gap-2 justify-end flex-wrap">
+                 <button 
+                    onClick={handleSaveToGoogleKeep}
+                    className="text-sm bg-yellow-400 text-black font-semibold py-2 px-4 rounded-lg hover:bg-yellow-500 transition-colors flex items-center justify-center gap-2"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24"><path d="M18.333 2H5.667C3.646 2 2 3.646 2 5.667V18.333C2 20.354 3.646 22 5.667 22H18.333C20.354 22 22 20.354 22 18.333V5.667C22 3.646 20.354 2 18.333 2ZM10.5 15.5H7V12.5H10.5V15.5ZM17 15.5H13.5V12.5H17V15.5ZM17 10.5H7V7.5H17V10.5Z" fill="#202124"></path></svg>
+                    Mentés a Google Keepbe
+                </button>
                 <button 
                     onClick={onClearChecked}
                     disabled={checkedCount === 0}
