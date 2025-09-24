@@ -2,13 +2,17 @@
 
 import { DietOption, MealType, CookingMethod } from './types';
 
-export const DIET_OPTIONS: { value: DietOption; label: string }[] = [
-  { value: DietOption.NONE, label: 'Nincs megadva' },
-  { value: DietOption.DIABETIC, label: 'Cukorbeteg diéta' },
-  { value: DietOption.VEGETARIAN, label: 'Vegetáriánus' },
-  { value: DietOption.VEGAN, label: 'Vegán' },
-  { value: DietOption.GLUTEN_FREE, label: 'Gluténmentes' },
-  { value: DietOption.KETOGENIC, label: 'Ketogén' },
+export const DIET_OPTIONS: { value: DietOption; label: string; description: string }[] = [
+  { value: DietOption.NONE, label: 'Nincs megadva', description: 'Nem követ semmilyen speciális étrendet.' },
+  { value: DietOption.DIABETIC, label: 'Cukorbeteg', description: 'Célja a vércukorszint stabilizálása, alacsony glikémiás indexű, lassan felszívódó szénhidrátokat részesít előnyben.' },
+  { value: DietOption.VEGETARIAN, label: 'Vegetáriánus', description: 'Húsmentes étrend, de jellemzően tartalmaz tejtermékeket és tojást.' },
+  { value: DietOption.VEGAN, label: 'Vegán', description: 'Minden állati eredetű terméket (hús, tej, tojás, méz) mellőző étrend.' },
+  { value: DietOption.GLUTEN_FREE, label: 'Gluténmentes', description: 'A glutént tartalmazó gabonaféléket (búza, árpa, rozs) és az ezekből készült termékeket kerüli.' },
+  { value: DietOption.KETOGENIC, label: 'Ketogén', description: 'Nagyon alacsony szénhidrát-, magas zsír- és mérsékelt fehérjetartalmú diéta, melynek célja a test ketózis állapotba hozása.' },
+  { value: DietOption.PALEO, label: 'Paleo', description: 'A feldolgozott élelmiszereket, gabonaféléket, hüvelyeseket és tejtermékeket kerüli, a hangsúly a húson, zöldségeken, gyümölcsökön van.' },
+  { value: DietOption.ZONE, label: 'Zóna', description: 'A makrotápanyagok (szénhidrát, fehérje, zsír) meghatározott arányára (40-30-30) fókuszál minden étkezésnél.' },
+  { value: DietOption.CANDIDA, label: 'Candida', description: 'Célja a candida gomba elszaporodásának visszaszorítása a cukor, élesztő, finomított szénhidrátok és bizonyos tejtermékek kerülésével.' },
+  { value: DietOption.MACROBIOTIC, label: 'Makrobiotikus', description: 'A jin és jang elvén alapuló, főként teljes kiőrlésű gabonákra, zöldségekre és hüvelyesekre épülő, feldolgozott élelmiszereket kerülő étrend.' },
 ];
 
 export const MEAL_TYPES: { value: MealType; label: string }[] = [
@@ -30,6 +34,7 @@ export const COOKING_METHODS: { value: CookingMethod; label: string }[] = [
   { value: CookingMethod.CUCKOO_RICE_COOKER, label: 'CUCKOO CRP-M1001SK okos rizsfőző (kínai menüs)' },
   { value: CookingMethod.REDMOND_SMART_COOKER, label: 'REDMOND RMC-M70 okosfőző (orosz menüs)' },
   { value: CookingMethod.CROCK_POT_SLOW_COOKER, label: 'CROCK-POT SCCPRC507B-60 lassúfőző' },
+  { value: CookingMethod.UNOLD_ICE_CREAM_MAKER, label: 'Unold 48808 fagylaltgép (német menüs)' },
 ];
 
 export const COOKING_METHOD_CAPACITIES: Record<CookingMethod, number | null> = {
@@ -39,4 +44,5 @@ export const COOKING_METHOD_CAPACITIES: Record<CookingMethod, number | null> = {
   [CookingMethod.CUCKOO_RICE_COOKER]: 6,
   [CookingMethod.REDMOND_SMART_COOKER]: 8,
   [CookingMethod.CROCK_POT_SLOW_COOKER]: 6,
+  [CookingMethod.UNOLD_ICE_CREAM_MAKER]: 8,
 };

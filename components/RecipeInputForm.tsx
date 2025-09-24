@@ -301,6 +301,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
 
   const selectedMethodInfo = COOKING_METHODS.find(m => m.value === cookingMethod);
   const capacity = COOKING_METHOD_CAPACITIES[cookingMethod];
+  const selectedDietInfo = DIET_OPTIONS.find(d => d.value === diet);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -514,20 +515,28 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
           <label htmlFor="diet" className="block text-lg font-semibold text-gray-700 mb-2">
             Diéta típusa
           </label>
-          <div className="flex items-center gap-2">
-              <select
-                id="diet"
-                value={diet}
-                onChange={(e) => setDiet(e.target.value as DietOption)}
-                className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
-              >
-                {DIET_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-          </div>
+          <select
+            id="diet"
+            value={diet}
+            onChange={(e) => setDiet(e.target.value as DietOption)}
+            className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
+          >
+            {DIET_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {selectedDietInfo && selectedDietInfo.description && (
+            <div className="mt-2 flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 animate-fade-in">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <span>
+                    {selectedDietInfo.description}
+                </span>
+            </div>
+          )}
         </div>
         <div>
           <label htmlFor="mealType" className="block text-lg font-semibold text-gray-700 mb-2">
