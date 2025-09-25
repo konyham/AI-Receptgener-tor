@@ -15,6 +15,50 @@ interface RecipeInputFormProps {
 }
 
 const INGREDIENTS_STORAGE_KEY = 'ai-recipe-generator-saved-ingredients';
+const COOKING_METHODS_ORDER_KEY = 'ai-recipe-generator-cooking-methods-order';
+const CUISINE_OPTIONS_ORDER_KEY = 'ai-recipe-generator-cuisine-options-order';
+
+/**
+ * Loads a custom item order from localStorage. If not present or corrupted, returns the default order.
+ * It's robust against new items being added to the default constants over time.
+ * @param key The localStorage key where the order (an array of item values) is stored.
+ * @param defaultOrder The fallback default array of items.
+ * @returns A correctly ordered array of items.
+ */
+const loadAndOrder = <T extends { value: string }>(key: string, defaultOrder: readonly T[]): T[] => {
+  try {
+    const savedOrderJson = localStorage.getItem(key);
+    if (savedOrderJson) {
+      const savedOrderKeys = JSON.parse(savedOrderJson) as string[];
+      const defaultOrderMap = new Map(defaultOrder.map(item => [item.value, item]));
+      
+      const orderedItems: T[] = [];
+      const seenKeys = new Set<string>();
+
+      // Add items from the saved order first, ensuring they still exist in the default constants.
+      for (const itemKey of savedOrderKeys) {
+        if (defaultOrderMap.has(itemKey)) {
+          orderedItems.push(defaultOrderMap.get(itemKey)!);
+          seenKeys.add(itemKey);
+        }
+      }
+
+      // Append any new items from the default order that weren't in the saved order.
+      for (const defaultItem of defaultOrder) {
+        if (!seenKeys.has(defaultItem.value)) {
+          orderedItems.push(defaultItem);
+        }
+      }
+      return orderedItems;
+    }
+  } catch (e) {
+    console.error(`Failed to load or parse order from localStorage for key "${key}":`, e);
+    // On failure, remove the corrupted key to prevent future errors.
+    localStorage.removeItem(key);
+  }
+  // Return a mutable copy of the default order if nothing is saved or if loading fails.
+  return [...defaultOrder];
+};
 
 const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, initialFormData, onFormPopulated, suggestions }) => {
   const [ingredients, setIngredients] = useState<string[]>([]);
@@ -33,12 +77,12 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [voiceControlActive, setVoiceControlActive] = useState(true);
   const [hasSavedIngredients, setHasSavedIngredients] = useState(false);
 
-  const [orderedCookingMethods, setOrderedCookingMethods] = useState(COOKING_METHODS);
+  const [orderedCookingMethods, setOrderedCookingMethods] = useState(() => loadAndOrder(COOKING_METHODS_ORDER_KEY, COOKING_METHODS));
   const dragItemIndex = useRef<number | null>(null);
   const dragOverItemIndex = useRef<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   
-  const [orderedCuisineOptions, setOrderedCuisineOptions] = useState(CUISINE_OPTIONS);
+  const [orderedCuisineOptions, setOrderedCuisineOptions] = useState(() => loadAndOrder(CUISINE_OPTIONS_ORDER_KEY, CUISINE_OPTIONS));
   const cuisineDragItemIndex = useRef<number | null>(null);
   const cuisineDragOverItemIndex = useRef<number | null>(null);
   const [isCuisineDragging, setIsCuisineDragging] = useState(false);
@@ -48,6 +92,26 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const suggestionTimeoutRef = useRef<number | null>(null);
   const isSuggestingMealTypeRef = useRef(false);
+
+  // Effect to save the cooking method order whenever it changes.
+  useEffect(() => {
+    try {
+      const orderToSave = orderedCookingMethods.map(item => item.value);
+      safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, orderToSave);
+    } catch (err: any) {
+      console.warn("Could not save cooking method order:", err.message);
+    }
+  }, [orderedCookingMethods]);
+
+  // Effect to save the cuisine options order whenever it changes.
+  useEffect(() => {
+    try {
+      const orderToSave = orderedCuisineOptions.map(item => item.value);
+      safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, orderToSave);
+    } catch (err: any) {
+      console.warn("Could not save cuisine options order:", err.message);
+    }
+  }, [orderedCuisineOptions]);
 
   useEffect(() => {
     // Clear any existing timer
