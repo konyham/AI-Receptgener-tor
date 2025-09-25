@@ -18,7 +18,7 @@ interface RecipeGenerationParams {
   ingredients: string;
   diet: DietOption;
   mealType: MealType;
-  cookingMethod: CookingMethod;
+  cookingMethods: CookingMethod[];
   specialRequest: string;
   withCost: boolean;
   withImage: boolean;
@@ -270,7 +270,7 @@ const App: React.FC = () => {
     setSuggestions(null); // Clear suggestions on new generation
     setLastGenerationParams(params);
     try {
-      const newRecipe = await generateRecipe(params.ingredients, params.diet, params.mealType, params.cookingMethod, params.specialRequest, params.withCost, params.numberOfServings);
+      const newRecipe = await generateRecipe(params.ingredients, params.diet, params.mealType, params.cookingMethods, params.specialRequest, params.withCost, params.numberOfServings);
       setRecipe(newRecipe);
       setPage('generator'); 
     } catch (err: any) {

@@ -14,7 +14,7 @@ export interface Recipe {
   diabeticAdvice?: string;
   imageUrl?: string;
   estimatedCost?: string;
-  cookingMethod?: CookingMethod;
+  cookingMethods?: CookingMethod[];
   // FIX: Add optional 'diet' and 'mealType' to the Recipe interface to resolve errors in RecipeDisplay.tsx.
   diet?: DietOption;
   mealType?: MealType;

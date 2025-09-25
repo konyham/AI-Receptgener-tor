@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import type { Operation, GenerateVideosResponse } from '@google/genai';
@@ -110,10 +111,14 @@ const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
             const { calories, carbohydrates, protein, fat } = recipe;
             const dietLabel = DIET_OPTIONS.find(d => d.value === recipe.diet)?.label;
             const mealTypeLabel = MEAL_TYPES.find(m => m.value === recipe.mealType)?.label;
-            const cookingMethodLabel = COOKING_METHODS.find(c => c.value === recipe.cookingMethod)?.label;
+            // FIX: The property `cookingMethod` does not exist on `Recipe`. It has been changed to `cookingMethods` (plural) which is an array.
+            const cookingMethodsLabels = recipe.cookingMethods
+                ?.map(cm => COOKING_METHODS.find(c => c.value === cm)?.label)
+                .filter((v): v is string => v !== null)
+                .join(', ');
             
             const topLeftInfo = [
-                cookingMethodLabel ? `Elkészítés: ${cookingMethodLabel}` : null,
+                cookingMethodsLabels ? `Elkészítés: ${cookingMethodsLabels}` : null,
                 mealTypeLabel ? `Étkezés: ${mealTypeLabel}` : null,
                 dietLabel ? `Diéta: ${dietLabel}` : null,
                 "AI-val készítette Konyha Miki"

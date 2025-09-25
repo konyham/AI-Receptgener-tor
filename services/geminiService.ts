@@ -74,7 +74,7 @@ export const generateRecipe = async (
   ingredients: string,
   diet: DietOption,
   mealType: MealType,
-  cookingMethod: CookingMethod,
+  cookingMethods: CookingMethod[],
   specialRequest: string,
   withCost: boolean,
   numberOfServings: number
@@ -82,14 +82,24 @@ export const generateRecipe = async (
   const dietLabel = DIET_OPTIONS.find((d) => d.value === diet)?.label || '';
   const mealTypeLabel =
     MEAL_TYPES.find((m) => m.value === mealType)?.label || '';
-  const cookingMethodLabel =
-    COOKING_METHODS.find((c) => c.value === cookingMethod)?.label || 'hagyományos';
+  const cookingMethodLabels = cookingMethods
+    .map(cm => COOKING_METHODS.find(c => c.value === cm)?.label)
+    .filter((l): l is string => !!l);
 
   let prompt = `Generálj egy ${mealTypeLabel} receptet, ami pontosan ${numberOfServings} személyre szól.`;
 
-  const maxCapacity = COOKING_METHOD_CAPACITIES[cookingMethod];
-  if (maxCapacity && numberOfServings > maxCapacity) {
-    prompt += ` A kiválasztott elkészítési mód ('${cookingMethodLabel}') maximum kapacitása kb. ${maxCapacity} fő. Ha a ${numberOfServings} fős adag meghaladja ezt, az instrukciókban adj egyértelmű útmutatást a több részletben való főzésre, vagy javasolj alternatívát.`;
+  const machineMethods = cookingMethods.filter(cm => cm !== CookingMethod.TRADITIONAL);
+  if (machineMethods.length > 0) {
+      const capacities = machineMethods
+          .map(cm => ({ name: COOKING_METHODS.find(c => c.value === cm)?.label, capacity: COOKING_METHOD_CAPACITIES[cm] }))
+          .filter(c => c.capacity !== null && c.capacity !== undefined);
+
+      if (capacities.length > 0) {
+          const minCapacityDevice = capacities.reduce((min, current) => (current.capacity! < min.capacity! ? current : min), capacities[0]);
+          if (numberOfServings > minCapacityDevice.capacity!) {
+              prompt += ` A kiválasztott elkészítési módok közül ('${minCapacityDevice.name}') maximum kapacitása kb. ${minCapacityDevice.capacity} fő. Ha a ${numberOfServings} fős adag meghaladja ezt, az instrukciókban adj egyértelmű útmutatást a több részletben való főzésre, vagy javasolj alternatívát.`;
+          }
+      }
   }
 
   if (ingredients.trim()) {
@@ -98,7 +108,7 @@ export const generateRecipe = async (
     prompt += ` Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad. Fontos: bár a hozzávalók meglepetések, a receptnek minden más megadott feltételnek (diéta, elkészítési mód, személyek száma, különleges kérés) szigorúan meg kell felelnie.`;
   }
   
-  prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabel}.`;
+  prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabels.join(' és ')}. Ha több gép is meg van adva, a recept logikusan használja őket (pl. az alap elkészítése az egyikben, a befejezés a másikban).`;
   if (diet !== DietOption.NONE && dietLabel) {
     prompt += ` A recept feleljen meg a következő diétás előírásnak: ${dietLabel}.`;
   }
@@ -142,7 +152,7 @@ export const generateRecipe = async (
       throw new Error('Az API üres választ adott.');
     }
     const recipeData: Recipe = JSON.parse(jsonText);
-    recipeData.cookingMethod = cookingMethod;
+    recipeData.cookingMethods = cookingMethods;
     // FIX: Assign diet and mealType to the recipe data to ensure it's available for other components like RecipeDisplay.
     recipeData.diet = diet;
     recipeData.mealType = mealType;

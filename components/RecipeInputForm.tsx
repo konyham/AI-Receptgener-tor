@@ -7,9 +7,9 @@ import { useNotification } from '../contexts/NotificationContext';
 import { safeSetLocalStorage } from '../utils/storage';
 
 interface RecipeInputFormProps {
-  onSubmit: (params: { ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number }) => void;
+  onSubmit: (params: { ingredients: string, diet: DietOption, mealType: MealType, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number }) => void;
   isLoading: boolean;
-  initialFormData?: Partial<{ ingredients: string, diet: DietOption, mealType: MealType, cookingMethod: CookingMethod, specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number }> | null;
+  initialFormData?: Partial<{ ingredients: string, diet: DietOption, mealType: MealType, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number }> | null;
   onFormPopulated?: () => void;
   suggestions?: RecipeSuggestions | null;
 }
@@ -21,7 +21,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [currentIngredient, setCurrentIngredient] = useState('');
   const [diet, setDiet] = useState<DietOption>(DietOption.DIABETIC);
   const [mealType, setMealType] = useState<MealType>(MealType.LUNCH);
-  const [cookingMethod, setCookingMethod] = useState<CookingMethod>(CookingMethod.TRADITIONAL);
+  const [cookingMethods, setCookingMethods] = useState<CookingMethod[]>([CookingMethod.TRADITIONAL]);
   const [specialRequest, setSpecialRequest] = useState('');
   const [numberOfServings, setNumberOfServings] = useState<number>(4);
   const [withCost, setWithCost] = useState(false);
@@ -53,10 +53,10 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         } else {
             setMealType(MealType.LUNCH); // Reset to default
         }
-        if (initialFormData.cookingMethod !== undefined) {
-            setCookingMethod(initialFormData.cookingMethod);
+        if (initialFormData.cookingMethods !== undefined && initialFormData.cookingMethods.length > 0) {
+            setCookingMethods(initialFormData.cookingMethods);
         } else {
-            setCookingMethod(CookingMethod.TRADITIONAL); // Reset to default
+            setCookingMethods([CookingMethod.TRADITIONAL]); // Reset to default
         }
         if (initialFormData.numberOfServings !== undefined) {
             setNumberOfServings(initialFormData.numberOfServings);
@@ -194,8 +194,30 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
             case 'set_cooking_method':
                 const cookingPayload = command.payload as SelectionResult;
                 if (cookingPayload?.key) {
-                    setCookingMethod(cookingPayload.key as CookingMethod);
-                    showNotification(`Elkészítés módja: ${cookingPayload.label}`, 'info');
+                    const methodToToggle = cookingPayload.key as CookingMethod;
+                    setCookingMethods(prev => {
+                        const isPresent = prev.includes(methodToToggle);
+                        let newState: CookingMethod[];
+                        if (isPresent) {
+                            newState = prev.filter(m => m !== methodToToggle);
+                        } else {
+                            newState = [...prev, methodToToggle];
+                        }
+
+                        if (methodToToggle === CookingMethod.TRADITIONAL && !isPresent) {
+                            return [CookingMethod.TRADITIONAL];
+                        }
+                        if (methodToToggle !== CookingMethod.TRADITIONAL && !isPresent) {
+                            newState = newState.filter(m => m !== CookingMethod.TRADITIONAL);
+                        }
+                        
+                        if (newState.length === 0) {
+                            return [CookingMethod.TRADITIONAL];
+                        }
+                        
+                        return newState;
+                    });
+                    showNotification(`Elkészítés módja módosítva: ${cookingPayload.label}`, 'info');
                 }
                 break;
             case 'generate_recipe':
@@ -277,7 +299,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         ingredients: ingredients.join(', '),
         diet,
         mealType,
-        cookingMethod,
+        cookingMethods,
         specialRequest,
         withCost,
         withImage,
@@ -299,9 +321,46 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
       }
   };
 
-  const selectedMethodInfo = COOKING_METHODS.find(m => m.value === cookingMethod);
-  const capacity = COOKING_METHOD_CAPACITIES[cookingMethod];
+  const handleCookingMethodChange = (method: CookingMethod) => {
+    setCookingMethods(prev => {
+        const isPresent = prev.includes(method);
+        let newState: CookingMethod[];
+        if (isPresent) {
+            newState = prev.filter(m => m !== method);
+        } else {
+            newState = [...prev, method];
+        }
+
+        // Exclusive logic for 'Traditional'
+        if (method === CookingMethod.TRADITIONAL && !isPresent) {
+            // If 'Traditional' is checked, uncheck all others.
+            return [CookingMethod.TRADITIONAL];
+        }
+        if (method !== CookingMethod.TRADITIONAL && !isPresent) {
+            // If a machine is checked, uncheck 'Traditional'.
+            newState = newState.filter(m => m !== CookingMethod.TRADITIONAL);
+        }
+
+        // Fallback: If nothing is selected, select 'Traditional'.
+        if (newState.length === 0) {
+            return [CookingMethod.TRADITIONAL];
+        }
+        
+        return newState;
+    });
+  };
+
   const selectedDietInfo = DIET_OPTIONS.find(d => d.value === diet);
+  
+  const machineMethods = cookingMethods.filter(cm => cm !== CookingMethod.TRADITIONAL);
+  const capacityInfo = machineMethods
+    .map(cm => ({
+        method: COOKING_METHODS.find(m => m.value === cm),
+        capacity: COOKING_METHOD_CAPACITIES[cm]
+    }))
+    .filter((item): item is { method: { value: CookingMethod; label: string; }; capacity: number; } => 
+        item.method != null && item.capacity != null
+    );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -470,19 +529,23 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
             className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
             aria-label="Személyek száma"
         />
-        {capacity && selectedMethodInfo && (
-          <div className="mt-2 flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 animate-fade-in">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-              <span>
-                  Tájékoztató: A(z) <strong>{selectedMethodInfo.label}</strong> legfeljebb <strong>{capacity} személyre</strong> javasolt főzni.
-                  {numberOfServings > capacity && (
-                    <>
-                      {' '}A megadott <strong>{numberOfServings} fős</strong> adagot várhatóan <strong>{Math.ceil(numberOfServings / capacity)} részletben</strong> tudod majd elkészíteni.
-                    </>
-                  )}
-              </span>
+        {capacityInfo.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {capacityInfo.map(({ method, capacity }) => (
+                <div key={method.value} className="flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 animate-fade-in">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    <span>
+                        Tájékoztató: A(z) <strong>{method.label}</strong> legfeljebb <strong>{capacity} személyre</strong> javasolt főzni.
+                        {numberOfServings > capacity && (
+                          <>
+                            {' '}A megadott <strong>{numberOfServings} fős</strong> adagot várhatóan <strong>{Math.ceil(numberOfServings / capacity)} részletben</strong> tudod majd elkészíteni.
+                          </>
+                        )}
+                    </span>
+                </div>
+            ))}
           </div>
         )}
       </div>
@@ -510,7 +573,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         </label>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label htmlFor="diet" className="block text-lg font-semibold text-gray-700 mb-2">
             Diéta típusa
@@ -557,24 +620,26 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
               </select>
            </div>
         </div>
-        <div>
-          <label htmlFor="cookingMethod" className="block text-lg font-semibold text-gray-700 mb-2">
-            Elkészítés módja
-          </label>
-           <div className="flex flex-col gap-2">
-              <select
-                id="cookingMethod"
-                value={cookingMethod}
-                onChange={(e) => setCookingMethod(e.target.value as CookingMethod)}
-                className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
-              >
-                {COOKING_METHODS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-           </div>
+      </div>
+
+      <div className="mt-6">
+        <label className="block text-lg font-semibold text-gray-700 mb-2">
+          Elkészítés módja
+        </label>
+        <div className="space-y-2">
+            {COOKING_METHODS.map(option => (
+                <label key={option.value} htmlFor={`cooking-method-${option.value}`} className="flex items-center p-3 border border-gray-300 rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400">
+                    <input
+                        type="checkbox"
+                        id={`cooking-method-${option.value}`}
+                        value={option.value}
+                        checked={cookingMethods.includes(option.value)}
+                        onChange={() => handleCookingMethodChange(option.value)}
+                        className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="ml-3 text-gray-700 font-medium">{option.label}</span>
+                </label>
+            ))}
         </div>
       </div>
 
