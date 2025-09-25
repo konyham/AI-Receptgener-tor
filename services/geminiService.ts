@@ -248,8 +248,29 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
         .replace(/\s\s+/g, ' ')
         .trim();
     
-    const prompt = `Profi, fotórealisztikus, magazin minőségű ételfotó a következő ételről: "${cleanRecipeName}". Leírása: "${recipe.description}".
-Stílus: gusztusosan tálalva egy letisztult, egyszerű tányéron, természetes fények, lágy, elmosódott (bokeh) konyhai háttér, a fókusz teljes mértékben az ételen.
+    const mealTypeLabel = MEAL_TYPES.find(m => m.value === recipe.mealType)?.label || '';
+    const keyIngredients = recipe.ingredients.slice(0, 3).join(', ');
+    
+    let specialInstructions = '';
+    let servingStyle = 'egy letisztult, egyszerű tányéron'; // default serving style
+
+    if (recipe.cookingMethods?.includes(CookingMethod.UNOLD_ICE_CREAM_MAKER) || recipe.recipeName.toLowerCase().includes('fagylalt')) {
+        specialInstructions = 'FONTOS: A képen fagylaltnak kell szerepelnie, nem süteménynek vagy más desszertnek.';
+        servingStyle = 'fagylaltos kehelyben vagy tölcsérben';
+    } else if (recipe.mealType === MealType.SOUP || recipe.recipeName.toLowerCase().includes('leves')) {
+        servingStyle = 'egy mély levestányérban vagy csészében';
+    } else if (recipe.mealType === MealType.DESSERT || recipe.mealType === MealType.SNACK) {
+        servingStyle = 'desszertes tányéron';
+    }
+    
+    const prompt = `Profi, fotórealisztikus, magazin minőségű ételfotó a következő ételről: "${cleanRecipeName}".
+Leírás: "${recipe.description}".
+Étel típusa: "${mealTypeLabel}".
+Főbb hozzávalók: "${keyIngredients}".
+
+${specialInstructions}
+
+Stílus: Gusztusosan tálalva ${servingStyle}, természetes fények, lágy, elmosódott (bokeh) konyhai háttér, a fókusz teljes mértékben az ételen.
 Abszolút szabályok: A képen KIZÁRÓLAG az étel szerepelhet. SZIGORÚAN TILOS bármilyen állatot (kutya, macska), embert (kéz, arc), szöveget, vagy rajzolt elemet ábrázolni.`;
 
     try {
@@ -689,8 +710,8 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
         console.error('Error interpreting user command:', error);
         const errorMessage = (error?.message || '').toLowerCase();
         if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
-            throw new Error('Elérte a hangvezérlési kvótáját. Kérjük, próbálja újra később.');
-        }
+      throw new Error('Elérte a hangvezérlési kvótáját. Kérjük, próbálja újra később.');
+    }
         throw new Error('Nem sikerült a felhasználói parancsot értelmezni.');
     }
 };
