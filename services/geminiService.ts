@@ -355,6 +355,66 @@ export const calculateRecipeCost = async (recipe: Recipe): Promise<string> => {
   }
 };
 
+export const suggestMealType = async (
+  ingredients: string,
+  specialRequest: string
+): Promise<MealType | null> => {
+  if (!ingredients.trim() && !specialRequest.trim()) {
+    return null;
+  }
+
+  const mealTypeOptionsString = MEAL_TYPES.map(
+    (o) => `'${o.label}' (${o.value})`
+  ).join(', ');
+
+  const prompt = `
+    Elemezd a következő hozzávalókat és különleges kérést, majd javasolj egy étkezés típust.
+    Hozzávalók: "${ingredients}"
+    Különleges kérés: "${specialRequest}"
+
+    A válaszod egy JSON objektum legyen, ami egy 'mealType' kulcsot tartalmaz.
+    A kulcs értéke legyen az alábbiak közül a legmegfelelőbb: ${mealTypeOptionsString}.
+    Például, ha a hozzávalók "tojás, szalonna", a javaslat legyen 'breakfast'. Ha "csokidarabkák, liszt, cukor", a javaslat 'dessert'.
+    Ha nem lehet egyértelműen meghatározni, a 'mealType' értéke legyen null.
+  `;
+
+  const schema = {
+    type: Type.OBJECT,
+    properties: {
+      mealType: {
+        oneOf: [
+            { type: Type.STRING, enum: Object.values(MealType) },
+            { type: Type.NULL }
+        ],
+        description: "A javasolt étkezés típusa vagy null.",
+      }
+    },
+    required: ['mealType'],
+  };
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: schema,
+        // Disable thinking for this simple classification task to make it faster.
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+
+    const jsonText = response.text.trim();
+    const result = JSON.parse(jsonText);
+    return result.mealType as MealType | null;
+  } catch (error) {
+    console.error('Error suggesting meal type:', error);
+    // Don't throw an error to the user, just fail silently for this non-critical feature.
+    return null;
+  }
+};
+
+
 const formCommandSchema = {
   type: Type.OBJECT,
   properties: {

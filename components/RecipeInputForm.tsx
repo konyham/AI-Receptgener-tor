@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions } from '../types';
 import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES } from '../constants';
-import { interpretFormCommand } from '../services/geminiService';
+import { interpretFormCommand, suggestMealType } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 import { safeSetLocalStorage } from '../utils/storage';
@@ -34,6 +34,45 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const isProcessingRef = useRef(false);
   const { showNotification } = useNotification();
   const suggestionsRef = useRef<HTMLDivElement>(null);
+  const suggestionTimeoutRef = useRef<number | null>(null);
+  const isSuggestingMealTypeRef = useRef(false);
+
+  useEffect(() => {
+    // Clear any existing timer
+    if (suggestionTimeoutRef.current) {
+      clearTimeout(suggestionTimeoutRef.current);
+    }
+
+    const ingredientsString = ingredients.join(', ');
+    // Only proceed if there's text and no suggestion is currently in flight.
+    if ((!ingredientsString && !specialRequest) || isSuggestingMealTypeRef.current) {
+      return;
+    }
+    
+    suggestionTimeoutRef.current = window.setTimeout(async () => {
+      isSuggestingMealTypeRef.current = true; // Set flag
+      try {
+        const suggested = await suggestMealType(ingredientsString, specialRequest);
+        if (suggested && suggested !== mealType) { // Check against current mealType
+          setMealType(suggested);
+          const mealTypeLabel = MEAL_TYPES.find(m => m.value === suggested)?.label;
+          if (mealTypeLabel) {
+            showNotification(`Javaslat: Az étkezés típusa beállítva erre: '${mealTypeLabel}'`, 'info');
+          }
+        }
+      } catch (e) {
+        console.error("Meal type suggestion failed:", e);
+      } finally {
+        isSuggestingMealTypeRef.current = false; // Reset flag
+      }
+    }, 1500); // 1.5 second debounce
+
+    return () => { // cleanup
+        if (suggestionTimeoutRef.current) {
+            clearTimeout(suggestionTimeoutRef.current);
+        }
+    };
+}, [ingredients, specialRequest, mealType, showNotification]);
 
   useEffect(() => {
     if (initialFormData && onFormPopulated) {
