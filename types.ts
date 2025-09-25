@@ -49,6 +49,7 @@ export enum CookingMethod {
   TRADITIONAL = 'traditional',
   SMART_COOKER = 'smart_cooker',
   THERMOMIXER = 'thermomixer',
+  THERMOMIXER_PLUS = 'thermomixer_plus',
   CUCKOO_RICE_COOKER = 'cuckoo_rice_cooker',
   REDMOND_SMART_COOKER = 'redmond_smart_cooker',
   CROCK_POT_SLOW_COOKER = 'crock_pot_slow_cooker',

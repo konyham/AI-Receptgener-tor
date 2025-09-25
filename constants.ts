@@ -31,6 +31,7 @@ export const COOKING_METHODS: { value: CookingMethod; label: string }[] = [
   { value: CookingMethod.TRADITIONAL, label: 'Hagyományos' },
   { value: CookingMethod.SMART_COOKER, label: 'Westinghouse WKCPPC100 okoskukta (angolmenüs)' },
   { value: CookingMethod.THERMOMIXER, label: 'Monsieur Cuisine Connect termomixer' },
+  { value: CookingMethod.THERMOMIXER_PLUS, label: 'Monsieur Cuisine Plus termomixer' },
   { value: CookingMethod.CUCKOO_RICE_COOKER, label: 'CUCKOO CRP-M1001SK okos rizsfőző (kínai menüs)' },
   { value: CookingMethod.REDMOND_SMART_COOKER, label: 'REDMOND RMC-M70 okosfőző (orosz menüs)' },
   { value: CookingMethod.CROCK_POT_SLOW_COOKER, label: 'CROCK-POT SCCPRC507B-60 lassúfőző' },
@@ -41,6 +42,7 @@ export const COOKING_METHOD_CAPACITIES: Record<CookingMethod, number | null> = {
   [CookingMethod.TRADITIONAL]: null, // Nincs gyakorlati korlát
   [CookingMethod.SMART_COOKER]: 8,
   [CookingMethod.THERMOMIXER]: 6,
+  [CookingMethod.THERMOMIXER_PLUS]: 6,
   [CookingMethod.CUCKOO_RICE_COOKER]: 6,
   [CookingMethod.REDMOND_SMART_COOKER]: 8,
   [CookingMethod.CROCK_POT_SLOW_COOKER]: 6,
