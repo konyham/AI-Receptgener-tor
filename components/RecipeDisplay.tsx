@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import type { Operation, GenerateVideosResponse } from '@google/genai';
@@ -113,27 +109,25 @@ const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
             const { calories, carbohydrates, protein, fat } = recipe;
             const dietLabel = DIET_OPTIONS.find(d => d.value === recipe.diet)?.label;
             const mealTypeLabel = MEAL_TYPES.find(m => m.value === recipe.mealType)?.label;
-            // FIX: The logic has been updated to handle an array of cooking methods, and duplicated/conflicting code has been removed.
-            const cookingMethodsLabels = recipe.cookingMethods
+            
+            const cookingMethodNames = recipe.cookingMethods
                 ?.map(cm => COOKING_METHODS.find(c => c.value === cm)?.label)
-                .filter((v): v is string => v !== null);
+                .filter((v): v is string => !!v);
             
             const topLeftInfo: string[] = [];
-            if (cookingMethodsLabels && cookingMethodsLabels.length > 0) {
-                // If there's only one machine, keep it on the same line for compactness
-                if (cookingMethodsLabels.length === 1) {
-                    topLeftInfo.push(`Elkészítés: ${cookingMethodsLabels[0]}`);
-                } else {
-                    // If multiple machines, put them on separate lines
-                    topLeftInfo.push('Elkészítés:');
-                    cookingMethodsLabels.forEach(label => {
-                        topLeftInfo.push(`  • ${label}`); // Indent with a bullet for clarity
-                    });
-                }
+            if (cookingMethodNames && cookingMethodNames.length > 0) {
+                topLeftInfo.push('Elkészítés:');
+                cookingMethodNames.forEach(name => {
+                    topLeftInfo.push(`  • ${name}`);
+                });
             }
 
-            if (mealTypeLabel) topLeftInfo.push(`Étkezés: ${mealTypeLabel}`);
-            if (dietLabel) topLeftInfo.push(`Diéta: ${dietLabel}`);
+            if (mealTypeLabel) {
+                topLeftInfo.push(`Étkezés: ${mealTypeLabel}`);
+            }
+            if (dietLabel) {
+                topLeftInfo.push(`Diéta: ${dietLabel}`);
+            }
             topLeftInfo.push("AI-val készítette Konyha Miki");
 
             const topRightInfo = [
@@ -720,9 +714,6 @@ Recept generálva Konyha Miki segítségével!
   };
 
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
-  const cookingMethodsLabels = recipe.cookingMethods
-    ?.map(cm => COOKING_METHODS.find(c => c.value === cm)?.label)
-    .filter(Boolean);
 
   return (
     <>
@@ -769,17 +760,6 @@ Recept generálva Konyha Miki segítségével!
                       <span>{recipe.servings}</span>
                   </div>
               </div>
-              {cookingMethodsLabels && cookingMethodsLabels.length > 0 && (
-                <div className="flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 011.085.12L10 11.866l3.665-3.695a1 1 0 011.085-.12l2.646-1.031a1 1 0 000-1.84l-7-3zM3 13.362a1 1 0 01.527-.882l3-1.5a1 1 0 01.946 0l3 1.5a1 1 0 01.527.882V17a1 1 0 01-1 1h-8a1 1 0 01-1-1v-3.638zM14 17v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2a1 1 0 01-1-1z" />
-                    </svg>
-                    <div>
-                        <span className="font-semibold block text-sm">Elkészítés</span>
-                        <span>{cookingMethodsLabels.join(', ')}</span>
-                    </div>
-                </div>
-              )}
               {recipe.estimatedCost && (
                 <div className="flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-500" viewBox="0 0 20 20" fill="currentColor">

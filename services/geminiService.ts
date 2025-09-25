@@ -251,27 +251,47 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
     const mealTypeLabel = MEAL_TYPES.find(m => m.value === recipe.mealType)?.label || '';
     const keyIngredients = recipe.ingredients.slice(0, 3).join(', ');
     
-    let specialInstructions = '';
-    let servingStyle = 'egy letisztult, egyszerű tányéron'; // default serving style
-
-    if (recipe.cookingMethods?.includes(CookingMethod.UNOLD_ICE_CREAM_MAKER) || recipe.recipeName.toLowerCase().includes('fagylalt')) {
-        specialInstructions = 'FONTOS: A képen fagylaltnak kell szerepelnie, nem süteménynek vagy más desszertnek.';
-        servingStyle = 'fagylaltos kehelyben vagy tölcsérben';
-    } else if (recipe.mealType === MealType.SOUP || recipe.recipeName.toLowerCase().includes('leves')) {
-        servingStyle = 'egy mély levestányérban vagy csészében';
-    } else if (recipe.mealType === MealType.DESSERT || recipe.mealType === MealType.SNACK) {
-        servingStyle = 'desszertes tányéron';
-    }
+    const isIceCream = recipe.cookingMethods?.includes(CookingMethod.UNOLD_ICE_CREAM_MAKER) || recipe.recipeName.toLowerCase().includes('fagylalt');
     
-    const prompt = `Profi, fotórealisztikus, magazin minőségű ételfotó a következő ételről: "${cleanRecipeName}".
-Leírás: "${recipe.description}".
-Étel típusa: "${mealTypeLabel}".
+    let prompt: string;
+
+    if (isIceCream) {
+        prompt = `Készíts egy profi, fotórealisztikus, magazin minőségű ételfotót a következő FAGYLALT-ról: "${cleanRecipeName}".
+Az étel egy FAGYLALT. Nem torta, nem sütemény, nem pékáru.
 Főbb hozzávalók: "${keyIngredients}".
+Leírás: "${recipe.description}".
 
-${specialInstructions}
+Tálalás: A FAGYLALT legyen gusztusosan tálalva egy fagylaltos kehelyben, tölcsérben vagy desszertes tálkában. A környezet legyen egy világos, természetes fényekkel megvilágított konyha, lágy, elmosódott (bokeh) háttérrel. A fókusz teljes mértékben a FAGYLALT-on van.
 
-Stílus: Gusztusosan tálalva ${servingStyle}, természetes fények, lágy, elmosódott (bokeh) konyhai háttér, a fókusz teljes mértékben az ételen.
-Abszolút szabályok: A képen KIZÁRÓLAG az étel szerepelhet. SZIGORÚAN TILOS bármilyen állatot (kutya, macska), embert (kéz, arc), szöveget, vagy rajzolt elemet ábrázolni.`;
+KRITIKUS SZABÁLYOK:
+1.  A KÉP TÁRGYA KIZÁRÓLAG FAGYLALT.
+2.  SZIGORÚAN TILOS tortát, süteményt, pitét, vagy bármilyen pékárut ábrázolni. Még akkor is, ha a hozzávalók (pl. csokoládé, gyümölcsök) közösek lehetnek, a végeredmény egy FAGYASZTOTT DESSZERT, azaz FAGYLALT.
+3.  A képen NEM SZEREPELHET semmilyen állat (kutya, macska), ember (kéz, arc), felirat, vagy rajzolt elem. Csak az étel.`;
+    } else {
+        let imageSubject = cleanRecipeName;
+        let strictRules = "A képen KIZÁRÓLAG az étel szerepelhet. SZIGORÚAN TILOS bármilyen állatot (kutya, macska), embert (kéz, arc), szöveget, vagy rajzolt elemet ábrázolni.";
+        let servingStyle = 'egy letisztult, egyszerű tányéron';
+
+        const isSoup = recipe.mealType === MealType.SOUP || recipe.recipeName.toLowerCase().includes('leves');
+        const isDessert = recipe.mealType === MealType.DESSERT || recipe.mealType === MealType.SNACK;
+
+        if (isSoup) {
+            imageSubject = `${cleanRecipeName} gőzölgő leves`;
+            servingStyle = 'egy mély levestányérban vagy csészében';
+        } else if (isDessert) {
+            servingStyle = 'desszertes tányéron, elegánsan';
+        }
+
+        prompt = `Készíts egy profi, fotórealisztikus, magazin minőségű ételfotót a következő ételről: "${imageSubject}".
+Az étel leírása: "${recipe.description}".
+Főbb hozzávalók: "${keyIngredients}".
+Étel típusa: "${mealTypeLabel}".
+
+A tálalás stílusa: Gusztusosan tálalva ${servingStyle}. A környezet legyen egy világos, természetes fényekkel megvilágított konyha, lágy, elmosódott (bokeh) háttérrel. A fókusz teljes mértékben az ételen van.
+
+Abszolút szabályok:
+${strictRules}`;
+    }
 
     try {
         const response = await ai.models.generateImages({
