@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ShoppingListItem } from '../types';
+import { useNotification } from '../contexts/NotificationContext';
 
 interface ShoppingListViewProps {
   list: ShoppingListItem[];
@@ -19,6 +20,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   onClearAll,
 }) => {
   const [newItem, setNewItem] = useState('');
+  const { showNotification } = useNotification();
 
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,22 +38,24 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     onUpdateItem(index, { ...item, checked: !item.checked });
   };
 
-  const handleSaveToGoogleKeep = () => {
-    if (list.length === 0) return;
+  const handleCopyList = async () => {
+    if (list.length === 0) {
+      showNotification('A lista üres, nincs mit másolni.', 'info');
+      return;
+    }
 
-    const title = "AI bevásárlólista";
-    // Using `[ ] ` with a space is a more compatible format for checklists.
-    const checklistItems = list.map(item => `[ ] ${item.text}`).join('\n');
+    const textToCopy = list.map(item => item.text).join('\n');
 
-    const encodedTitle = encodeURIComponent(title);
-    const encodedText = encodeURIComponent(checklistItems);
-    
-    // The /keep/createnote endpoint now results in a 404 error.
-    // This new URL targets the web app's client-side router for the default user account (u/0),
-    // which is a more resilient, albeit still undocumented, method.
-    const keepUrl = `https://keep.google.com/u/0/#create?title=${encodedTitle}&text=${encodedText}`;
-
-    window.open(keepUrl, '_blank', 'noopener,noreferrer');
+    try {
+      if (!navigator.clipboard) {
+        throw new Error('A vágólap API nem érhető el a böngésződben.');
+      }
+      await navigator.clipboard.writeText(textToCopy);
+      showNotification('Bevásárlólista a vágólapra másolva!', 'success');
+    } catch (err) {
+      console.error('Hiba a vágólapra másolás közben:', err);
+      showNotification('Nem sikerült a listát vágólapra másolni. Lehet, hogy a böngészője nem támogatja ezt a funkciót.', 'info');
+    }
   };
   
   const checkedCount = list.filter(item => item.checked).length;
@@ -110,11 +114,14 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
             </ul>
             <div className="pt-4 flex flex-col sm:flex-row gap-2 justify-end flex-wrap">
                  <button 
-                    onClick={handleSaveToGoogleKeep}
-                    className="text-sm bg-yellow-400 text-black font-semibold py-2 px-4 rounded-lg hover:bg-yellow-500 transition-colors flex items-center justify-center gap-2"
+                    onClick={handleCopyList}
+                    className="text-sm bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24"><path d="M18.333 2H5.667C3.646 2 2 3.646 2 5.667V18.333C2 20.354 3.646 22 5.667 22H18.333C20.354 22 22 20.354 22 18.333V5.667C22 3.646 20.354 2 18.333 2ZM10.5 15.5H7V12.5H10.5V15.5ZM17 15.5H13.5V12.5H17V15.5ZM17 10.5H7V7.5H17V10.5Z" fill="#202124"></path></svg>
-                    Mentés a Google Keepbe
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                      <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                    </svg>
+                    Lista másolása
                 </button>
                 <button 
                     onClick={onClearChecked}
