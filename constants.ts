@@ -1,6 +1,6 @@
 
 
-import { DietOption, MealType, CookingMethod } from './types';
+import { DietOption, MealType, CookingMethod, CuisineOption } from './types';
 
 export const DIET_OPTIONS: { value: DietOption; label: string; description: string }[] = [
   { value: DietOption.NONE, label: 'Nincs megadva', description: 'Nem követ semmilyen speciális étrendet.' },
@@ -25,6 +25,24 @@ export const MEAL_TYPES: { value: MealType; label: string }[] = [
   { value: MealType.DESSERT, label: 'Desszert' },
   { value: MealType.SNACK, label: 'Nassolnivaló' },
   { value: MealType.PASTA_MAKING, label: 'Tésztakészítés' },
+];
+
+export const CUISINE_OPTIONS: { value: CuisineOption; label: string }[] = [
+  { value: CuisineOption.NONE, label: 'Nincs megadva' },
+  { value: CuisineOption.HUNGARIAN, label: 'Magyaros' },
+  { value: CuisineOption.ERDELYI, label: 'Erdélyi' },
+  { value: CuisineOption.ITALIAN, label: 'Olasz' },
+  { value: CuisineOption.FRENCH, label: 'Francia' },
+  { value: CuisineOption.SPANISH, label: 'Spanyol' },
+  { value: CuisineOption.GREEK, label: 'Görög' },
+  { value: CuisineOption.TURKISH, label: 'Török' },
+  { value: CuisineOption.CHINESE, label: 'Kínai' },
+  { value: CuisineOption.JAPANESE, label: 'Japán' },
+  { value: CuisineOption.THAI, label: 'Thai' },
+  { value: CuisineOption.VIETNAMESE, label: 'Vietnámi' },
+  { value: CuisineOption.INDIAN, label: 'Indiai' },
+  { value: CuisineOption.MEXICAN, label: 'Mexikói' },
+  { value: CuisineOption.AMERICAN, label: 'Amerikai' },
 ];
 
 export const COOKING_METHODS: { value: CookingMethod; label: string }[] = [

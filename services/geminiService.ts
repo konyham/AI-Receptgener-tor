@@ -1,7 +1,7 @@
 // FIX: This file was created to implement the missing Gemini API service logic.
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import { GoogleGenAI, Type, Operation, GenerateVideosResponse } from '@google/genai';
-import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES } from '../constants';
+import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES, CUISINE_OPTIONS } from '../constants';
 import {
   DietOption,
   FormAction,
@@ -16,6 +16,7 @@ import {
   AppView,
   AppCommand,
   AppCommandAction,
+  CuisineOption,
 } from '../types';
 
 // FIX: Initialize the GoogleGenAI client with API key from environment variables as per guidelines.
@@ -72,8 +73,10 @@ const recipeSchema = {
 
 export const generateRecipe = async (
   ingredients: string,
+  excludedIngredients: string,
   diet: DietOption,
   mealType: MealType,
+  cuisine: CuisineOption,
   cookingMethods: CookingMethod[],
   specialRequest: string,
   withCost: boolean,
@@ -82,6 +85,7 @@ export const generateRecipe = async (
   const dietLabel = DIET_OPTIONS.find((d) => d.value === diet)?.label || '';
   const mealTypeLabel =
     MEAL_TYPES.find((m) => m.value === mealType)?.label || '';
+  const cuisineLabel = CUISINE_OPTIONS.find((c) => c.value === cuisine)?.label || '';
   const cookingMethodLabels = cookingMethods
     .map(cm => COOKING_METHODS.find(c => c.value === cm)?.label)
     .filter((l): l is string => !!l);
@@ -108,9 +112,16 @@ export const generateRecipe = async (
     prompt += ` Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad. Fontos: bár a hozzávalók meglepetések, a receptnek minden más megadott feltételnek (diéta, elkészítési mód, személyek száma, különleges kérés) szigorúan meg kell felelnie.`;
   }
   
+  if (excludedIngredients.trim()) {
+    prompt += ` FONTOS KIKÖTÉS: A recept SOHA NE TARTALMAZZA a következőket, még nyomokban sem: ${excludedIngredients}. Vedd figyelembe az esetleges allergiákat vagy intoleranciákat (pl. ha a felhasználó a laktózt írja, akkor ne használj tejet, vajat, sajtot stb.).`;
+  }
+  
   prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabels.join(' és ')}. Ha több gép is meg van adva, a recept logikusan használja őket (pl. az alap elkészítése az egyikben, a befejezés a másikban).`;
   if (diet !== DietOption.NONE && dietLabel) {
     prompt += ` A recept feleljen meg a következő diétás előírásnak: ${dietLabel}.`;
+  }
+  if (cuisine !== CuisineOption.NONE && cuisineLabel) {
+      prompt += ` A recept stílusa legyen: ${cuisineLabel}.`;
   }
   if (specialRequest.trim()) {
     prompt += ` A receptnek a következő különleges kérésnek is meg kell felelnie: ${specialRequest.trim()}.`;

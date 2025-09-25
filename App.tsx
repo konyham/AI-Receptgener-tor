@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { Recipe, DietOption, MealType, Favorites, CookingMethod, RecipeSuggestions, ShoppingListItem, AppView } from './types';
+import type { Recipe, DietOption, MealType, Favorites, CookingMethod, RecipeSuggestions, ShoppingListItem, AppView, CuisineOption } from './types';
 import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
@@ -16,8 +16,10 @@ import { isLocalStorageAvailable } from './utils/storage';
 
 interface RecipeGenerationParams {
   ingredients: string;
+  excludedIngredients: string;
   diet: DietOption;
   mealType: MealType;
+  cuisine: CuisineOption;
   cookingMethods: CookingMethod[];
   specialRequest: string;
   withCost: boolean;
@@ -270,7 +272,7 @@ const App: React.FC = () => {
     setSuggestions(null); // Clear suggestions on new generation
     setLastGenerationParams(params);
     try {
-      const newRecipe = await generateRecipe(params.ingredients, params.diet, params.mealType, params.cookingMethods, params.specialRequest, params.withCost, params.numberOfServings);
+      const newRecipe = await generateRecipe(params.ingredients, params.excludedIngredients, params.diet, params.mealType, params.cuisine, params.cookingMethods, params.specialRequest, params.withCost, params.numberOfServings);
       setRecipe(newRecipe);
       setPage('generator'); 
     } catch (err: any) {
@@ -302,10 +304,7 @@ const App: React.FC = () => {
   const closeRecipeView = () => {
     setSuggestions(null); // Clear suggestions when starting a new recipe
     if (lastGenerationParams) {
-        setInitialFormData({
-            ingredients: lastGenerationParams.ingredients,
-            specialRequest: lastGenerationParams.specialRequest,
-        });
+        setInitialFormData(lastGenerationParams);
     } else {
         setInitialFormData(null);
     }

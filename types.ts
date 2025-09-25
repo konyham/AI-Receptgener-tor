@@ -45,6 +45,24 @@ export enum MealType {
   PASTA_MAKING = 'pasta_making',
 }
 
+export enum CuisineOption {
+  NONE = 'none',
+  HUNGARIAN = 'hungarian',
+  ITALIAN = 'italian',
+  FRENCH = 'french',
+  SPANISH = 'spanish',
+  GREEK = 'greek',
+  TURKISH = 'turkish',
+  CHINESE = 'chinese',
+  JAPANESE = 'japanese',
+  THAI = 'thai',
+  VIETNAMESE = 'vietnamese',
+  INDIAN = 'indian',
+  MEXICAN = 'mexican',
+  AMERICAN = 'american',
+  ERDELYI = 'erdelyi',
+}
+
 export enum CookingMethod {
   TRADITIONAL = 'traditional',
   SMART_COOKER = 'smart_cooker',

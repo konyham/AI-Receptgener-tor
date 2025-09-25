@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions } from '../types';
-import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES } from '../constants';
+import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption } from '../types';
+import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES, CUISINE_OPTIONS } from '../constants';
 import { interpretFormCommand, suggestMealType } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 import { safeSetLocalStorage } from '../utils/storage';
 
 interface RecipeInputFormProps {
-  onSubmit: (params: { ingredients: string, diet: DietOption, mealType: MealType, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number }) => void;
+  onSubmit: (params: { ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number }) => void;
   isLoading: boolean;
-  initialFormData?: Partial<{ ingredients: string, diet: DietOption, mealType: MealType, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number }> | null;
+  initialFormData?: Partial<{ ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number }> | null;
   onFormPopulated?: () => void;
   suggestions?: RecipeSuggestions | null;
 }
@@ -18,9 +18,11 @@ const INGREDIENTS_STORAGE_KEY = 'ai-recipe-generator-saved-ingredients';
 
 const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, initialFormData, onFormPopulated, suggestions }) => {
   const [ingredients, setIngredients] = useState<string[]>([]);
+  const [excludedIngredients, setExcludedIngredients] = useState('');
   const [currentIngredient, setCurrentIngredient] = useState('');
   const [diet, setDiet] = useState<DietOption>(DietOption.DIABETIC);
   const [mealType, setMealType] = useState<MealType>(MealType.LUNCH);
+  const [cuisine, setCuisine] = useState<CuisineOption>(CuisineOption.NONE);
   const [cookingMethods, setCookingMethods] = useState<CookingMethod[]>([CookingMethod.TRADITIONAL]);
   const [specialRequest, setSpecialRequest] = useState('');
   const [numberOfServings, setNumberOfServings] = useState<number>(4);
@@ -30,7 +32,17 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [voiceControlActive, setVoiceControlActive] = useState(true);
   const [hasSavedIngredients, setHasSavedIngredients] = useState(false);
+
+  const [orderedCookingMethods, setOrderedCookingMethods] = useState(COOKING_METHODS);
+  const dragItemIndex = useRef<number | null>(null);
+  const dragOverItemIndex = useRef<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   
+  const [orderedCuisineOptions, setOrderedCuisineOptions] = useState(CUISINE_OPTIONS);
+  const cuisineDragItemIndex = useRef<number | null>(null);
+  const cuisineDragOverItemIndex = useRef<number | null>(null);
+  const [isCuisineDragging, setIsCuisineDragging] = useState(false);
+
   const isProcessingRef = useRef(false);
   const { showNotification } = useNotification();
   const suggestionsRef = useRef<HTMLDivElement>(null);
@@ -79,6 +91,9 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         if (initialFormData.ingredients !== undefined) {
             setIngredients(initialFormData.ingredients.split(',').map(s => s.trim()).filter(Boolean));
         }
+        if (initialFormData.excludedIngredients !== undefined) {
+            setExcludedIngredients(initialFormData.excludedIngredients);
+        }
         if (initialFormData.specialRequest !== undefined) {
             setSpecialRequest(initialFormData.specialRequest);
         }
@@ -91,6 +106,11 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
             setMealType(initialFormData.mealType);
         } else {
             setMealType(MealType.LUNCH); // Reset to default
+        }
+        if (initialFormData.cuisine !== undefined) {
+            setCuisine(initialFormData.cuisine);
+        } else {
+            setCuisine(CuisineOption.NONE); // Reset to default
         }
         if (initialFormData.cookingMethods !== undefined && initialFormData.cookingMethods.length > 0) {
             setCookingMethods(initialFormData.cookingMethods);
@@ -334,11 +354,17 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   
   const triggerSubmit = () => {
     if (!isLoading) {
+       const orderedSelectedMethods = orderedCookingMethods
+        .map(m => m.value)
+        .filter(value => cookingMethods.includes(value));
+
       onSubmit({
         ingredients: ingredients.join(', '),
+        excludedIngredients,
         diet,
         mealType,
-        cookingMethods,
+        cuisine,
+        cookingMethods: orderedSelectedMethods,
         specialRequest,
         withCost,
         withImage,
@@ -387,6 +413,56 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         
         return newState;
     });
+  };
+
+  const handleDragStart = (e: React.DragEvent<HTMLLabelElement>, index: number) => {
+    dragItemIndex.current = index;
+    setTimeout(() => {
+        setIsDragging(true);
+    }, 0);
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLLabelElement>, index: number) => {
+    e.preventDefault();
+    dragOverItemIndex.current = index;
+  };
+
+  const handleDragEnd = () => {
+    if (dragItemIndex.current !== null && dragOverItemIndex.current !== null && dragItemIndex.current !== dragOverItemIndex.current) {
+        const newMethods = [...orderedCookingMethods];
+        const draggedItemContent = newMethods.splice(dragItemIndex.current, 1)[0];
+        newMethods.splice(dragOverItemIndex.current, 0, draggedItemContent);
+        setOrderedCookingMethods(newMethods);
+    }
+    
+    dragItemIndex.current = null;
+    dragOverItemIndex.current = null;
+    setIsDragging(false);
+  };
+
+  const handleCuisineDragStart = (e: React.DragEvent<HTMLLabelElement>, index: number) => {
+    cuisineDragItemIndex.current = index;
+    setTimeout(() => {
+        setIsCuisineDragging(true);
+    }, 0);
+  };
+
+  const handleCuisineDragEnter = (e: React.DragEvent<HTMLLabelElement>, index: number) => {
+    e.preventDefault();
+    cuisineDragOverItemIndex.current = index;
+  };
+
+  const handleCuisineDragEnd = () => {
+    if (cuisineDragItemIndex.current !== null && cuisineDragOverItemIndex.current !== null && cuisineDragItemIndex.current !== cuisineDragOverItemIndex.current) {
+        const newCuisines = [...orderedCuisineOptions];
+        const draggedItemContent = newCuisines.splice(cuisineDragItemIndex.current, 1)[0];
+        newCuisines.splice(cuisineDragOverItemIndex.current, 0, draggedItemContent);
+        setOrderedCuisineOptions(newCuisines);
+    }
+    
+    cuisineDragItemIndex.current = null;
+    cuisineDragOverItemIndex.current = null;
+    setIsCuisineDragging(false);
   };
 
   const selectedDietInfo = DIET_OPTIONS.find(d => d.value === diet);
@@ -539,6 +615,21 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
       </div>
 
       <div>
+        <label htmlFor="excluded-ingredients" className="block text-lg font-semibold text-gray-700 mb-2">
+          Mi ne legyen benne? (nem kötelező)
+        </label>
+        <textarea
+          id="excluded-ingredients"
+          value={excludedIngredients}
+          onChange={(e) => setExcludedIngredients(e.target.value)}
+          placeholder="Pl. gomba, laktóz, mogyoró..."
+          rows={2}
+          className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
+        ></textarea>
+        <p className="text-sm text-gray-500 mt-1">Vesszővel elválasztva sorolja fel azokat az alapanyagokat, amiket kerülni szeretne.</p>
+      </div>
+
+      <div>
         <label htmlFor="special-request" className="block text-lg font-semibold text-gray-700 mb-2">
           Különleges kérés (nem kötelező)
         </label>
@@ -661,25 +752,76 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         </div>
       </div>
 
+      <div>
+        <label className="block text-lg font-semibold text-gray-700 mb-2">
+          Nemzetközi konyha (nem kötelező)
+        </label>
+        <div className="space-y-2">
+            {orderedCuisineOptions.map((option, index) => (
+                <label 
+                    key={option.value} 
+                    htmlFor={`cuisine-option-${option.value}`} 
+                    className={`flex items-center p-3 border rounded-lg bg-white cursor-grab hover:bg-gray-50 transition-all duration-200 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 ${
+                        isCuisineDragging && cuisineDragItemIndex.current === index ? 'opacity-40 scale-105 shadow-xl' : 'opacity-100'
+                    }`}
+                    draggable
+                    onDragStart={(e) => handleCuisineDragStart(e, index)}
+                    onDragEnter={(e) => handleCuisineDragEnter(e, index)}
+                    onDragEnd={handleCuisineDragEnd}
+                    onDragOver={(e) => e.preventDefault()}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                    <input
+                        type="radio"
+                        id={`cuisine-option-${option.value}`}
+                        name="cuisine-option"
+                        value={option.value}
+                        checked={cuisine === option.value}
+                        onChange={() => setCuisine(option.value as CuisineOption)}
+                        className="h-5 w-5 rounded-full border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                    />
+                    <span className="ml-3 text-gray-700 font-medium flex-grow">{option.label}</span>
+                </label>
+            ))}
+        </div>
+      </div>
+
       <div className="mt-6">
         <label className="block text-lg font-semibold text-gray-700 mb-2">
           Elkészítés módja
         </label>
         <div className="space-y-2">
-            {COOKING_METHODS.map(option => (
-                <label key={option.value} htmlFor={`cooking-method-${option.value}`} className="flex items-center p-3 border border-gray-300 rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400">
+            {orderedCookingMethods.map((option, index) => (
+                <label 
+                    key={option.value} 
+                    htmlFor={`cooking-method-${option.value}`} 
+                    className={`flex items-center p-3 border rounded-lg bg-white cursor-grab hover:bg-gray-50 transition-all duration-200 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 ${
+                        isDragging && dragItemIndex.current === index ? 'opacity-40 scale-105 shadow-xl' : 'opacity-100'
+                    }`}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragEnter={(e) => handleDragEnter(e, index)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => e.preventDefault()}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
                     <input
                         type="checkbox"
                         id={`cooking-method-${option.value}`}
                         value={option.value}
                         checked={cookingMethods.includes(option.value)}
                         onChange={() => handleCookingMethodChange(option.value)}
-                        className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                     />
-                    <span className="ml-3 text-gray-700 font-medium">{option.label}</span>
+                    <span className="ml-3 text-gray-700 font-medium flex-grow">{option.label}</span>
                 </label>
             ))}
         </div>
+         <p className="text-sm text-gray-500 mt-2">A kiválasztott elkészítési módok sorrendje befolyásolhatja a receptet.</p>
       </div>
 
       <div className="pt-2">
