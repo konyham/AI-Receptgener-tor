@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import type { Operation, GenerateVideosResponse } from '@google/genai';
 import { Recipe, VoiceCommand, Favorites, CookingMethod } from '../types';
-import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage, calculateRecipeCost } from '../services/geminiService';
+import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage, calculateRecipeCost, simplifyRecipe } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 import KitchenTimer from './KitchenTimer';
@@ -281,6 +281,9 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const [isShareFallbackModalOpen, setIsShareFallbackModalOpen] = useState(false);
   const [recipeTextToCopy, setRecipeTextToCopy] = useState('');
 
+  const [isSimplifying, setIsSimplifying] = useState<boolean>(false);
+  const [simplifyError, setSimplifyError] = useState<string | null>(null);
+
 
   const isInterpretingRef = useRef(false);
   const isSpeakingRef = useRef(false);
@@ -301,7 +304,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     } finally {
         setIsImageLoading(false);
     }
-  }, [recipe, onRecipeUpdate, showNotification]);
+  }, [recipe, onRecipeUpdate, showNotification, isImageLoading]);
 
   useEffect(() => {
     if (shouldGenerateImageInitially && !recipe.imageUrl) {
@@ -741,6 +744,22 @@ Recept generálva Konyha Miki segítségével!
     showNotification('Kérjük, manuálisan másolja a receptet.', 'info');
   };
 
+  const handleSimplifyRecipe = async () => {
+    setIsSimplifying(true);
+    setSimplifyError(null);
+    try {
+      const simplifiedRecipe = await simplifyRecipe(recipe);
+      onRecipeUpdate(simplifiedRecipe);
+      showNotification('A recept sikeresen egyszerűsítve!', 'success');
+    } catch (err: any) {
+      const errorMsg = err.message || 'Hiba történt a recept egyszerűsítése közben.';
+      setSimplifyError(errorMsg);
+      showNotification(errorMsg, 'info');
+    } finally {
+      setIsSimplifying(false);
+    }
+  };
+
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
 
   return (
@@ -810,6 +829,7 @@ Recept generálva Konyha Miki segítségével!
         <DiabeticAdvice advice={recipe.diabeticAdvice} />
 
         <div className="p-6 md:p-8">
+            {simplifyError && <div className="mb-4"><ErrorMessage message={simplifyError} /></div>}
             {videoGenerationError && <div className="mb-4"><ErrorMessage message={videoGenerationError} /></div>}
             <div className="my-6 p-3 bg-gray-50 border rounded-lg flex flex-wrap justify-center items-center gap-3 no-print">
                 <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-primary-100 text-primary-800 rounded-lg hover:bg-primary-200 transition-colors">
@@ -829,6 +849,12 @@ Recept generálva Konyha Miki segítségével!
                 <button onClick={handleGenerateImage} disabled={isImageLoading} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isImageLoading ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
                     {isImageLoading ? 'Generálás...' : (recipe.imageUrl ? 'Ételkép újragenerálása' : 'Ételkép generálása')}
+                </button>
+                 <button onClick={handleSimplifyRecipe} disabled={isSimplifying} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-green-100 text-green-800 rounded-lg hover:bg-green-200 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 3.5a.75.75 0 01.75.75V6h1.75a.75.75 0 010 1.5H10.75V9.25a.75.75 0 01-1.5 0V7.5H7.5a.75.75 0 010-1.5H9.25V4.25A.75.75 0 0110 3.5zM3.5 10a.75.75 0 01.75-.75H6V7.5a.75.75 0 011.5 0v1.75H9.25a.75.75 0 010 1.5H7.5v1.75a.75.75 0 01-1.5 0V10.75H4.25a.75.75 0 01-.75-.75zM10 12.5a.75.75 0 01.75.75v1.75h1.75a.75.75 0 010 1.5H10.75V18a.75.75 0 01-1.5 0v-1.75H7.5a.75.75 0 010-1.5h1.75V13.25a.75.75 0 01.75-.75zM12.5 10a.75.75 0 01.75-.75h1.75v-1.75a.75.75 0 011.5 0V9.25h1.75a.75.75 0 010 1.5H16.25v1.75a.75.75 0 01-1.5 0V10.75H13.25a.75.75 0 01-.75-.75z" />
+                    </svg>
+                    {isSimplifying ? 'Egyszerűsítés...' : 'Recept egyszerűsítése'}
                 </button>
                  <button onClick={handleGenerateVideo} disabled={isGeneratingVideo} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>

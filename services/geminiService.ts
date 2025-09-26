@@ -194,6 +194,57 @@ export const generateRecipe = async (
   }
 };
 
+export const simplifyRecipe = async (originalRecipe: Recipe): Promise<Recipe> => {
+  const prompt = `Adott a következő recept: '${originalRecipe.recipeName}'. A jelenlegi hozzávalók: ${originalRecipe.ingredients.join(', ')}. A jelenlegi elkészítési lépések: "${originalRecipe.instructions.join(' ')}".
+
+  A feladatod, hogy készíts egy egyszerűsített változatot ebből a receptből, ami kezdő szakácsok számára is könnyen követhető.
+  A célok a következők:
+  1.  **Hozzávalók csökkentése:** Ahol lehetséges, használj kevesebb hozzávalót. Hagyd el a nem létfontosságú elemeket, vagy helyettesíts több összetevőt egyetlen, könnyen beszerezhetővel. Az alapízek maradjanak meg.
+  2.  **Lépések egyszerűsítése:** Fogalmazd újra az elkészítési lépéseket rövidebben és egyértelműbben. Vond össze a lépéseket, ahol logikus.
+  3.  **Idő csökkentése:** Törekedj a rövidebb előkészítési és főzési időre.
+
+  Az új, egyszerűsített recept neve legyen "${originalRecipe.recipeName} (Egyszerűsített változat)".
+  Az adagok száma maradjon ugyanaz: ${originalRecipe.servings}.
+  A válaszod egy JSON objektum legyen a megadott séma szerint. A leírásban említsd meg, hogy ez egy egyszerűsített verzió.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: recipeSchema,
+      },
+    });
+
+    const jsonText = response.text.trim();
+    if (!jsonText) {
+      throw new Error('Az API üres választ adott az egyszerűsítésre.');
+    }
+    
+    const simplifiedRecipeData: Recipe = JSON.parse(jsonText);
+    
+    // Preserve important metadata from the original recipe
+    simplifiedRecipeData.cookingMethods = originalRecipe.cookingMethods;
+    simplifiedRecipeData.diet = originalRecipe.diet;
+    simplifiedRecipeData.mealType = originalRecipe.mealType;
+    
+    return simplifiedRecipeData;
+  } catch (error: any) {
+    console.error('Error simplifying recipe:', error);
+    const errorMessage = (error?.message || '').toLowerCase();
+
+    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+      throw new Error('Elérte a napi kvótáját a recept egyszerűsítéséhez. Kérjük, próbálja újra később.');
+    }
+    if (error instanceof SyntaxError) {
+        throw new Error('Hiba történt az egyszerűsített recept adatainak feldágozása közben. Az AI által adott válasz hibás formátumú volt.');
+    }
+    throw new Error('Nem sikerült egyszerűsíteni a receptet. Kérjük, próbálja újra később.');
+  }
+};
+
+
 // FIX: Added missing function to generate recipe modification suggestions.
 export const getRecipeModificationSuggestions = async (
   ingredients: string,

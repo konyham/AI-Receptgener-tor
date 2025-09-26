@@ -67,15 +67,27 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    
+    // Fontos: Itt kell visszaállítanunk a bemeneti mező értékét, hogy az `onChange`
+    // esemény újra aktiválódjon, ha a felhasználó ugyanazt a fájlt választja ki.
+    // Ezt azután tesszük meg, hogy már van hivatkozásunk a fájl objektumra.
+    const inputElement = event.target;
+    
+    if (!file) {
+      inputElement.value = ''; // Visszaállítás, ha a felhasználó megszakítja a párbeszédablakot
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
+        if (!text) {
+            throw new Error('A fájl üres vagy olvashatatlan.');
+        }
         const data = JSON.parse(text) as BackupData;
 
-        // Basic validation
+        // Alapvető validálás
         if (typeof data.favorites === 'object' && data.favorites !== null && Array.isArray(data.shoppingList)) {
            if (window.confirm('Biztosan importálja az adatokat? Ezzel felülírja a jelenlegi kedvenceit és a bevásárlólistáját.')) {
               onImportData(data);
@@ -85,14 +97,17 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         }
       } catch (error: any) {
         showNotification(`Hiba az importálás során: ${error.message}`, 'info');
-      } finally {
-        // Reset the input value to allow re-importing the same file
-        if (event.target) {
-            event.target.value = '';
-        }
       }
     };
+
+    reader.onerror = () => {
+        showNotification(`Hiba a fájl olvasása közben: ${reader.error?.message ?? 'Ismeretlen hiba'}`, 'info');
+    };
+
     reader.readAsText(file);
+    
+    // Az olvasó elindítása után állítsa vissza az értéket.
+    inputElement.value = '';
   };
   
   const categories = Object.keys(favorites);
