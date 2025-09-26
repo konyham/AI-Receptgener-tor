@@ -67,13 +67,15 @@ const App: React.FC = () => {
   const isProcessingRef = useRef(false);
 
   useEffect(() => {
+    // This effect now only handles initial checks and notifications,
+    // not data loading, which is handled by useState initializers.
     if (!isLocalStorageAvailable()) {
       setStorageError(
         "Az adatok mentése nem lehetséges, mert a böngésző helyi tárolója nem elérhető vagy le van tiltva. Kérjük, engedélyezze a 'sütiket' és a webhelyadatokat a böngésző beállításaiban a teljes funkcionalitás érdekében."
       );
       return;
     }
-    // Load favorites with resilience
+    // Check for recovery notifications from the initial load
     try {
       const { recoveryNotification } = favoritesService.getFavorites();
       if (recoveryNotification) {
@@ -82,7 +84,6 @@ const App: React.FC = () => {
     } catch (err: any) {
       showNotification(err.message, 'info');
     }
-    // Load shopping list with resilience
     try {
       const { recoveryNotification } = shoppingListService.getShoppingList();
        if (recoveryNotification) {

@@ -477,6 +477,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         const draggedItemContent = newMethods.splice(dragItemIndex.current, 1)[0];
         newMethods.splice(dragOverItemIndex.current, 0, draggedItemContent);
         setOrderedCookingMethods(newMethods);
+        // Save only on explicit user action
         try {
           const orderToSave = newMethods.map(item => item.value);
           safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, orderToSave);
@@ -508,6 +509,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         const draggedItemContent = newCuisines.splice(cuisineDragItemIndex.current, 1)[0];
         newCuisines.splice(cuisineDragOverItemIndex.current, 0, draggedItemContent);
         setOrderedCuisineOptions(newCuisines);
+        // Save only on explicit user action
         try {
           const orderToSave = newCuisines.map(item => item.value);
           safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, orderToSave);
