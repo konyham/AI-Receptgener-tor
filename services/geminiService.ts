@@ -247,10 +247,10 @@ export const getRecipeModificationSuggestions = async (
 export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
     // Sanitize the recipe name to remove potentially distracting brand names for the image prompt.
     const cleanRecipeName = recipe.recipeName
-        .replace(/REDMOND/gi, '')
         .replace(/CUCKOO/gi, '')
         .replace(/CROCK-POT/gi, '')
         .replace(/Monsieur Cuisine/gi, '')
+        .replace(/REDMOND/gi, '')
         .replace(/Okosfőzőben/gi, '')
         .replace(/termomixerben/gi, '')
         .replace(/lassúfőzőben/gi, '')

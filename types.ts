@@ -70,9 +70,9 @@ export enum CookingMethod {
   THERMOMIXER = 'thermomixer',
   THERMOMIXER_PLUS = 'thermomixer_plus',
   CUCKOO_RICE_COOKER = 'cuckoo_rice_cooker',
-  REDMOND_SMART_COOKER = 'redmond_smart_cooker',
   CROCK_POT_SLOW_COOKER = 'crock_pot_slow_cooker',
   UNOLD_ICE_CREAM_MAKER = 'unold_ice_cream_maker',
+  REDMOND_SMART_COOKER = 'redmond_smart_cooker',
 }
 
 export enum VoiceCommand {
