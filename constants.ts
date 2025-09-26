@@ -35,6 +35,7 @@ export const CUISINE_OPTIONS: { value: CuisineOption; label: string }[] = [
   { value: CuisineOption.FRENCH, label: 'Francia' },
   { value: CuisineOption.SPANISH, label: 'Spanyol' },
   { value: CuisineOption.GREEK, label: 'Görög' },
+  { value: CuisineOption.BULGARIAN, label: 'Bolgár' },
   { value: CuisineOption.TURKISH, label: 'Török' },
   { value: CuisineOption.CHINESE, label: 'Kínai' },
   { value: CuisineOption.JAPANESE, label: 'Japán' },

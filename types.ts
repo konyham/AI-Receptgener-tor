@@ -52,6 +52,7 @@ export enum CuisineOption {
   FRENCH = 'french',
   SPANISH = 'spanish',
   GREEK = 'greek',
+  BULGARIAN = 'bulgarian',
   TURKISH = 'turkish',
   CHINESE = 'chinese',
   JAPANESE = 'japanese',
