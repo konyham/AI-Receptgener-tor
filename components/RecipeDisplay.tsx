@@ -301,7 +301,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     } finally {
         setIsImageLoading(false);
     }
-  }, [recipe, onRecipeUpdate, isImageLoading, showNotification]);
+  }, [recipe, onRecipeUpdate, showNotification]);
 
   useEffect(() => {
     if (shouldGenerateImageInitially && !recipe.imageUrl) {
