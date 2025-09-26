@@ -253,8 +253,15 @@ export const getRecipeModificationSuggestions = async (
 
 // FIX: Added missing function to generate a recipe image.
 export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
-    // Sanitize the recipe name to remove potentially distracting brand names for the image prompt.
-    const cleanRecipeName = recipe.recipeName
+    // List of words that might confuse the image model
+    const problematicAdjectives = [
+        'magyaros', 'erdélyi', 'olasz', 'francia', 'spanyol', 'görög',
+        'bolgár', 'török', 'kínai', 'japán', 'thai', 'vietnámi', 'indiai',
+        'mexikói', 'amerikai', 'bajor', 'sváb', 'cigány'
+    ];
+
+    // Sanitize the recipe name for the image prompt
+    let cleanRecipeName = recipe.recipeName
         .replace(/CUCKOO/gi, '')
         .replace(/CROCK-POT/gi, '')
         .replace(/Monsieur Cuisine/gi, '')
@@ -263,11 +270,14 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
         .replace(/termomixerben/gi, '')
         .replace(/lassúfőzőben/gi, '')
         .replace(/okos rizsfőzőben/gi, '')
-        .replace(/- Ételfotó/gi, '')
-        .replace(/\s\s+/g, ' ')
-        .trim();
+        .replace(/- Ételfotó/gi, '');
+
+    // Remove problematic adjectives using a regex
+    const regex = new RegExp(`\\b(${problematicAdjectives.join('|')})\\b`, 'gi');
+    cleanRecipeName = cleanRecipeName.replace(regex, '').replace(/\s\s+/g, ' ').trim();
     
     const mealTypeLabel = MEAL_TYPES.find(m => m.value === recipe.mealType)?.label || '';
+    // Extract key visual ingredients
     const keyIngredients = recipe.ingredients.slice(0, 3).join(', ');
     
     const isIceCream = recipe.cookingMethods?.includes(CookingMethod.UNOLD_ICE_CREAM_MAKER) || recipe.recipeName.toLowerCase().includes('fagylalt');
@@ -285,7 +295,7 @@ Tálalás: A FAGYLALT legyen gusztusosan tálalva egy fagylaltos kehelyben, töl
 KRITIKUS SZABÁLYOK:
 1.  A KÉP TÁRGYA KIZÁRÓLAG FAGYLALT.
 2.  SZIGORÚAN TILOS tortát, süteményt, pitét, vagy bármilyen pékárut ábrázolni. Még akkor is, ha a hozzávalók (pl. csokoládé, gyümölcsök) közösek lehetnek, a végeredmény egy FAGYASZTOTT DESSZERT, azaz FAGYLALT.
-3.  A képen NEM SZEREPELHET semmilyen állat (kutya, macska), ember (kéz, arc), felirat, vagy rajzolt elem. Csak az étel.`;
+3.  A képen NEM SZEREPELHET semmilyen állat (kutya, macska), ember (kéz, arc), felirat, tájkép, épület vagy rajzolt elem. Csak az étel.`;
     } else {
         let servingStyle = 'egy letisztult, egyszerű tányéron';
         const isSoup = recipe.mealType === MealType.SOUP || recipe.recipeName.toLowerCase().includes('leves');
@@ -302,7 +312,7 @@ Téma: ÉTEL FOTÓZÁS - Egy profi, fotórealisztikus, magazin minőségű kép 
 
 Étel neve: "${cleanRecipeName}"
 Étel típusa: "${mealTypeLabel}"
-Főbb hozzávalók: "${keyIngredients}"
+Főbb vizuális hozzávalók: "${keyIngredients}"
 Rövid leírás: "${recipe.description}"
 
 Instrukciók a képhez:
@@ -310,7 +320,7 @@ Az elkészült étel legyen gusztusosan tálalva ${servingStyle}. A környezet l
 
 KRITIKUS ÉS MEGSZEGHETETLEN SZABÁLYOK:
 1.  **FŐ TÉMA AZ ÉTEL:** A kép KIZÁRÓLAG az elkészült ételt ábrázolja. Semmi mást.
-2.  **ÁLLATOK SZIGORÚAN TILOSAK:** A képen NEM SZEREPELHET semmilyen állat (kutya, macska, madár, stb.). A recept nevében esetlegesen szereplő földrajzi vagy egyéb nevek (pl. "erdélyi", "bajor") NEM utalnak állatokra. A kérés egy ételről szól, nem egy állatról.
+2.  **ÁLLATOK, TÁJKÉPEK SZIGORÚAN TILOSAK:** A képen NEM SZEREPELHET semmilyen állat (kutya, macska, madár, stb.), tájkép (hegy, tó, erdő), vagy épület (ház, vár). A recept nevében esetlegesen szereplő földrajzi vagy egyéb nevek NEM utalnak állatokra vagy helyszínekre. A kérés egy ételről szól, nem másról.
 3.  **EMBEREK TILOSAK:** Ne legyen a képen ember, kéz, arc vagy bármilyen testrész.
 4.  **NINCS SZÖVEG VAGY GRAFIKA:** Ne adj hozzá semmilyen feliratot, logót, vagy rajzolt elemet.
 5.  **FOTÓREALIZMUS:** A képnek valósághű ételfotónak kell lennie, nem festménynek vagy rajznak.
