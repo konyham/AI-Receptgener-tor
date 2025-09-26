@@ -92,7 +92,7 @@ export const addRecipeToFavorites = (recipe: Recipe, category: string): Favorite
 
   // Defensively create a copy and remove imageUrl to prevent localStorage quota issues.
   // This ensures the image is never stored, even if the calling component sends it.
-  const recipeToSave = { ...recipe };
+  const recipeToSave = { ...recipe, dateAdded: new Date().toISOString() };
   delete (recipeToSave as Partial<Recipe>).imageUrl;
 
   // Avoid adding duplicate recipes in the same category.

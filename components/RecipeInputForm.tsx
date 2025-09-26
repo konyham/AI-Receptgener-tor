@@ -94,26 +94,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const suggestionTimeoutRef = useRef<number | null>(null);
   const isSuggestingMealTypeRef = useRef(false);
 
-  // Effect to save the cooking method order whenever it changes.
-  useEffect(() => {
-    try {
-      const orderToSave = orderedCookingMethods.map(item => item.value);
-      safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, orderToSave);
-    } catch (err: any) {
-      console.warn("Could not save cooking method order:", err.message);
-    }
-  }, [orderedCookingMethods]);
-
-  // Effect to save the cuisine options order whenever it changes.
-  useEffect(() => {
-    try {
-      const orderToSave = orderedCuisineOptions.map(item => item.value);
-      safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, orderToSave);
-    } catch (err: any) {
-      console.warn("Could not save cuisine options order:", err.message);
-    }
-  }, [orderedCuisineOptions]);
-
   useEffect(() => {
     // Clear any existing timer
     if (suggestionTimeoutRef.current) {
@@ -497,6 +477,12 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         const draggedItemContent = newMethods.splice(dragItemIndex.current, 1)[0];
         newMethods.splice(dragOverItemIndex.current, 0, draggedItemContent);
         setOrderedCookingMethods(newMethods);
+        try {
+          const orderToSave = newMethods.map(item => item.value);
+          safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, orderToSave);
+        } catch (err: any) {
+          showNotification(err.message, 'info');
+        }
     }
     
     dragItemIndex.current = null;
@@ -522,6 +508,12 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         const draggedItemContent = newCuisines.splice(cuisineDragItemIndex.current, 1)[0];
         newCuisines.splice(cuisineDragOverItemIndex.current, 0, draggedItemContent);
         setOrderedCuisineOptions(newCuisines);
+        try {
+          const orderToSave = newCuisines.map(item => item.value);
+          safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, orderToSave);
+        } catch (err: any) {
+          showNotification(err.message, 'info');
+        }
     }
     
     cuisineDragItemIndex.current = null;
@@ -901,15 +893,15 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         {capacityInfo.length > 0 && (
           <div className="mt-2 space-y-2">
             {capacityInfo.map(({ method, capacity }) => (
-                <div key={method.value} className="flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 animate-fade-in">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                <div key={method.value} className={`flex items-start gap-2 p-2 rounded-lg text-sm transition-colors animate-fade-in ${numberOfServings > capacity ? 'bg-yellow-100 border border-yellow-300 text-yellow-900' : 'bg-blue-50 border border-blue-200 text-blue-800'}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 flex-shrink-0 mt-0.5 ${numberOfServings > capacity ? 'text-yellow-600' : 'text-blue-500'}`} viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                     </svg>
                     <span>
-                        Tájékoztató: A(z) <strong>{method.label}</strong> legfeljebb <strong>{capacity} személyre</strong> javasolt főzni.
+                        Tájékoztató: A(z) <strong>{method.label}</strong> legfeljebb <strong>{capacity} személyre</strong> javasolt.
                         {numberOfServings > capacity && (
                           <>
-                            {' '}A megadott <strong>{numberOfServings} fős</strong> adagot várhatóan <strong>{Math.ceil(numberOfServings / capacity)} részletben</strong> tudod majd elkészíteni.
+                            {' '}A megadott <strong>{numberOfServings} fős</strong> adagot várhatóan <strong>{Math.ceil(numberOfServings / capacity)} részletben</strong> tudja majd elkészíteni.
                           </>
                         )}
                     </span>

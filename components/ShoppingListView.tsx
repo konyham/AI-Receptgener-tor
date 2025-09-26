@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { ShoppingListItem } from '../types';
+import React, { useState, useRef } from 'react';
+import { ShoppingListItem, BackupData } from '../types';
+import * as favoritesService from '../services/favoritesService';
 import { useNotification } from '../contexts/NotificationContext';
 
 interface ShoppingListViewProps {
@@ -9,6 +10,7 @@ interface ShoppingListViewProps {
   onRemoveItem: (index: number) => void;
   onClearChecked: () => void;
   onClearAll: () => void;
+  onImportData: (data: BackupData) => void;
 }
 
 const ShoppingListView: React.FC<ShoppingListViewProps> = ({
@@ -18,9 +20,11 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   onRemoveItem,
   onClearChecked,
   onClearAll,
+  onImportData,
 }) => {
   const [newItem, setNewItem] = useState('');
   const { showNotification } = useNotification();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +60,59 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
       console.error('Hiba a vágólapra másolás közben:', err);
       showNotification('Nem sikerült a listát vágólapra másolni. Lehet, hogy a böngészője nem támogatja ezt a funkciót.', 'info');
     }
+  };
+
+  const handleExport = () => {
+    try {
+      const favorites = favoritesService.getFavorites().favorites;
+      const dataToExport: BackupData = { favorites, shoppingList: list };
+      const jsonData = JSON.stringify(dataToExport, null, 2);
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const date = new Date().toISOString().split('T')[0];
+      a.href = url;
+      a.download = `konyha_miki_mentes_${date}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showNotification('Adatok sikeresen exportálva!', 'success');
+    } catch (err: any) {
+      showNotification(`Hiba az exportálás során: ${err.message}`, 'info');
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const data = JSON.parse(text) as BackupData;
+
+        if (typeof data.favorites === 'object' && data.favorites !== null && Array.isArray(data.shoppingList)) {
+           if (window.confirm('Biztosan importálja az adatokat? Ezzel felülírja a jelenlegi kedvenceit és a bevásárlólistáját.')) {
+              onImportData(data);
+           }
+        } else {
+          throw new Error('A fájl formátuma érvénytelen.');
+        }
+      } catch (error: any) {
+        showNotification(`Hiba az importálás során: ${error.message}`, 'info');
+      } finally {
+        if (event.target) {
+            event.target.value = '';
+        }
+      }
+    };
+    reader.readAsText(file);
   };
   
   const checkedCount = list.filter(item => item.checked).length;
@@ -147,6 +204,16 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
             <p className="mt-1 text-sm text-gray-500">Adj hozzá tételeket manuálisan, vagy egy recept hozzávalóiból.</p>
         </div>
       )}
+      
+       <div className="border border-gray-200 rounded-lg shadow-sm p-4 mt-8">
+        <h3 className="text-lg font-semibold text-center text-primary-700 mb-3">Adatkezelés</h3>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button onClick={handleExport} className="flex-1 text-sm bg-white border border-primary-300 text-primary-700 font-semibold py-2 px-4 rounded-lg hover:bg-primary-50 transition-colors">Mentés fájlba</button>
+            <button onClick={handleImportClick} className="flex-1 text-sm bg-white border border-primary-300 text-primary-700 font-semibold py-2 px-4 rounded-lg hover:bg-primary-50 transition-colors">Betöltés fájlból...</button>
+            <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".json" className="hidden" />
+        </div>
+        <p className="text-xs text-center text-gray-500 mt-2">Mentse el vagy töltse be a kedvenceit és a bevásárlólistáját egyetlen fájlban.</p>
+      </div>
     </div>
   );
 };

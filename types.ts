@@ -18,6 +18,7 @@ export interface Recipe {
   // FIX: Add optional 'diet' and 'mealType' to the Recipe interface to resolve errors in RecipeDisplay.tsx.
   diet?: DietOption;
   mealType?: MealType;
+  dateAdded?: string; // Hozzáadva a dátum alapú rendezéshez
 }
 
 export enum DietOption {
@@ -166,4 +167,18 @@ export type AppCommandAction =
 export interface AppCommand {
     action: AppCommandAction;
     payload?: string | { recipeName: string; category: string };
+}
+
+// Új enum a kedvencek rendezési opcióihoz
+export enum SortOption {
+  DATE_DESC = 'date_desc',
+  DATE_ASC = 'date_asc',
+  NAME_ASC = 'name_asc',
+  NAME_DESC = 'name_desc',
+}
+
+// Interface for data backup/restore functionality
+export interface BackupData {
+  favorites: Favorites;
+  shoppingList: ShoppingListItem[];
 }

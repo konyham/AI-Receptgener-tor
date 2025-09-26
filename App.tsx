@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { Recipe, DietOption, MealType, Favorites, CookingMethod, RecipeSuggestions, ShoppingListItem, AppView, CuisineOption, RecipePace } from './types';
+import type { Recipe, DietOption, MealType, Favorites, CookingMethod, RecipeSuggestions, ShoppingListItem, AppView, CuisineOption, RecipePace, SortOption, BackupData } from './types';
 import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
@@ -13,6 +13,7 @@ import AppVoiceControl from './components/AppVoiceControl';
 import { useNotification } from './contexts/NotificationContext';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import { isLocalStorageAvailable } from './utils/storage';
+import { SortOption as SortOptionEnum } from './types'; // Enum importálása
 
 interface RecipeGenerationParams {
   ingredients: string;
@@ -31,8 +32,22 @@ interface RecipeGenerationParams {
 const App: React.FC = () => {
   const [page, setPage] = useState<AppView>('generator');
   const [recipe, setRecipe] = useState<Recipe | null>(null);
-  const [favorites, setFavorites] = useState<Favorites>({});
-  const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
+  const [favorites, setFavorites] = useState<Favorites>(() => {
+    try {
+      return favoritesService.getFavorites().favorites;
+    } catch (err) {
+      console.error("Hiba a kedvencek betöltésekor az inicializálás során:", err);
+      return {};
+    }
+  });
+  const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>(() => {
+    try {
+        return shoppingListService.getShoppingList().list;
+    } catch (err) {
+        console.error("Hiba a bevásárlólista betöltésekor az inicializálás során:", err);
+        return [];
+    }
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [storageError, setStorageError] = useState<string | null>(null);
@@ -41,9 +56,10 @@ const App: React.FC = () => {
   const [suggestions, setSuggestions] = useState<RecipeSuggestions | null>(null);
   const { showNotification } = useNotification();
 
-  // State lifted from FavoritesView for voice control
+  // State lifted from FavoritesView for voice control and sorting
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [sortOption, setSortOption] = useState<SortOption>(SortOptionEnum.DATE_DESC);
   
   // App-level voice control state
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
@@ -55,28 +71,25 @@ const App: React.FC = () => {
       setStorageError(
         "Az adatok mentése nem lehetséges, mert a böngésző helyi tárolója nem elérhető vagy le van tiltva. Kérjük, engedélyezze a 'sütiket' és a webhelyadatokat a böngésző beállításaiban a teljes funkcionalitás érdekében."
       );
+      return;
     }
     // Load favorites with resilience
     try {
-      const { favorites, recoveryNotification } = favoritesService.getFavorites();
-      setFavorites(favorites);
+      const { recoveryNotification } = favoritesService.getFavorites();
       if (recoveryNotification) {
           showNotification(recoveryNotification, 'info');
       }
     } catch (err: any) {
       showNotification(err.message, 'info');
-      setFavorites({}); // Start with empty favorites on unrecoverable corruption
     }
     // Load shopping list with resilience
     try {
-      const { list, recoveryNotification } = shoppingListService.getShoppingList();
-      setShoppingList(list);
+      const { recoveryNotification } = shoppingListService.getShoppingList();
        if (recoveryNotification) {
           showNotification(recoveryNotification, 'info');
       }
     } catch (err: any) {
       showNotification(err.message, 'info');
-      setShoppingList([]); // Start with empty list on unrecoverable corruption
     }
   }, [showNotification]);
 
@@ -347,6 +360,18 @@ const App: React.FC = () => {
     }
   };
 
+  const handleImportData = (data: BackupData) => {
+    try {
+      favoritesService.saveFavorites(data.favorites);
+      shoppingListService.saveShoppingList(data.shoppingList);
+      setFavorites(data.favorites);
+      setShoppingList(data.shoppingList);
+      showNotification('Adatok sikeresen importálva!', 'success');
+    } catch (err: any) {
+      showNotification(err.message, 'info');
+    }
+  };
+
   const showGenerator = () => {
     setRecipe(null);
     setSuggestions(null);
@@ -440,6 +465,9 @@ const App: React.FC = () => {
           onToggleCategory={(category) => setExpandedCategories(prev => ({...prev, [category]: !prev[category]}))}
           filterCategory={filterCategory}
           onSetFilterCategory={setFilterCategory}
+          sortOption={sortOption}
+          onSetSortOption={setSortOption}
+          onImportData={handleImportData}
         />
       );
     }
@@ -453,6 +481,7 @@ const App: React.FC = () => {
           onRemoveItem={handleShoppingListRemoveItem}
           onClearChecked={handleShoppingListClearChecked}
           onClearAll={handleShoppingListClearAll}
+          onImportData={handleImportData}
         />
       );
     }
