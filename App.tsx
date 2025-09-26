@@ -55,6 +55,7 @@ const App: React.FC = () => {
   const [initialFormData, setInitialFormData] = useState<Partial<RecipeGenerationParams> | null>(null);
   const [suggestions, setSuggestions] = useState<RecipeSuggestions | null>(null);
   const { showNotification } = useNotification();
+  const [shouldGenerateImageForFavorite, setShouldGenerateImageForFavorite] = useState<boolean>(false);
 
   // State lifted from FavoritesView for voice control and sorting
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
@@ -327,6 +328,15 @@ const App: React.FC = () => {
   };
 
   const viewFavoriteRecipe = (favRecipe: Recipe) => {
+    if (!favRecipe.imageUrl) {
+      if (window.confirm("Szeretne ételfotót generálni ehhez a recepthez? (Ez a művelet kvótát használ.)")) {
+        setShouldGenerateImageForFavorite(true);
+      } else {
+        setShouldGenerateImageForFavorite(false);
+      }
+    } else {
+      setShouldGenerateImageForFavorite(false);
+    }
     setRecipe(favRecipe);
     setPage('favorites');
   };
@@ -435,7 +445,7 @@ const App: React.FC = () => {
           onAddItemsToShoppingList={handleShoppingListAddItems}
           isLoading={isLoading}
           onRecipeUpdate={setRecipe}
-          shouldGenerateImageInitially={lastGenerationParams?.withImage ?? true}
+          shouldGenerateImageInitially={page === 'favorites' ? shouldGenerateImageForFavorite : (lastGenerationParams?.withImage ?? false)}
         />
       );
     }
