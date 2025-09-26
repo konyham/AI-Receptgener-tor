@@ -805,7 +805,7 @@ Recept generálva Konyha Miki segítségével!
               )}
           </div>
         </div>
-
+        
         <NutritionalInfo recipe={recipe} />
         <DiabeticAdvice advice={recipe.diabeticAdvice} />
 
