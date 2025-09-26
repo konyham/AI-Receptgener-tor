@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption } from '../types';
-import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES, CUISINE_OPTIONS } from '../constants';
+import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption, RecipePace } from '../types';
+import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES, CUISINE_OPTIONS, RECIPE_PACE_OPTIONS } from '../constants';
 import { interpretFormCommand, suggestMealType } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 import { safeSetLocalStorage } from '../utils/storage';
 
 interface RecipeInputFormProps {
-  onSubmit: (params: { ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number }) => void;
+  onSubmit: (params: { ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace }) => void;
   isLoading: boolean;
-  initialFormData?: Partial<{ ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number }> | null;
+  initialFormData?: Partial<{ ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace }> | null;
   onFormPopulated?: () => void;
   suggestions?: RecipeSuggestions | null;
 }
@@ -67,6 +67,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [diet, setDiet] = useState<DietOption>(DietOption.DIABETIC);
   const [mealType, setMealType] = useState<MealType>(MealType.LUNCH);
   const [cuisine, setCuisine] = useState<CuisineOption>(CuisineOption.NONE);
+  const [recipePace, setRecipePace] = useState<RecipePace>(RecipePace.NORMAL);
   const [cookingMethods, setCookingMethods] = useState<CookingMethod[]>([CookingMethod.TRADITIONAL]);
   const [specialRequest, setSpecialRequest] = useState('');
   const [numberOfServings, setNumberOfServings] = useState<number>(4);
@@ -175,6 +176,11 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
             setCuisine(initialFormData.cuisine);
         } else {
             setCuisine(CuisineOption.NONE); // Reset to default
+        }
+        if (initialFormData.recipePace !== undefined) {
+            setRecipePace(initialFormData.recipePace);
+        } else {
+            setRecipePace(RecipePace.NORMAL);
         }
         if (initialFormData.cookingMethods !== undefined && initialFormData.cookingMethods.length > 0) {
             setCookingMethods(initialFormData.cookingMethods);
@@ -418,6 +424,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         diet,
         mealType,
         cuisine,
+        recipePace,
         cookingMethods: orderedSelectedMethods,
         specialRequest,
         withCost,
@@ -700,6 +707,35 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
           rows={2}
           className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
         ></textarea>
+      </div>
+
+       <div>
+        <label className="block text-lg font-semibold text-gray-700 mb-2">
+          Recept jellege
+        </label>
+        <div className="space-y-2">
+          {RECIPE_PACE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              htmlFor={`recipe-pace-${option.value}`}
+              className="flex items-start p-3 border rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500"
+            >
+              <input
+                type="radio"
+                id={`recipe-pace-${option.value}`}
+                name="recipe-pace"
+                value={option.value}
+                checked={recipePace === option.value}
+                onChange={() => setRecipePace(option.value)}
+                className="h-5 w-5 mt-0.5 border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+              />
+              <div className="ml-3">
+                <span className="text-gray-800 font-medium block">{option.label}</span>
+                <span className="text-sm text-gray-500">{option.description}</span>
+              </div>
+            </label>
+          ))}
+        </div>
       </div>
 
        <div>

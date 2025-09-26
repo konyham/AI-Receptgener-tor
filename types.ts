@@ -75,6 +75,12 @@ export enum CookingMethod {
   REDMOND_SMART_COOKER = 'redmond_smart_cooker',
 }
 
+export enum RecipePace {
+  NORMAL = 'normal',
+  QUICK = 'quick',
+  SIMPLE = 'simple',
+}
+
 export enum VoiceCommand {
     NEXT = 'NEXT',
     STOP = 'STOP',

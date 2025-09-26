@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { Recipe, DietOption, MealType, Favorites, CookingMethod, RecipeSuggestions, ShoppingListItem, AppView, CuisineOption } from './types';
+import type { Recipe, DietOption, MealType, Favorites, CookingMethod, RecipeSuggestions, ShoppingListItem, AppView, CuisineOption, RecipePace } from './types';
 import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
@@ -25,6 +25,7 @@ interface RecipeGenerationParams {
   withCost: boolean;
   withImage: boolean;
   numberOfServings: number;
+  recipePace: RecipePace;
 }
 
 const App: React.FC = () => {
@@ -270,9 +271,10 @@ const App: React.FC = () => {
     setSuggestions(null); // Clear suggestions on new generation
     setLastGenerationParams(params);
     try {
-      const newRecipe = await generateRecipe(params.ingredients, params.excludedIngredients, params.diet, params.mealType, params.cuisine, params.cookingMethods, params.specialRequest, params.withCost, params.numberOfServings);
+      const newRecipe = await generateRecipe(params.ingredients, params.excludedIngredients, params.diet, params.mealType, params.cuisine, params.cookingMethods, params.specialRequest, params.withCost, params.numberOfServings, params.recipePace);
       setRecipe(newRecipe);
-      setPage('generator'); 
+      setPage('generator');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       setError(err.message || 'Ismeretlen hiba történt.');
     } finally {

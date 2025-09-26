@@ -1,6 +1,7 @@
 
 
-import { DietOption, MealType, CookingMethod, CuisineOption } from './types';
+
+import { DietOption, MealType, CookingMethod, CuisineOption, RecipePace } from './types';
 
 export const DIET_OPTIONS: { value: DietOption; label: string; description: string }[] = [
   { value: DietOption.NONE, label: 'Nincs megadva', description: 'Nem követ semmilyen speciális étrendet.' },
@@ -67,3 +68,9 @@ export const COOKING_METHOD_CAPACITIES: Record<CookingMethod, number | null> = {
   [CookingMethod.UNOLD_ICE_CREAM_MAKER]: 8,
   [CookingMethod.REDMOND_SMART_COOKER]: 10,
 };
+
+export const RECIPE_PACE_OPTIONS: { value: RecipePace; label: string; description: string }[] = [
+  { value: RecipePace.NORMAL, label: 'Normál', description: 'Kiegyensúlyozott recept, nincsenek különleges korlátozások.' },
+  { value: RecipePace.QUICK, label: 'Gyors', description: 'A lehető legrövidebb előkészítési és főzési időre optimalizálva.' },
+  { value: RecipePace.SIMPLE, label: 'Egyszerű', description: 'Kevés hozzávalót és egyszerű lépéseket igénylő recept.' },
+];

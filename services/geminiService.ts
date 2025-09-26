@@ -17,6 +17,7 @@ import {
   AppCommand,
   AppCommandAction,
   CuisineOption,
+  RecipePace,
 } from '../types';
 
 // FIX: Initialize the GoogleGenAI client with API key from environment variables as per guidelines.
@@ -80,7 +81,8 @@ export const generateRecipe = async (
   cookingMethods: CookingMethod[],
   specialRequest: string,
   withCost: boolean,
-  numberOfServings: number
+  numberOfServings: number,
+  recipePace: RecipePace
 ): Promise<Recipe> => {
   const dietLabel = DIET_OPTIONS.find((d) => d.value === diet)?.label || '';
   const mealTypeLabel =
@@ -125,6 +127,12 @@ export const generateRecipe = async (
   }
   if (specialRequest.trim()) {
     prompt += ` A receptnek a következő különleges kérésnek is meg kell felelnie: ${specialRequest.trim()}.`;
+  }
+
+  if (recipePace === RecipePace.QUICK) {
+    prompt += ` Különös hangsúlyt fektess arra, hogy a recept a lehető leggyorsabban elkészíthető legyen (alacsony előkészítési és főzési idő).`;
+  } else if (recipePace === RecipePace.SIMPLE) {
+    prompt += ` A recept a lehető legkevesebb hozzávalóból álljon, és az elkészítése legyen rendkívül egyszerű.`;
   }
 
   if (diet === DietOption.DIABETIC) {
