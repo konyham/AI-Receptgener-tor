@@ -68,6 +68,7 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
   const { showNotification } = useNotification();
   const audioContextRef = useRef<AudioContext | null>(null);
   const alarmIntervalRef = useRef<number | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
   
   // Web Audio API implementation for reliable sound
   const playAlarm = () => {
@@ -156,6 +157,50 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
     setIsAlarming(false);
     stopListening();
   };
+
+  const handleClose = useCallback(() => {
+    stopAlarm();
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    const modalElement = modalRef.current;
+    if (modalElement) {
+        const focusableElements = modalElement.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (firstElement) {
+            firstElement.focus();
+        }
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                handleClose();
+            }
+            if (event.key === 'Tab') {
+                if (event.shiftKey) { // Shift+Tab
+                    if (document.activeElement === firstElement) {
+                        lastElement.focus();
+                        event.preventDefault();
+                    }
+                } else { // Tab
+                    if (document.activeElement === lastElement) {
+                        firstElement.focus();
+                        event.preventDefault();
+                    }
+                }
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }
+  }, [handleClose]);
   
   useEffect(() => {
     let interval: number | null = null;
@@ -222,11 +267,6 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
     setTime(600);
   };
 
-  const handleClose = () => {
-    stopAlarm();
-    onClose();
-  };
-
   const formatTime = (totalSeconds: number) => {
     const h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
@@ -237,7 +277,7 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="timer-title">
-      <div className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-md">
+      <div ref={modalRef} className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-md">
         <h2 id="timer-title" className="text-2xl font-bold text-primary-800 mb-4 text-center">Konyhai Időzítő</h2>
         
         {isActive || isAlarming ? (

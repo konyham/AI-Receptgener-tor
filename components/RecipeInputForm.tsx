@@ -74,7 +74,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [withImage, setWithImage] = useState(false);
   
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [voiceControlActive, setVoiceControlActive] = useState(true);
+  const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
   const [hasSavedIngredients, setHasSavedIngredients] = useState(false);
 
   const [orderedCookingMethods, setOrderedCookingMethods] = useState(() => loadAndOrder(COOKING_METHODS_ORDER_KEY, COOKING_METHODS));
@@ -356,11 +356,11 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         let errorMessage = "Hiba a hangparancs értelmezése közben.";
         const errorString = (typeof error.message === 'string') ? error.message : JSON.stringify(error);
         
-        if (errorString.includes('RESOURCE_EXHAUSTED') || errorString.includes('429')) {
+        if (errorString.toLowerCase().includes('resource_exhausted') || errorString.includes('429') || errorString.toLowerCase().includes('quota')) {
             errorMessage = "Túl sok kérés. A hangvezérlés 15 másodpercre szünetel.";
-            setVoiceControlActive(false); // Automatically pause voice control
+            setIsRateLimited(true);
             setTimeout(() => {
-                setVoiceControlActive(true);
+                setIsRateLimited(false);
                 showNotification("A hangvezérlés újra aktív.", 'success');
             }, 15000); // Re-enable after 15 seconds
         }
@@ -382,16 +382,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     continuous: false,
     onError: handleSpeechError,
   });
-
-  useEffect(() => {
-    if (voiceControlActive && !isLoading && permissionState !== 'denied') {
-      if (!isListening) {
-        startListening();
-      }
-    } else if (isListening) {
-      stopListening();
-    }
-  }, [voiceControlActive, isLoading, isListening, startListening, stopListening, permissionState]);
 
   const removeIngredient = (indexToRemove: number) => {
       setIngredients(ingredients.filter((_, index) => index !== indexToRemove));
@@ -444,10 +434,13 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     triggerSubmit();
   };
   
-  const handleToggleListening = () => {
-      if (isSupported && permissionState !== 'denied') {
-          setVoiceControlActive(prev => !prev);
-      }
+  const handleMicClick = () => {
+    if (!isSupported || permissionState === 'denied' || isRateLimited) return;
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
   };
 
   const handleCookingMethodChange = (method: CookingMethod) => {
@@ -579,17 +572,19 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
        {isSupported && (
          <button
             type="button"
-            onClick={handleToggleListening}
-            disabled={permissionState === 'denied'}
+            onClick={handleMicClick}
+            disabled={permissionState === 'denied' || isLoading || isRateLimited}
             className={`w-full text-center p-3 rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 ${
                 permissionState === 'denied' 
                 ? 'bg-red-50 border-red-200 cursor-not-allowed' 
+                : isRateLimited
+                ? 'bg-yellow-50 border-yellow-300 cursor-not-allowed'
                 : 'bg-primary-100 border-primary-200 hover:bg-primary-200'
             }`}
-            aria-label={voiceControlActive ? "Hangvezérlés szüneteltetése" : "Hangvezérlés folytatása"}
+            aria-label={isListening ? "Hangvezérlés leállítása" : "Hangvezérlés indítása"}
         >
             <div className="flex justify-center items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${permissionState === 'denied' ? 'text-red-500' : (voiceControlActive && isListening && !isProcessing ? 'text-red-500 animate-pulse' : 'text-primary-700')}`} viewBox="0 0 20 20" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${permissionState === 'denied' ? 'text-red-500' : (isListening && !isProcessing ? 'text-red-500 animate-pulse' : 'text-primary-700')}`} viewBox="0 0 20 20" fill="currentColor">
                     {permissionState === 'denied' ? (
                         <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.523L13.477 14.89zm-2.02-2.02l-7.07-7.07A6.024 6.024 0 004 10v.789l.375.375 2.121 2.121L8.28 15h.789a6.002 6.002 0 006.33-4.885l-1.99 1.99zM10 18a8 8 0 100-16 8 8 0 000 16z" clipRule="evenodd" />
                     ) : (
@@ -603,7 +598,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
                     <p className="font-semibold text-red-800">Mikrofon letiltva</p>
                 ) : (
                     <p className="font-semibold text-primary-800">
-                        {voiceControlActive ? (isProcessing ? 'Értelmezés...' : (isListening ? 'Hallgatom...' : 'Indítás...')) : 'Hangvezérlés szünetel'}
+                        {isRateLimited ? 'Pihenés... (15s)' : (isProcessing ? 'Értelmezés...' : (isListening ? 'Hallgatom...' : 'Hangvezérlés'))}
                     </p>
                 )}
             </div>
@@ -611,7 +606,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
                 <p className="text-sm mt-1 text-red-700">A hangvezérléshez engedélyezze a mikrofon használatát a böngésző címsorában.</p>
             ) : (
                 <p className="text-sm mt-1 text-primary-600">
-                    {voiceControlActive ? 'Mondja be a hozzávalókat, diétát, vagy hogy "jöhet a recept".' : 'Kattintson ide a hangvezérlés folytatásához.'}
+                    {isRateLimited ? 'Túl sok kérés történt, a funkció átmenetileg szünetel.' : 'Kattintson és mondja be a hozzávalókat, diétát, vagy hogy "jöhet a recept".'}
                 </p>
             )}
         </button>
@@ -825,7 +820,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
                 <label 
                     key={option.value} 
                     htmlFor={`cuisine-option-${option.value}`} 
-                    className={`flex items-center p-3 border rounded-lg bg-white cursor-grab hover:bg-gray-50 transition-all duration-200 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 ${
+                    className={`flex items-center p-3 border rounded-lg bg-white cursor-grab hover:bg-gray-50 transition-all duration-200 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500 ${
                         isCuisineDragging && cuisineDragItemIndex.current === index ? 'opacity-40 scale-105 shadow-xl' : 'opacity-100'
                     }`}
                     draggable
@@ -861,7 +856,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
                 <label 
                     key={option.value} 
                     htmlFor={`cooking-method-${option.value}`} 
-                    className={`flex items-center p-3 border rounded-lg bg-white cursor-grab hover:bg-gray-50 transition-all duration-200 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 ${
+                    className={`flex items-center p-3 border rounded-lg bg-white cursor-grab hover:bg-gray-50 transition-all duration-200 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500 ${
                         isDragging && dragItemIndex.current === index ? 'opacity-40 scale-105 shadow-xl' : 'opacity-100'
                     }`}
                     draggable

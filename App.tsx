@@ -45,8 +45,8 @@ const App: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   
   // App-level voice control state
-  const [isAppVoiceControlActive, setIsAppVoiceControlActive] = useState(true);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [isAppRateLimited, setIsAppRateLimited] = useState(false);
   const isProcessingRef = useRef(false);
 
   useEffect(() => {
@@ -222,11 +222,11 @@ const App: React.FC = () => {
         let errorMessage = 'Hiba a parancs értelmezésekor.';
         const errorString = (typeof err.message === 'string') ? err.message : JSON.stringify(err);
 
-        if (errorString.includes('RESOURCE_EXHAUSTED') || errorString.includes('429')) {
+        if (errorString.toLowerCase().includes('resource_exhausted') || errorString.includes('429') || errorString.toLowerCase().includes('quota')) {
             errorMessage = "Túl sok kérés. A hangvezérlés 15 másodpercre szünetel.";
-            setIsAppVoiceControlActive(false);
+            setIsAppRateLimited(true);
             setTimeout(() => {
-              setIsAppVoiceControlActive(true)
+              setIsAppRateLimited(false);
               showNotification("A hangvezérlés újra aktív.", 'success');
             }, 15000); // Re-enable after 15 seconds
         }
@@ -255,15 +255,13 @@ const App: React.FC = () => {
     onError: handleAppSpeechError,
   });
 
-  useEffect(() => {
-    // This voice control is only active on the main list pages, not during recipe generation or display.
-    const isAppPage = (page === 'favorites' || page === 'shopping-list') && !recipe;
-    if (isAppVoiceControlActive && isAppPage && !isAppListening) {
-      startAppListening();
-    } else if ((!isAppVoiceControlActive || !isAppPage) && isAppListening) {
+  const handleAppMicClick = () => {
+    if (isAppListening) {
       stopAppListening();
+    } else {
+      startAppListening();
     }
-  }, [isAppVoiceControlActive, page, recipe, isAppListening, startAppListening, stopAppListening]);
+  };
 
   const handleGenerateRecipe = async (params: RecipeGenerationParams) => {
     setIsLoading(true);
@@ -488,11 +486,11 @@ const App: React.FC = () => {
             {(page === 'favorites' || page === 'shopping-list') && !recipe && (
                  <AppVoiceControl
                     isSupported={isVoiceSupported}
-                    isActive={isAppVoiceControlActive}
                     isListening={isAppListening}
                     isProcessing={isProcessingVoice}
-                    onToggle={() => setIsAppVoiceControlActive(prev => !prev)}
+                    onClick={handleAppMicClick}
                     permissionState={permissionState}
+                    isRateLimited={isAppRateLimited}
                 />
             )}
           <div className="bg-white p-6 md:p-8 rounded-2xl shadow-lg border border-gray-200">

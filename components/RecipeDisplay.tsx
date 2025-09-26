@@ -219,7 +219,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isInterpreting, setIsInterpreting] = useState(false);
-  const [voiceControlActive, setVoiceControlActive] = useState(true);
+  const [isRateLimited, setIsRateLimited] = useState(false);
   const [isTimerOpen, setIsTimerOpen] = useState(false);
   const [timerInitialValues, setTimerInitialValues] = useState<{ hours?: number; minutes?: number; seconds?: number } | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
@@ -239,7 +239,6 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const [recipeTextToCopy, setRecipeTextToCopy] = useState('');
 
 
-  const debounceTimerRef = useRef<number | null>(null);
   const isInterpretingRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const { showNotification } = useNotification();
@@ -281,83 +280,83 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     }
   }, [showNotification]);
 
-  const handleVoiceResult = useCallback((transcript: string) => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
+  const handleVoiceResult = useCallback(async (transcript: string) => {
+    if (isInterpretingRef.current) return;
+    
+    isInterpretingRef.current = true;
     setIsInterpreting(true);
 
-    debounceTimerRef.current = window.setTimeout(async () => {
-      if (isInterpretingRef.current) return;
+    try {
+      const { command, payload } = await interpretUserCommand(transcript);
+      let notificationMessage = '';
 
-      isInterpretingRef.current = true;
-      try {
-        const { command, payload } = await interpretUserCommand(transcript);
-        let notificationMessage = '';
-
-        switch (command) {
-          case VoiceCommand.STOP:
-            notificationMessage = 'Parancs: Felolvasás leállítva';
-            setVoiceMode('idle');
-            break;
-          case VoiceCommand.NEXT:
-            notificationMessage = 'Parancs: Következő';
-            if (voiceMode === 'ingredients' || voiceMode === 'cooking') {
-              setCurrentStepIndex((prev) => prev + 1);
-            }
-            break;
-          case VoiceCommand.READ_INTRO:
-            notificationMessage = 'Parancs: Leírás felolvasása';
-            setVoiceMode('intro');
-            break;
-          case VoiceCommand.READ_INGREDIENTS:
-            notificationMessage = 'Parancs: Hozzávalók felolvasása';
-            setCurrentStepIndex(0);
-            setVoiceMode('ingredients');
-            break;
-          case VoiceCommand.START_COOKING:
-            notificationMessage = 'Parancs: Főzés indítása';
-            setCurrentStepIndex(0);
-            setVoiceMode('cooking');
-            break;
-          case VoiceCommand.START_TIMER:
-            if (payload) {
-              const { hours = 0, minutes = 0, seconds = 0 } = payload;
-              const timeParts = [];
-              if (hours > 0) timeParts.push(`${hours} óra`);
-              if (minutes > 0) timeParts.push(`${minutes} perc`);
-              if (seconds > 0) timeParts.push(`${seconds} másodperc`);
-              notificationMessage = `Időzítő indítása: ${timeParts.join(' ')}`;
-              setTimerInitialValues(payload);
-              setIsTimerOpen(true);
-            }
-            break;
-          default:
-            break;
-        }
-
-        if (notificationMessage) {
-          showNotification(notificationMessage, 'info');
-        }
-
-      } catch (error: any) {
-        console.error("Error processing voice command:", error);
-        let errorMessage = "Hiba a hangparancs feldolgozása közben.";
-        // Check for specific API rate limit error
-        if (typeof error.message === 'string' && error.message.includes('RESOURCE_EXHAUSTED')) {
-          errorMessage = "Túl sok kérés. A hangvezérlés szünetel.";
-          setVoiceControlActive(false); // Automatically pause voice control
-        }
-        showNotification(errorMessage, 'info');
-      } finally {
-        isInterpretingRef.current = false;
-        setIsInterpreting(false);
+      switch (command) {
+        case VoiceCommand.STOP:
+          notificationMessage = 'Parancs: Felolvasás leállítva';
+          setVoiceMode('idle');
+          break;
+        case VoiceCommand.NEXT:
+          notificationMessage = 'Parancs: Következő';
+          if (voiceMode === 'ingredients' || voiceMode === 'cooking') {
+            const list = voiceMode === 'ingredients' ? recipe.ingredients : recipe.instructions;
+            setCurrentStepIndex((prev) => (prev < list.length - 1 ? prev + 1 : prev));
+          }
+          break;
+        case VoiceCommand.READ_INTRO:
+          notificationMessage = 'Parancs: Leírás felolvasása';
+          setVoiceMode('intro');
+          break;
+        case VoiceCommand.READ_INGREDIENTS:
+          notificationMessage = 'Parancs: Hozzávalók felolvasása';
+          setCurrentStepIndex(0);
+          setVoiceMode('ingredients');
+          break;
+        case VoiceCommand.START_COOKING:
+          notificationMessage = 'Parancs: Főzés indítása';
+          setCurrentStepIndex(0);
+          setVoiceMode('cooking');
+          break;
+        case VoiceCommand.START_TIMER:
+          if (payload) {
+            const { hours = 0, minutes = 0, seconds = 0 } = payload;
+            const timeParts = [];
+            if (hours > 0) timeParts.push(`${hours} óra`);
+            if (minutes > 0) timeParts.push(`${minutes} perc`);
+            if (seconds > 0) timeParts.push(`${seconds} másodperc`);
+            notificationMessage = `Időzítő indítása: ${timeParts.join(' ')}`;
+            setTimerInitialValues(payload);
+            setIsTimerOpen(true);
+          }
+          break;
+        default:
+          break;
       }
-    }, 2000); // 2-second delay
-  }, [voiceMode, showNotification]);
+
+      if (notificationMessage) {
+        showNotification(notificationMessage, 'info');
+      }
+
+    } catch (error: any) {
+      console.error("Error processing voice command:", error);
+      let errorMessage = "Hiba a hangparancs feldolgozása közben.";
+      const errorString = (typeof error.message === 'string') ? error.message : JSON.stringify(error);
+      if (errorString.toLowerCase().includes('resource_exhausted') || errorString.includes('429') || errorString.toLowerCase().includes('quota')) {
+        errorMessage = "Túl sok kérés. A hangvezérlés 15 másodpercre szünetel.";
+        setIsRateLimited(true);
+        setTimeout(() => {
+            setIsRateLimited(false);
+            showNotification("A hangvezérlés újra aktív.", 'success');
+        }, 15000);
+      }
+      showNotification(errorMessage, 'info');
+    } finally {
+      isInterpretingRef.current = false;
+      setIsInterpreting(false);
+    }
+  }, [voiceMode, showNotification, recipe.ingredients, recipe.instructions]);
 
   const { 
+    isListening,
     isSupported: recognitionIsSupported, 
     startListening, 
     stopListening,
@@ -372,14 +371,12 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const isSupported = recognitionIsSupported && synthesisIsSupported;
 
   useEffect(() => {
-    if (!isSupported || !voiceControlActive || permissionState === 'denied') {
+    if (!isSupported || permissionState === 'denied') {
       window.speechSynthesis.cancel();
-      stopListening();
       return;
     }
 
     const speak = (text: string, onEndCallback?: () => void) => {
-      stopListening();
       window.speechSynthesis.cancel();
       isSpeakingRef.current = true;
       const utterance = new SpeechSynthesisUtterance(text);
@@ -402,7 +399,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         if (currentStepIndex >= recipe.ingredients.length) {
           speak('Végeztél a hozzávalókkal. Mondd, hogy "főzés indítása" a folytatáshoz.', () => setVoiceMode('idle'));
         } else {
-          speak(`${currentStepIndex + 1}. hozzávaló: ${recipe.ingredients[currentStepIndex]}`, startListening);
+          speak(`${currentStepIndex + 1}. hozzávaló: ${recipe.ingredients[currentStepIndex]}`);
         }
         break;
 
@@ -410,45 +407,33 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         if (currentStepIndex >= recipe.instructions.length) {
           speak('Elkészültél a főzéssel. Jó étvágyat!', () => setVoiceMode('idle'));
         } else {
-          speak(`${currentStepIndex + 1}. lépés: ${recipe.instructions[currentStepIndex]}`, startListening);
+          speak(`${currentStepIndex + 1}. lépés: ${recipe.instructions[currentStepIndex]}`);
         }
         break;
     
       case 'idle':
         window.speechSynthesis.cancel();
-        if (!isSpeakingRef.current && !isInterpretingRef.current) {
-            startListening();
-        }
         break;
     }
 
-    return () => {
-      window.speechSynthesis.cancel();
+  }, [voiceMode, currentStepIndex, recipe, isSupported, permissionState]);
+
+  const handleMicClick = () => {
+    if (isListening) {
       stopListening();
-    };
-  }, [voiceMode, currentStepIndex, recipe, isSupported, voiceControlActive, permissionState, startListening, stopListening]);
-
-
-  const handleToggleVoiceControl = () => {
-      setVoiceControlActive(prev => {
-          if (prev) {
-            setVoiceMode('idle');
-          }
-          return !prev;
-      });
+    } else if (!isSpeakingRef.current) {
+      startListening();
+    }
   };
 
   const handleReadIntro = () => {
-    if (!voiceControlActive) setVoiceControlActive(true);
     setVoiceMode('intro');
   };
   const handleReadIngredients = () => {
-    if (!voiceControlActive) setVoiceControlActive(true);
     setCurrentStepIndex(0);
     setVoiceMode('ingredients');
   };
   const handleStartCooking = () => {
-    if (!voiceControlActive) setVoiceControlActive(true);
     setCurrentStepIndex(0);
     setVoiceMode('cooking');
   };
@@ -820,7 +805,7 @@ Recept generálva Konyha Miki segítségével!
             {isSupported ? (
                 <div className="my-6 p-4 bg-primary-50 border border-primary-200 rounded-lg space-y-4 no-print">
                     <div className="flex items-center justify-center gap-2 text-primary-800">
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${permissionState === 'denied' ? 'text-red-500' : (voiceControlActive && isActivelySpeaking ? 'text-red-500 animate-pulse' : 'text-primary-700')}`} viewBox="0 0 20 20" fill="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${permissionState === 'denied' ? 'text-red-500' : (isListening ? 'text-red-500 animate-pulse' : 'text-primary-700')}`} viewBox="0 0 20 20" fill="currentColor">
                            {permissionState === 'denied' ? (
                                 <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.523L13.477 14.89zm-2.02-2.02l-7.07-7.07A6.024 6.024 0 004 10v.789l.375.375 2.121 2.121L8.28 15h.789a6.002 6.002 0 006.33-4.885l-1.99 1.99zM10 18a8 8 0 100-16 8 8 0 000 16z" clipRule="evenodd" />
                             ) : (
@@ -835,21 +820,23 @@ Recept generálva Konyha Miki segítségével!
                      <p className="text-center text-sm text-primary-700">
                        {permissionState === 'denied'
                           ? <span className="text-red-600 font-semibold">A mikrofon használata le van tiltva. Engedélyezze a böngésző beállításaiban.</span>
-                          : voiceControlActive
-                          ? isInterpreting
+                          : isRateLimited 
+                          ? <span className="text-yellow-700 font-semibold">Túl sok kérés, a funkció 15 másodpercre szünetel.</span>
+                          : isInterpreting
                             ? 'Parancs értelmezése...'
-                            : isActivelySpeaking
+                            : isSpeakingRef.current
                             ? 'Recept felolvasása...'
-                            : 'Hallgatom a parancsot... (pl. "következő", "időzítő 5 percre")'
-                          : 'A hangvezérlés szünetel.'}
+                            : isListening 
+                            ? 'Hallgatom a parancsot...'
+                            : 'Kattintson a Hangparancs gombra és mondja ki a parancsot.'}
                     </p>
                     <div className="flex flex-wrap justify-center gap-3">
-                        <button onClick={handleToggleVoiceControl} className={`font-semibold py-2 px-4 rounded-lg transition-colors text-sm ${voiceControlActive ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-primary-200 text-primary-800 hover:bg-primary-300'}`}>
-                            {voiceControlActive ? 'Leállítás' : 'Aktiválás'}
+                        <button onClick={handleMicClick} disabled={isActivelySpeaking || permissionState === 'denied' || isRateLimited} className="font-semibold py-2 px-4 rounded-lg transition-colors text-sm bg-primary-200 text-primary-800 hover:bg-primary-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                            {isListening ? 'Leállítás' : 'Hangparancs'}
                         </button>
-                        <button onClick={handleReadIntro} disabled={isActivelySpeaking || permissionState === 'denied'} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Leírás</button>
-                        <button onClick={handleReadIngredients} disabled={isActivelySpeaking || permissionState === 'denied'} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Hozzávalók</button>
-                        <button onClick={handleStartCooking} disabled={isActivelySpeaking || permissionState === 'denied'} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Főzés</button>
+                        <button onClick={handleReadIntro} disabled={isActivelySpeaking || permissionState === 'denied' || isRateLimited} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Leírás</button>
+                        <button onClick={handleReadIngredients} disabled={isActivelySpeaking || permissionState === 'denied' || isRateLimited} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Hozzávalók</button>
+                        <button onClick={handleStartCooking} disabled={isActivelySpeaking || permissionState === 'denied' || isRateLimited} className="font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm">Főzés</button>
                     </div>
                 </div>
             ) : null }

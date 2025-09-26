@@ -4,31 +4,29 @@ type PermissionState = 'prompt' | 'granted' | 'denied' | 'checking';
 
 interface AppVoiceControlProps {
   isSupported: boolean;
-  isActive: boolean;
   isListening: boolean;
   isProcessing: boolean;
-  onToggle: () => void;
+  onClick: () => void;
   permissionState: PermissionState;
+  isRateLimited: boolean;
 }
 
 const AppVoiceControl: React.FC<AppVoiceControlProps> = ({
   isSupported,
-  isActive,
   isListening,
   isProcessing,
-  onToggle,
+  onClick,
   permissionState,
+  isRateLimited,
 }) => {
   if (!isSupported) {
     return null;
   }
 
-  let statusText = 'Hangvezérlés szünetel';
-  if (isActive) {
-    if (isProcessing) statusText = 'Parancs értelmezése...';
-    else if (isListening) statusText = 'Hallgatom...';
-    else statusText = 'Hangvezérlés indítása...';
-  }
+  let statusText = 'Alkalmazás hangvezérlése';
+  if (isRateLimited) statusText = 'Pihenés... (15s)';
+  else if (isProcessing) statusText = 'Értelmezés...';
+  else if (isListening) statusText = 'Hallgatom...';
 
   if (permissionState === 'denied') {
     statusText = 'Mikrofon letiltva';
@@ -38,19 +36,19 @@ const AppVoiceControl: React.FC<AppVoiceControlProps> = ({
     <div className="mb-4">
       <button
         type="button"
-        onClick={onToggle}
-        disabled={permissionState === 'denied'}
+        onClick={onClick}
+        disabled={permissionState === 'denied' || isRateLimited}
         className={`w-full text-center p-3 rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 ${
           permissionState === 'denied'
             ? 'bg-red-50 border-red-200 cursor-not-allowed'
-            : isActive
-            ? 'bg-primary-100 border-primary-200 hover:bg-primary-200'
-            : 'bg-gray-100 border-gray-200 hover:bg-gray-200'
+            : isRateLimited
+            ? 'bg-yellow-50 border-yellow-300 cursor-not-allowed'
+            : 'bg-primary-100 border-primary-200 hover:bg-primary-200'
         }`}
-        aria-label={isActive ? 'Hangvezérlés szüneteltetése' : 'Hangvezérlés aktiválása'}
+        aria-label="Alkalmazás hangvezérlése"
       >
         <div className="flex justify-center items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${permissionState === 'denied' ? 'text-red-500' : (isActive && isListening && !isProcessing ? 'text-red-500 animate-pulse' : 'text-primary-700')}`} viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${permissionState === 'denied' ? 'text-red-500' : (isListening && !isProcessing ? 'text-red-500 animate-pulse' : 'text-primary-700')}`} viewBox="0 0 20 20" fill="currentColor">
                 {permissionState === 'denied' ? (
                     <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.523L13.477 14.89zm-2.02-2.02l-7.07-7.07A6.024 6.024 0 004 10v.789l.375.375 2.121 2.121L8.28 15h.789a6.002 6.002 0 006.33-4.885l-1.99 1.99zM10 18a8 8 0 100-16 8 8 0 000 16z" clipRule="evenodd" />
                 ) : (
@@ -68,7 +66,7 @@ const AppVoiceControl: React.FC<AppVoiceControlProps> = ({
              <p className="text-sm mt-1 text-red-700">A hangvezérléshez engedélyezze a mikrofon használatát a böngésző címsorában.</p>
         ) : (
              <p className="text-sm mt-1 text-primary-600">
-                Parancsok: "Menj a...", "Adj hozzá...", "Szűrj a..."
+                {isRateLimited ? 'Túl sok kérés történt, a funkció átmenetileg szünetel.' : 'Parancsok: "Menj a...", "Adj hozzá...", "Szűrj a..."'}
             </p>
         )}
       </button>

@@ -8,6 +8,7 @@ interface ShareFallbackModalProps {
 
 const ShareFallbackModal: React.FC<ShareFallbackModalProps> = ({ isOpen, onClose, textToCopy }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && textareaRef.current) {
@@ -16,10 +17,57 @@ const ShareFallbackModal: React.FC<ShareFallbackModalProps> = ({ isOpen, onClose
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const modalElement = modalRef.current;
+    
+    const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+            onClose();
+        }
+        
+        if (event.key === 'Tab' && modalElement) {
+            const focusableElements = Array.from(modalElement.querySelectorAll<HTMLElement>(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            // FIX: Explicitly type `el` as HTMLElement to resolve `offsetParent` property access error.
+            )).filter((el: HTMLElement) => el.offsetParent !== null); // Filter for visible elements
+            
+            const firstElement = focusableElements[0];
+            const lastElement = focusableElements[focusableElements.length - 1];
+
+            if (event.shiftKey) { // Shift+Tab
+                if (document.activeElement === firstElement) {
+                    // FIX: Use an instanceof check to narrow the type from `unknown` to `HTMLElement` before calling `.focus()`.
+                    if (lastElement instanceof HTMLElement) {
+                        lastElement.focus();
+                    }
+                    event.preventDefault();
+                }
+            } else { // Tab
+                if (document.activeElement === lastElement) {
+                    // FIX: Use an instanceof check to narrow the type from `unknown` to `HTMLElement` before calling `.focus()`.
+                    if (firstElement instanceof HTMLElement) {
+                        firstElement.focus();
+                    }
+                    event.preventDefault();
+                }
+            }
+        }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+    };
+}, [isOpen, onClose]);
+
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="share-fallback-title">
+    <div ref={modalRef} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="share-fallback-title">
       <div className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-lg">
         <h2 id="share-fallback-title" className="text-xl font-bold text-primary-800 mb-2">Recept manuális másolása</h2>
         <p className="text-gray-600 mb-4">A böngészője nem támogatja az automatikus másolást. Kérjük, jelölje ki a szöveget és használja a <kbd className="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">Ctrl+C</kbd> (vagy <kbd className="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">Cmd+C</kbd>) billentyűkombinációt.</p>

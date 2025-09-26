@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface SaveToFavoritesModalProps {
   isOpen: boolean;
@@ -11,6 +11,64 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
   const [selectedCategory, setSelectedCategory] = useState(existingCategories[0] || '');
   const [newCategory, setNewCategory] = useState('');
   const [isCreatingNew, setIsCreatingNew] = useState(existingCategories.length === 0);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const modalElement = modalRef.current;
+    
+    const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+            onClose();
+        }
+        
+        if (event.key === 'Tab' && modalElement) {
+            const focusableElements = Array.from(modalElement.querySelectorAll<HTMLElement>(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            // FIX: Explicitly type `el` as HTMLElement to resolve `offsetParent` property access error.
+            )).filter((el: HTMLElement) => el.offsetParent !== null); // Filter for visible elements
+            
+            const firstElement = focusableElements[0];
+            const lastElement = focusableElements[focusableElements.length - 1];
+
+            if (event.shiftKey) { // Shift+Tab
+                if (document.activeElement === firstElement) {
+                    // FIX: Use an instanceof check to narrow the type from `unknown` to `HTMLElement` before calling `.focus()`.
+                    if (lastElement instanceof HTMLElement) {
+                        lastElement.focus();
+                    }
+                    event.preventDefault();
+                }
+            } else { // Tab
+                if (document.activeElement === lastElement) {
+                    // FIX: Use an instanceof check to narrow the type from `unknown` to `HTMLElement` before calling `.focus()`.
+                    if (firstElement instanceof HTMLElement) {
+                        firstElement.focus();
+                    }
+                    event.preventDefault();
+                }
+            }
+        }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    
+    // Focus first element on open
+    if (modalElement) {
+        const firstFocusable = modalElement.querySelector<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (firstFocusable) {
+            firstFocusable.focus();
+        }
+    }
+
+    return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+    };
+}, [isOpen, onClose]);
+
 
   if (!isOpen) return null;
 
@@ -31,7 +89,7 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="save-modal-title">
-      <div className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-sm">
+      <div ref={modalRef} className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-sm">
         <h2 id="save-modal-title" className="text-2xl font-bold text-primary-800 mb-4">Mentés a kedvencekbe</h2>
         
         <div className="space-y-4">

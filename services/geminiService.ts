@@ -279,29 +279,34 @@ KRITIKUS SZABÁLYOK:
 2.  SZIGORÚAN TILOS tortát, süteményt, pitét, vagy bármilyen pékárut ábrázolni. Még akkor is, ha a hozzávalók (pl. csokoládé, gyümölcsök) közösek lehetnek, a végeredmény egy FAGYASZTOTT DESSZERT, azaz FAGYLALT.
 3.  A képen NEM SZEREPELHET semmilyen állat (kutya, macska), ember (kéz, arc), felirat, vagy rajzolt elem. Csak az étel.`;
     } else {
-        let imageSubject = cleanRecipeName;
-        let strictRules = "A képen KIZÁRÓLAG az étel szerepelhet. SZIGORÚAN TILOS bármilyen állatot (kutya, macska), embert (kéz, arc), szöveget, vagy rajzolt elemet ábrázolni.";
         let servingStyle = 'egy letisztult, egyszerű tányéron';
-
         const isSoup = recipe.mealType === MealType.SOUP || recipe.recipeName.toLowerCase().includes('leves');
         const isDessert = recipe.mealType === MealType.DESSERT || recipe.mealType === MealType.SNACK;
 
         if (isSoup) {
-            imageSubject = `${cleanRecipeName} gőzölgő leves`;
-            servingStyle = 'egy mély levestányérban vagy csészében';
+            servingStyle = 'egy mély levestányérban vagy csészében, gőzölögve';
         } else if (isDessert) {
             servingStyle = 'desszertes tányéron, elegánsan';
         }
 
-        prompt = `Készíts egy profi, fotórealisztikus, magazin minőségű ételfotót a következő ételről: "${imageSubject}".
-Az étel leírása: "${recipe.description}".
-Főbb hozzávalók: "${keyIngredients}".
-Étel típusa: "${mealTypeLabel}".
+        prompt = `
+Téma: ÉTEL FOTÓZÁS - Egy profi, fotórealisztikus, magazin minőségű kép egy ételről.
 
-A tálalás stílusa: Gusztusosan tálalva ${servingStyle}. A környezet legyen egy világos, természetes fényekkel megvilágított konyha, lágy, elmosódott (bokeh) háttérrel. A fókusz teljes mértékben az ételen van.
+Étel neve: "${cleanRecipeName}"
+Étel típusa: "${mealTypeLabel}"
+Főbb hozzávalók: "${keyIngredients}"
+Rövid leírás: "${recipe.description}"
 
-Abszolút szabályok:
-${strictRules}`;
+Instrukciók a képhez:
+Az elkészült étel legyen gusztusosan tálalva ${servingStyle}. A környezet legyen egy világos, természetes fényekkel megvilágított konyha, lágy, elmosódott (bokeh) háttérrel. A fókusz 100%-ban az ételen legyen.
+
+KRITIKUS ÉS MEGSZEGHETETLEN SZABÁLYOK:
+1.  **FŐ TÉMA AZ ÉTEL:** A kép KIZÁRÓLAG az elkészült ételt ábrázolja. Semmi mást.
+2.  **ÁLLATOK SZIGORÚAN TILOSAK:** A képen NEM SZEREPELHET semmilyen állat (kutya, macska, madár, stb.). A recept nevében esetlegesen szereplő földrajzi vagy egyéb nevek (pl. "erdélyi", "bajor") NEM utalnak állatokra. A kérés egy ételről szól, nem egy állatról.
+3.  **EMBEREK TILOSAK:** Ne legyen a képen ember, kéz, arc vagy bármilyen testrész.
+4.  **NINCS SZÖVEG VAGY GRAFIKA:** Ne adj hozzá semmilyen feliratot, logót, vagy rajzolt elemet.
+5.  **FOTÓREALIZMUS:** A képnek valósághű ételfotónak kell lennie, nem festménynek vagy rajznak.
+`;
     }
 
     try {
