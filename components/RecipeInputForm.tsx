@@ -738,43 +738,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         </div>
       </div>
 
-       <div>
-        <label htmlFor="numberOfServings" className="block text-lg font-semibold text-gray-700 mb-2">
-            Hány személyre készüljön?
-        </label>
-        <input
-            id="numberOfServings"
-            type="number"
-            value={numberOfServings}
-            onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                setNumberOfServings(val > 0 ? val : 1);
-            }}
-            min="1"
-            className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
-            aria-label="Személyek száma"
-        />
-        {capacityInfo.length > 0 && (
-          <div className="mt-2 space-y-2">
-            {capacityInfo.map(({ method, capacity }) => (
-                <div key={method.value} className="flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 animate-fade-in">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                    <span>
-                        Tájékoztató: A(z) <strong>{method.label}</strong> legfeljebb <strong>{capacity} személyre</strong> javasolt főzni.
-                        {numberOfServings > capacity && (
-                          <>
-                            {' '}A megadott <strong>{numberOfServings} fős</strong> adagot várhatóan <strong>{Math.ceil(numberOfServings / capacity)} részletben</strong> tudod majd elkészíteni.
-                          </>
-                        )}
-                    </span>
-                </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label htmlFor="withCost" className="flex items-center p-3 border border-gray-300 rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors">
             <input
@@ -917,6 +880,43 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
             ))}
         </div>
          <p className="text-sm text-gray-500 mt-2">A kiválasztott elkészítési módok sorrendje befolyásolhatja a receptet.</p>
+      </div>
+
+       <div>
+        <label htmlFor="numberOfServings" className="block text-lg font-semibold text-gray-700 mb-2">
+            Hány személyre készüljön?
+        </label>
+        <input
+            id="numberOfServings"
+            type="number"
+            value={numberOfServings}
+            onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                setNumberOfServings(val > 0 ? val : 1);
+            }}
+            min="1"
+            className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
+            aria-label="Személyek száma"
+        />
+        {capacityInfo.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {capacityInfo.map(({ method, capacity }) => (
+                <div key={method.value} className="flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 animate-fade-in">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0 mt-0.5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    <span>
+                        Tájékoztató: A(z) <strong>{method.label}</strong> legfeljebb <strong>{capacity} személyre</strong> javasolt főzni.
+                        {numberOfServings > capacity && (
+                          <>
+                            {' '}A megadott <strong>{numberOfServings} fős</strong> adagot várhatóan <strong>{Math.ceil(numberOfServings / capacity)} részletben</strong> tudod majd elkészíteni.
+                          </>
+                        )}
+                    </span>
+                </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="pt-2">
