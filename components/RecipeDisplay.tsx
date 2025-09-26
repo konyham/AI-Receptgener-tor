@@ -14,6 +14,7 @@ import ErrorMessage from './ErrorMessage';
 import InstructionCarousel from './InstructionCarousel';
 import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS } from '../constants';
 import ShareFallbackModal from './ShareFallbackModal';
+import { konyhaMikiLogo as konyhaMikiLogoBase64 } from '../assets';
 
 
 // FIX: Added missing props to the interface to match the usage in App.tsx.
@@ -85,20 +86,27 @@ const DiabeticAdvice: React.FC<{ advice: string | undefined }> = ({ advice }) =>
 
 const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
     return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
+        const recipeImg = new Image();
+        const logoImg = new Image();
+
+        let recipeImgLoaded = false;
+        let logoImgLoaded = false;
+
+        const onBothLoaded = () => {
+            if (!recipeImgLoaded || !logoImgLoaded) return;
+
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             if (!ctx) {
                 return reject(new Error('Nem sikerült a vászon kontextusát lekérni.'));
             }
 
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
+            canvas.width = recipeImg.width;
+            canvas.height = recipeImg.height;
+            ctx.drawImage(recipeImg, 0, 0);
 
             // --- Configuration ---
-            const scale = Math.max(1, img.width / 1000);
+            const scale = Math.max(1, recipeImg.width / 1000);
             const topPadding = 20 * scale;
             const topFont = `bold ${20 * scale}px "Helvetica Neue", Arial, sans-serif`;
             const topLineHeight = 28 * scale;
@@ -159,25 +167,30 @@ const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
             });
             
             // --- Bottom Title Drawing ---
-            
-            // Reset shadow for title text which will have its own background
             ctx.shadowColor = 'transparent';
 
             const titlePadding = 20 * scale;
             const titleFont = `bold ${40 * scale}px "Helvetica Neue", Arial, sans-serif`;
             const titleLineHeight = 50 * scale;
-            const maxWidth = canvas.width - (titlePadding * 2);
+
+            // Logo properties
+            const logoHeight = 80 * scale;
+            const logoWidth = (logoImg.width / logoImg.height) * logoHeight;
+            const logoPadding = 15 * scale;
+
+            // --- Text wrapping with logo in mind ---
+            const maxWidthForText = canvas.width - (titlePadding * 2) - logoWidth - logoPadding;
 
             ctx.font = titleFont;
             const words = recipe.recipeName.split(' ');
             let line = '';
-            const lines = [];
+            const lines: string[] = [];
 
             for (let n = 0; n < words.length; n++) {
                 const testLine = line + words[n] + ' ';
                 const metrics = ctx.measureText(testLine);
                 const testWidth = metrics.width;
-                if (testWidth > maxWidth && n > 0) {
+                if (testWidth > maxWidthForText && n > 0) {
                     lines.push(line);
                     line = words[n] + ' ';
                 } else {
@@ -186,31 +199,61 @@ const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
             }
             lines.push(line);
 
-            const backgroundHeight = (lines.length * titleLineHeight) + titlePadding;
+            const backgroundHeight = Math.max(
+                (lines.length * titleLineHeight) + titlePadding, 
+                logoHeight + titlePadding
+            );
             const backgroundY = canvas.height - backgroundHeight;
 
             // Draw background
             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
             ctx.fillRect(0, backgroundY, canvas.width, backgroundHeight);
 
+            // Calculate starting positions for centered content block
+            const textBlockWidth = Math.max(...lines.map(l => ctx.measureText(l.trim()).width));
+            const totalContentWidth = logoWidth + logoPadding + textBlockWidth;
+            const contentStartX = (canvas.width - totalContentWidth) / 2;
+
+            const logoStartX = contentStartX;
+            const textStartX = logoStartX + logoWidth + logoPadding;
+
+            const logoStartY = backgroundY + (backgroundHeight - logoHeight) / 2;
+            ctx.drawImage(logoImg, logoStartX, logoStartY, logoWidth, logoHeight);
+
             // Draw text
             ctx.fillStyle = '#FFFFFF';
-            ctx.textAlign = 'center';
+            ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
-            
-            const startY = backgroundY + (backgroundHeight / 2) - ((lines.length - 1) * titleLineHeight / 2);
+
+            const textStartY = backgroundY + (backgroundHeight / 2) - ((lines.length - 1) * titleLineHeight / 2);
 
             lines.forEach((l, i) => {
-                ctx.fillText(l.trim(), canvas.width / 2, startY + (i * titleLineHeight));
+                ctx.fillText(l.trim(), textStartX, textStartY + (i * titleLineHeight));
             });
 
             resolve(canvas.toDataURL('image/jpeg', 0.9));
         };
-        img.onerror = (err) => {
-            console.error("A kép betöltése a vízjelezéshez sikertelen:", err);
-            reject(new Error('A kép betöltése a vízjelezéshez sikertelen.'));
+
+        recipeImg.onload = () => {
+            recipeImgLoaded = true;
+            onBothLoaded();
         };
-        img.src = `data:image/jpeg;base64,${base64Image}`;
+        logoImg.onload = () => {
+            logoImgLoaded = true;
+            onBothLoaded();
+        };
+
+        recipeImg.onerror = (err) => {
+            console.error("A receptkép betöltése a vízjelezéshez sikertelen:", err);
+            reject(new Error('A receptkép betöltése a vízjelezéshez sikertelen.'));
+        };
+        logoImg.onerror = (err) => {
+            console.error("A logó betöltése a vízjelezéshez sikertelen:", err);
+            reject(new Error('A logó betöltése a vízjelezéshez sikertelen.'));
+        };
+        
+        recipeImg.src = `data:image/jpeg;base64,${base64Image}`;
+        logoImg.src = konyhaMikiLogoBase64;
     });
 };
 
@@ -704,7 +747,10 @@ Recept generálva Konyha Miki segítségével!
     <>
       <div id="recipe-to-print" className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden animate-fade-in">
         <div className="p-6 md:p-8">
-          <h2 className="text-3xl font-bold text-primary-800 mb-2">{recipe.recipeName}</h2>
+          <div className="flex items-center gap-4 mb-2">
+            <img src={konyhaMikiLogoBase64} alt="Konyha Miki logó" className="h-16 w-auto flex-shrink-0" />
+            <h2 className="text-3xl font-bold text-primary-800">{recipe.recipeName}</h2>
+          </div>
           <p className="text-gray-600 italic mb-6">{recipe.description}</p>
           
           <div className="my-6">
