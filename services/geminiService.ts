@@ -132,7 +132,7 @@ export const generateRecipe = async (
     }
     
     if (excludedIngredients.trim()) {
-      prompt += ` FONTOS KIKÖTÉS: A recept SOHA NE TARTALMAZZA a következőket, még nyomokban sem: ${excludedIngredients}. Vedd figyelembe az esetleges allergiákat vagy intoleranciákat (pl. ha a felhasználó a laktózt írja, akkor ne használj tejet, vajat, sajtot stb.).`;
+      prompt += ` FONTOS KIKÖTÉS: A recept SOHA NE TARTALMAZZA a következőket, még nyomokban sem: ${excludedIngredients}. Vedd figyelembe az esetleges allergiákat vagy intoleranciákat (pl. ha a felhasználó a laktózt írja, akkor ne használj tejet, vajat, sajtot stb.). Ez a kizárás egy elsődleges utasítás, amit szigorúan be kell tartani, még akkor is, ha ellentmondani látszik a többi kérésnek. Konfliktus esetén (pl. kolbászkészítés kérése sertéshús kizárásával) a feladatod a kreatív megoldás: keress egy megfelelő, nem kizárt alternatívát (pl. marhakolbász, csirkekolbász). A recept semmilyen körülmények között nem tartalmazhatja a kizárt összetevőket.`;
     }
     
     prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabels.join(' és ')}. Ha több gép is meg van adva, a recept logikusan használja őket (pl. az alap elkészítése az egyikben, a befejezés a másikban).`;
