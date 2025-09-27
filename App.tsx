@@ -32,6 +32,7 @@ interface RecipeGenerationParams {
 const App: React.FC = () => {
   const [page, setPage] = useState<AppView>('generator');
   const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [lastGeneratedRecipe, setLastGeneratedRecipe] = useState<Recipe | null>(null);
   const [favorites, setFavorites] = useState<Favorites>(() => {
     try {
       return favoritesService.getFavorites().favorites;
@@ -141,6 +142,60 @@ const App: React.FC = () => {
       showNotification('Bevásárlólista törölve.', 'info');
     } catch (err: any) {
         showNotification(err.message, 'info');
+    }
+  };
+  
+  const handleImportData = (data: unknown) => {
+    try {
+      // Basic validation to check if the imported data has the expected structure.
+      if (
+        typeof data === 'object' &&
+        data !== null &&
+        'favorites' in data &&
+        'shoppingList' in data &&
+        typeof (data as BackupData).favorites === 'object' &&
+        Array.isArray((data as BackupData).shoppingList)
+      ) {
+        const backupData = data as BackupData;
+        
+        // Validate and clean the imported data before merging.
+        const { favorites: validImportedFavorites, recoveryNotification: favRecovery } = favoritesService.validateAndRecover(backupData.favorites);
+        const { list: validImportedShoppingList, recoveryNotification: listRecovery } = shoppingListService.validateAndRecover(backupData.shoppingList);
+
+        // Merge the validated imported data with the current state.
+        const { mergedFavorites, newRecipesCount } = favoritesService.mergeFavorites(favorites, validImportedFavorites);
+        const { mergedList, newItemsCount } = shoppingListService.mergeShoppingLists(shoppingList, validImportedShoppingList);
+
+        // Update the state with the merged data.
+        setFavorites(mergedFavorites);
+        setShoppingList(mergedList);
+
+        // Save the merged data to localStorage.
+        favoritesService.saveFavorites(mergedFavorites);
+        shoppingListService.saveShoppingList(mergedList);
+        
+        // Provide detailed feedback to the user.
+        const messages: string[] = [];
+        if (newRecipesCount > 0) messages.push(`${newRecipesCount} új recept`);
+        if (newItemsCount > 0) messages.push(`${newItemsCount} új bevásárlólista-tétel`);
+        
+        let feedbackMessage: string;
+        if (messages.length > 0) {
+          feedbackMessage = `Betöltés befejezve. ${messages.join(' és ')} hozzáadva.`;
+        } else {
+          feedbackMessage = 'Betöltés befejezve. Nem kerültek új adatok hozzáadásra.';
+        }
+
+        if (favRecovery || listRecovery) {
+           showNotification('Az adatok összefésülve, de néhány sérült bejegyzést ki kellett hagyni.', 'info');
+        } else {
+           showNotification(feedbackMessage, 'success');
+        }
+      } else {
+        throw new Error('A fájl formátuma érvénytelen vagy sérült.');
+      }
+    } catch (err: any) {
+       showNotification(err.message, 'info');
     }
   };
   
@@ -288,6 +343,7 @@ const App: React.FC = () => {
     try {
       const newRecipe = await generateRecipe(params.ingredients, params.excludedIngredients, params.diet, params.mealType, params.cuisine, params.cookingMethods, params.specialRequest, params.withCost, params.numberOfServings, params.recipePace);
       setRecipe(newRecipe);
+      setLastGeneratedRecipe(newRecipe);
       setPage('generator');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
@@ -324,7 +380,19 @@ const App: React.FC = () => {
         setInitialFormData(null);
     }
     setRecipe(null);
+    setLastGeneratedRecipe(null);
     setError(null);
+  };
+
+  const closeFavoriteRecipeView = () => {
+    setRecipe(null);
+  };
+
+  const showLastRecipe = () => {
+    if (lastGeneratedRecipe) {
+        setRecipe(lastGeneratedRecipe);
+        setPage('generator');
+    }
   };
 
   const viewFavoriteRecipe = (favRecipe: Recipe) => {
@@ -368,18 +436,6 @@ const App: React.FC = () => {
       showNotification(`"${category}" kategória törölve.`, 'info');
     } catch (err: any) {
         showNotification(err.message, 'info');
-    }
-  };
-
-  const handleImportData = (data: BackupData) => {
-    try {
-      favoritesService.saveFavorites(data.favorites);
-      shoppingListService.saveShoppingList(data.shoppingList);
-      setFavorites(data.favorites);
-      setShoppingList(data.shoppingList);
-      showNotification('Adatok sikeresen importálva!', 'success');
-    } catch (err: any) {
-      showNotification(err.message, 'info');
     }
   };
 
@@ -434,12 +490,13 @@ const App: React.FC = () => {
     }
       
     if (recipe) {
+      const isViewingFavorite = page === 'favorites';
       return (
         <RecipeDisplay
           recipe={recipe}
-          onClose={closeRecipeView}
+          onClose={isViewingFavorite ? closeFavoriteRecipeView : closeRecipeView}
           onRefine={handleRefineRecipe}
-          isFromFavorites={page === 'favorites'}
+          isFromFavorites={isViewingFavorite}
           favorites={favorites}
           onSave={handleSaveRecipe}
           onAddItemsToShoppingList={handleShoppingListAddItems}
@@ -479,6 +536,7 @@ const App: React.FC = () => {
           sortOption={sortOption}
           onSetSortOption={setSortOption}
           onImportData={handleImportData}
+          shoppingList={shoppingList}
         />
       );
     }
@@ -493,6 +551,7 @@ const App: React.FC = () => {
           onClearChecked={handleShoppingListClearChecked}
           onClearAll={handleShoppingListClearAll}
           onImportData={handleImportData}
+          favorites={favorites}
         />
       );
     }
@@ -514,8 +573,8 @@ const App: React.FC = () => {
 
         <div className="max-w-3xl mx-auto">
             {storageError && <div className="mb-4"><ErrorMessage message={storageError} /></div>}
-            <div className="mb-6 p-2 bg-white rounded-xl shadow-sm border border-gray-200 flex justify-center items-center gap-2">
-                 <NavButton active={page === 'generator'} onClick={showGenerator}>
+            <div className="mb-6 p-2 bg-white rounded-xl shadow-sm border border-gray-200 flex justify-center items-center gap-2 flex-wrap">
+                 <NavButton active={page === 'generator' && !recipe} onClick={showGenerator}>
                     Recept Generátor
                 </NavButton>
                 <NavButton active={page === 'favorites'} onClick={showFavorites}>
@@ -524,6 +583,11 @@ const App: React.FC = () => {
                 <NavButton active={page === 'shopping-list'} onClick={showShoppingList}>
                     Bevásárlólista
                 </NavButton>
+                {lastGeneratedRecipe && !recipe && (
+                    <NavButton active={false} onClick={showLastRecipe}>
+                        Vissza a recepthez
+                    </NavButton>
+                )}
             </div>
             {(page === 'favorites' || page === 'shopping-list') && !recipe && (
                  <AppVoiceControl

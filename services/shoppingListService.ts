@@ -3,6 +3,35 @@ import { safeSetLocalStorage } from '../utils/storage';
 
 const SHOPPING_LIST_KEY = 'ai-recipe-generator-shopping-list';
 
+
+/**
+ * Validates and recovers a raw shopping list array, typically from an import.
+ * @param data The raw data to validate.
+ * @returns An object with the cleaned list and an optional recovery notification.
+ */
+export const validateAndRecover = (data: unknown): { list: ShoppingListItem[]; recoveryNotification?: string } => {
+  if (!Array.isArray(data)) {
+    return { list: [], recoveryNotification: "Az importált bevásárlólista formátuma érvénytelen volt." };
+  }
+
+  let hadCorruptedEntries = false;
+  const validList: ShoppingListItem[] = [];
+  
+  data.forEach((item: any, index: number) => {
+    if (typeof item === 'object' && item !== null && typeof item.text === 'string' && typeof item.checked === 'boolean') {
+      validList.push(item);
+    } else {
+      console.warn(`Skipping corrupted shopping list item during import at index ${index}.`, item);
+      hadCorruptedEntries = true;
+    }
+  });
+
+  return {
+    list: validList,
+    recoveryNotification: hadCorruptedEntries ? 'Néhány sérült bevásárlólista-elemet kihagytunk az importálás során.' : undefined
+  };
+};
+
 /**
  * Reads the list from localStorage, attempting to recover from partial corruption.
  * @returns An object containing the list data and an optional recovery notification.
@@ -23,40 +52,43 @@ export const getShoppingList = (): { list: ShoppingListItem[]; recoveryNotificat
     throw new Error('A bevásárlólista súlyosan sérült, ezért nem sikerült betölteni. A sérült adatokról biztonsági mentés készült.');
   }
   
-  if (!Array.isArray(parsedData)) {
-    console.error("Malformed shopping list data structure (not an array). Backing up corrupted data.");
-    localStorage.setItem(`${SHOPPING_LIST_KEY}_corrupted_${Date.now()}`, listJson);
-    throw new Error('A bevásárlólista formátuma érvénytelen. A sérült adatokról biztonsági mentés készült.');
-  }
-
-  let hadCorruptedEntries = false;
-  const validList: ShoppingListItem[] = [];
+  const { list, recoveryNotification } = validateAndRecover(parsedData);
   
-  parsedData.forEach((item: any, index: number) => {
-    if (typeof item === 'object' && item !== null && typeof item.text === 'string' && typeof item.checked === 'boolean') {
-      validList.push(item);
-    } else {
-      console.warn(`Skipping corrupted shopping list item at index ${index}.`, item);
-      hadCorruptedEntries = true;
-    }
-  });
-
-  if (hadCorruptedEntries) {
+  if (recoveryNotification) {
     console.log("Saving cleaned shopping list back to localStorage to prevent future errors.");
-    saveShoppingList(validList);
-    return {
-      list: validList,
-      recoveryNotification: 'A bevásárlólista részben sérült volt, de a menthető tételeket sikeresen helyreállítottuk.'
-    };
+    saveShoppingList(list);
   }
 
-  return { list: parsedData };
+  return { list, recoveryNotification };
 };
 
 
 // Saves the list to localStorage.
 export const saveShoppingList = (list: ShoppingListItem[]): void => {
   safeSetLocalStorage(SHOPPING_LIST_KEY, list);
+};
+
+/**
+ * Merges an imported shopping list into the current one, avoiding duplicates.
+ * @param currentList The existing shopping list.
+ * @param importedList The list from the imported file.
+ * @returns An object with the merged list and the count of new items added.
+ */
+export const mergeShoppingLists = (currentList: ShoppingListItem[], importedList: ShoppingListItem[]): { mergedList: ShoppingListItem[]; newItemsCount: number } => {
+  const newList = [...currentList];
+  let newItemsCount = 0;
+  
+  // Use a Set for efficient, case-insensitive duplicate checking.
+  const existingItems = new Set(currentList.map(item => item.text.toLowerCase().trim()));
+
+  importedList.forEach(item => {
+    if (item.text.trim() && !existingItems.has(item.text.toLowerCase().trim())) {
+      newList.push(item);
+      newItemsCount++;
+    }
+  });
+
+  return { mergedList: newList, newItemsCount };
 };
 
 // Adds one or more items, avoiding duplicates.

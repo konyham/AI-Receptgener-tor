@@ -1,10 +1,10 @@
 import React, { useState, useRef } from 'react';
-import { ShoppingListItem, BackupData } from '../types';
-import * as favoritesService from '../services/favoritesService';
+import { ShoppingListItem, Favorites, BackupData } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 
 interface ShoppingListViewProps {
   list: ShoppingListItem[];
+  favorites: Favorites;
   onAddItems: (items: string[]) => void;
   onUpdateItem: (index: number, updatedItem: ShoppingListItem) => void;
   onRemoveItem: (index: number) => void;
@@ -15,6 +15,7 @@ interface ShoppingListViewProps {
 
 const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   list,
+  favorites,
   onAddItems,
   onUpdateItem,
   onRemoveItem,
@@ -61,25 +62,60 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
       showNotification('Nem sikerült a listát vágólapra másolni. Lehet, hogy a böngészője nem támogatja ezt a funkciót.', 'info');
     }
   };
-
-  const handleExport = () => {
+  
+   const handleExport = async () => {
     try {
-      const favorites = favoritesService.getFavorites().favorites;
-      const dataToExport: BackupData = { favorites, shoppingList: list };
-      const jsonData = JSON.stringify(dataToExport, null, 2);
-      const blob = new Blob([jsonData], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const dataToSave: BackupData = {
+        favorites,
+        shoppingList: list,
+      };
+      const jsonString = JSON.stringify(dataToSave, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
       const date = new Date().toISOString().split('T')[0];
-      a.href = url;
-      a.download = `konyha_miki_mentes_${date}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showNotification('Adatok sikeresen exportálva!', 'success');
-    } catch (err: any) {
-      showNotification(`Hiba az exportálás során: ${err.message}`, 'info');
+      const suggestedName = `konyhamiki_mentes_${date}.json`;
+
+      const isPickerSupported = 'showSaveFilePicker' in window;
+      const isTopFrame = window.self === window.top;
+
+      if (isPickerSupported && isTopFrame) {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName,
+            types: [{
+              description: 'JSON Fájl',
+              accept: { 'application/json': ['.json'] },
+            }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          showNotification('Adatok sikeresen mentve!', 'success');
+        } catch (err: any) {
+          // AbortError is thrown when the user cancels the save dialog, which is not a real error.
+          if (err.name !== 'AbortError') {
+            console.error("Hiba a mentés során (File Picker):", err);
+            showNotification('Hiba történt az adatok mentése közben.', 'info');
+          }
+        }
+      } else {
+        // Fallback for older browsers or when in an iframe
+        if (!isPickerSupported) {
+           showNotification('A böngészője nem támogatja a "Mentés másként" funkciót, ezért a fájl közvetlenül letöltésre kerül.', 'info');
+        } else if (!isTopFrame) {
+           showNotification('A böngésző biztonsági korlátozásai miatt a fájl közvetlenül letöltésre kerül.', 'info');
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = suggestedName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error("Hiba a mentés során:", error);
+      showNotification('Hiba történt az adatok mentése közben.', 'info');
     }
   };
 
@@ -87,52 +123,39 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     fileInputRef.current?.click();
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    
-    // Fontos: Itt kell visszaállítanunk a bemeneti mező értékét, hogy az `onChange`
-    // esemény újra aktiválódjon, ha a felhasználó ugyanazt a fájlt választja ki.
-    // Ezt azután tesszük meg, hogy már van hivatkozásunk a fájl objektumra.
-    const inputElement = event.target;
-    
-    if (!file) {
-      inputElement.value = ''; // Visszaállítás, ha a felhasználó megszakítja a párbeszédablakot
-      return;
-    }
+    if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const text = e.target?.result as string;
-        if (!text) {
-            throw new Error('A fájl üres vagy olvashatatlan.');
-        }
-        const data = JSON.parse(text) as BackupData;
-
-        // Alapvető validálás
-        if (typeof data.favorites === 'object' && data.favorites !== null && Array.isArray(data.shoppingList)) {
-           if (window.confirm('Biztosan importálja az adatokat? Ezzel felülírja a jelenlegi kedvenceit és a bevásárlólistáját.')) {
-              onImportData(data);
-           }
+        const text = e.target?.result;
+        if (typeof text === 'string') {
+          const data = JSON.parse(text);
+          onImportData(data);
         } else {
-          throw new Error('A fájl formátuma érvénytelen.');
+           throw new Error('A fájl tartalma nem olvasható szövegként.');
         }
-      } catch (error: any) {
-        showNotification(`Hiba az importálás során: ${error.message}`, 'info');
+      } catch (error) {
+        console.error("Hiba a betöltés során:", error);
+        showNotification('Hiba történt a fájl beolvasása vagy feldolgozása közben.', 'info');
       }
     };
-
-    reader.onerror = () => {
-        showNotification(`Hiba a fájl olvasása közben: ${reader.error?.message ?? 'Ismeretlen hiba'}`, 'info');
+     reader.onerror = () => {
+        showNotification('Hiba történt a fájl olvasása közben.', 'info');
+    };
+    reader.onloadend = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
     };
 
     reader.readAsText(file);
-    
-    // Az olvasó elindítása után állítsa vissza az értéket.
-    inputElement.value = '';
   };
   
   const checkedCount = list.filter(item => item.checked).length;
+  const hasAnyData = Object.keys(favorites).length > 0 || list.length > 0;
 
   return (
     <div className="space-y-6">
@@ -221,15 +244,33 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
             <p className="mt-1 text-sm text-gray-500">Adj hozzá tételeket manuálisan, vagy egy recept hozzávalóiból.</p>
         </div>
       )}
-      
-       <div className="border border-gray-200 rounded-lg shadow-sm p-4 mt-8">
-        <h3 className="text-lg font-semibold text-center text-primary-700 mb-3">Adatkezelés</h3>
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button onClick={handleExport} className="flex-1 text-sm bg-white border border-primary-300 text-primary-700 font-semibold py-2 px-4 rounded-lg hover:bg-primary-50 transition-colors">Mentés fájlba</button>
-            <button onClick={handleImportClick} className="flex-1 text-sm bg-white border border-primary-300 text-primary-700 font-semibold py-2 px-4 rounded-lg hover:bg-primary-50 transition-colors">Betöltés fájlból...</button>
-            <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".json" className="hidden" />
+
+      <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-200">
+        <h3 className="text-lg font-bold text-center text-gray-700 mb-4">Adatkezelés</h3>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+                onClick={handleExport}
+                disabled={!hasAnyData}
+                className="flex-1 bg-blue-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+                Mentés Fájlba
+            </button>
+            <button
+                onClick={handleImportClick}
+                className="flex-1 bg-green-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition"
+            >
+                Betöltés Fájlból
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".json"
+              className="hidden"
+              aria-hidden="true"
+            />
         </div>
-        <p className="text-xs text-center text-gray-500 mt-2">Mentse el vagy töltse be a kedvenceit és a bevásárlólistáját egyetlen fájlban.</p>
+         <p className="text-xs text-center text-gray-500 mt-3">A betöltés összefésüli a meglévő adatokat az újonnan betöltöttekkel.</p>
       </div>
     </div>
   );

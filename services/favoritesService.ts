@@ -4,6 +4,48 @@ import { safeSetLocalStorage } from '../utils/storage';
 const FAVORITES_KEY = 'ai-recipe-generator-favorites';
 
 /**
+ * Validates and recovers a raw favorites object, typically from an import.
+ * @param data The raw data to validate.
+ * @returns An object with the cleaned favorites and an optional recovery notification.
+ */
+export const validateAndRecover = (data: unknown): { favorites: Favorites; recoveryNotification?: string } => {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return { favorites: {}, recoveryNotification: "Az importált kedvencek formátuma érvénytelen volt." };
+  }
+  
+  const validFavorites: Favorites = {};
+  let hadCorruptedEntries = false;
+
+  for (const category in data) {
+    if (Object.prototype.hasOwnProperty.call(data, category)) {
+      const recipes = (data as any)[category];
+      if (Array.isArray(recipes)) {
+        const validRecipes: Recipe[] = [];
+        recipes.forEach((recipe: any, index: number) => {
+          if (typeof recipe === 'object' && recipe !== null && recipe.recipeName && Array.isArray(recipe.ingredients) && Array.isArray(recipe.instructions)) {
+            validRecipes.push(recipe);
+          } else {
+            console.warn(`Skipping corrupted recipe during import at index ${index} in category "${category}".`, recipe);
+            hadCorruptedEntries = true;
+          }
+        });
+        if (validRecipes.length > 0) {
+          validFavorites[category] = validRecipes;
+        }
+      } else {
+        console.warn(`Skipping corrupted category "${category}" during import (not an array).`, recipes);
+        hadCorruptedEntries = true;
+      }
+    }
+  }
+
+  return {
+    favorites: validFavorites,
+    recoveryNotification: hadCorruptedEntries ? 'Néhány sérült receptet kihagytunk az importálás során.' : undefined
+  };
+};
+
+/**
  * Retrieves the favorites object from localStorage.
  * Attempts to recover data if it's partially corrupted.
  * @returns An object containing the favorites data and an optional recovery notification.
@@ -23,50 +65,15 @@ export const getFavorites = (): { favorites: Favorites; recoveryNotification?: s
     localStorage.setItem(`${FAVORITES_KEY}_corrupted_${Date.now()}`, favoritesJson);
     throw new Error('A kedvenc receptek listája súlyosan sérült, ezért nem sikerült betölteni. A sérült adatokról biztonsági mentés készült.');
   }
+  
+  const { favorites, recoveryNotification } = validateAndRecover(parsedData);
 
-  if (typeof parsedData !== 'object' || parsedData === null || Array.isArray(parsedData)) {
-      console.error("Malformed favorites data structure (not an object). Backing up corrupted data.");
-      localStorage.setItem(`${FAVORITES_KEY}_corrupted_${Date.now()}`, favoritesJson);
-      throw new Error('A kedvenc receptek listájának formátuma érvénytelen. A sérült adatokról biztonsági mentés készült.');
-  }
-
-  const validFavorites: Favorites = {};
-  let hadCorruptedEntries = false;
-
-  for (const category in parsedData) {
-      if (Object.prototype.hasOwnProperty.call(parsedData, category)) {
-          const recipes = parsedData[category];
-          if (Array.isArray(recipes)) {
-              const validRecipes: Recipe[] = [];
-              recipes.forEach((recipe: any, index: number) => {
-                  if (typeof recipe === 'object' && recipe !== null && recipe.recipeName && Array.isArray(recipe.ingredients) && Array.isArray(recipe.instructions)) {
-                      validRecipes.push(recipe);
-                  } else {
-                      console.warn(`Skipping corrupted recipe at index ${index} in category "${category}".`, recipe);
-                      hadCorruptedEntries = true;
-                  }
-              });
-
-              if (validRecipes.length > 0) {
-                  validFavorites[category] = validRecipes;
-              }
-          } else {
-               console.warn(`Skipping corrupted category "${category}" (not an array).`, recipes);
-               hadCorruptedEntries = true;
-          }
-      }
-  }
-
-  if (hadCorruptedEntries) {
+  if (recoveryNotification) {
       console.log("Saving cleaned favorites list back to localStorage to prevent future errors.");
-      saveFavorites(validFavorites);
-      return {
-          favorites: validFavorites,
-          recoveryNotification: 'A kedvencek listája részben sérült volt, de a menthető recepteket sikeresen helyreállítottuk.'
-      };
+      saveFavorites(favorites);
   }
 
-  return { favorites: parsedData }; // Return original parsed data if no corruption was found
+  return { favorites, recoveryNotification };
 };
 
 
@@ -76,6 +83,40 @@ export const getFavorites = (): { favorites: Favorites; recoveryNotification?: s
  */
 export const saveFavorites = (favorites: Favorites): void => {
   safeSetLocalStorage(FAVORITES_KEY, favorites);
+};
+
+/**
+ * Merges imported favorites into the current ones, avoiding duplicates.
+ * @param currentFavorites The existing favorites object.
+ * @param importedFavorites The favorites object from the imported file.
+ * @returns An object with the merged favorites and the count of new recipes added.
+ */
+export const mergeFavorites = (currentFavorites: Favorites, importedFavorites: Favorites): { mergedFavorites: Favorites; newRecipesCount: number } => {
+  // Create a deep copy to avoid direct state mutation.
+  const newFavorites: Favorites = JSON.parse(JSON.stringify(currentFavorites));
+  let newRecipesCount = 0;
+
+  for (const category in importedFavorites) {
+    if (Object.prototype.hasOwnProperty.call(importedFavorites, category)) {
+      // If the category doesn't exist in the current favorites, create it.
+      if (!newFavorites[category]) {
+        newFavorites[category] = [];
+      }
+      
+      // Create a Set of existing recipe names in the category for efficient lookup.
+      const existingRecipeNames = new Set(newFavorites[category].map(r => r.recipeName));
+      
+      importedFavorites[category].forEach(recipe => {
+        // If the recipe is not already in the category, add it.
+        if (!existingRecipeNames.has(recipe.recipeName)) {
+          newFavorites[category].push(recipe);
+          newRecipesCount++;
+        }
+      });
+    }
+  }
+
+  return { mergedFavorites: newFavorites, newRecipesCount };
 };
 
 /**

@@ -130,6 +130,9 @@ declare global {
   interface Window {
     SpeechRecognition: { new(): SpeechRecognition };
     webkitSpeechRecognition: { new(): SpeechRecognition };
+    // FIX: Add `showSaveFilePicker` to the global Window type to resolve errors in FavoritesView.tsx and ShoppingListView.tsx.
+    // This browser API is not in the default TS DOM library.
+    showSaveFilePicker?(options?: any): Promise<any>;
   }
 }
 

@@ -327,56 +327,13 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
     const regex = new RegExp(`\\b(${problematicAdjectives.join('|')})\\b`, 'gi');
     cleanRecipeName = cleanRecipeName.replace(regex, '').replace(/\s\s+/g, ' ').trim();
     
-    const mealTypeLabel = MEAL_TYPES.find(m => m.value === recipe.mealType)?.label || '';
-    // Extract key visual ingredients
-    const keyIngredients = recipe.ingredients.slice(0, 3).join(', ');
+    // Extract key visual ingredients. Use a more robust way to get just ingredient names.
+    const keyIngredients = recipe.ingredients
+      .map(ing => ing.split('(')[0].trim()) // Remove quantities like "(kb. 2 bögre)"
+      .slice(0, 3)
+      .join(', ');
     
-    const isIceCream = recipe.cookingMethods?.includes(CookingMethod.UNOLD_ICE_CREAM_MAKER) || recipe.recipeName.toLowerCase().includes('fagylalt');
-    
-    let prompt: string;
-
-    if (isIceCream) {
-        prompt = `Készíts egy profi, fotórealisztikus, magazin minőségű ételfotót a következő FAGYLALT-ról: "${cleanRecipeName}".
-Az étel egy FAGYLALT. Nem torta, nem sütemény, nem pékáru.
-Főbb hozzávalók: "${keyIngredients}".
-Leírás: "${recipe.description}".
-
-Tálalás: A FAGYLALT legyen gusztusosan tálalva egy fagylaltos kehelyben, tölcsérben vagy desszertes tálkában. A környezet legyen egy világos, természetes fényekkel megvilágított konyha, lágy, elmosódott (bokeh) háttérrel. A fókusz teljes mértékben a FAGYLALT-on van.
-
-KRITIKUS SZABÁLYOK:
-1.  A KÉP TÁRGYA KIZÁRÓLAG FAGYLALT.
-2.  SZIGORÚAN TILOS tortát, süteményt, pitét, vagy bármilyen pékárut ábrázolni. Még akkor is, ha a hozzávalók (pl. csokoládé, gyümölcsök) közösek lehetnek, a végeredmény egy FAGYASZTOTT DESSZERT, azaz FAGYLALT.
-3.  A képen NEM SZEREPELHET semmilyen állat (kutya, macska), ember (kéz, arc), felirat, tájkép, épület vagy rajzolt elem. Csak az étel.`;
-    } else {
-        let servingStyle = 'egy letisztult, egyszerű tányéron';
-        const isSoup = recipe.mealType === MealType.SOUP || recipe.recipeName.toLowerCase().includes('leves');
-        const isDessert = recipe.mealType === MealType.DESSERT || recipe.mealType === MealType.SNACK;
-
-        if (isSoup) {
-            servingStyle = 'egy mély levestányérban vagy csészében, gőzölögve';
-        } else if (isDessert) {
-            servingStyle = 'desszertes tányéron, elegánsan';
-        }
-
-        prompt = `
-Téma: ÉTEL FOTÓZÁS - Egy profi, fotórealisztikus, magazin minőségű kép egy ételről.
-
-Étel neve: "${cleanRecipeName}"
-Étel típusa: "${mealTypeLabel}"
-Főbb vizuális hozzávalók: "${keyIngredients}"
-Rövid leírás: "${recipe.description}"
-
-Instrukciók a képhez:
-Az elkészült étel legyen gusztusosan tálalva ${servingStyle}. A környezet legyen egy világos, természetes fényekkel megvilágított konyha, lágy, elmosódott (bokeh) háttérrel. A fókusz 100%-ban az ételen legyen.
-
-KRITIKUS ÉS MEGSZEGHETETLEN SZABÁLYOK:
-1.  **FŐ TÉMA AZ ÉTEL:** A kép KIZÁRÓLAG az elkészült ételt ábrázolja. Semmi mást.
-2.  **ÁLLATOK, TÁJKÉPEK SZIGORÚAN TILOSAK:** A képen NEM SZEREPELHET semmilyen állat (kutya, macska, madár, stb.), tájkép (hegy, tó, erdő), vagy épület (ház, vár). A recept nevében esetlegesen szereplő földrajzi vagy egyéb nevek NEM utalnak állatokra vagy helyszínekre. A kérés egy ételről szól, nem másról.
-3.  **EMBEREK TILOSAK:** Ne legyen a képen ember, kéz, arc vagy bármilyen testrész.
-4.  **NINCS SZÖVEG VAGY GRAFIKA:** Ne adj hozzá semmilyen feliratot, logót, vagy rajzolt elemet.
-5.  **FOTÓREALIZMUS:** A képnek valósághű ételfotónak kell lennie, nem festménynek vagy rajznak.
-`;
-    }
+    const prompt = `Fotórealisztikus, rendkívül étvágygerjesztő, magazin minőségű ételfotó a következő ételről: "${cleanRecipeName}", gyönyörűen tálalva egy tányéron. A főbb látható összetevők: ${keyIngredients}. Egyszerű, letisztult háttér. Közeli felvétel. A kép kizárólag az ételt ábrázolja.`;
 
     try {
         const response = await ai.models.generateImages({
