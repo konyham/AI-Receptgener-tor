@@ -467,6 +467,11 @@ const App: React.FC = () => {
     setPage('shopping-list');
   };
 
+  const handleRecipeUpdate = useCallback((updatedRecipe: Recipe) => {
+    setRecipe(updatedRecipe);
+    setLastGeneratedRecipe(updatedRecipe);
+  }, []);
+
   const NavButton: React.FC<{
     active: boolean;
     onClick: () => void;
@@ -501,7 +506,7 @@ const App: React.FC = () => {
           onSave={handleSaveRecipe}
           onAddItemsToShoppingList={handleShoppingListAddItems}
           isLoading={isLoading}
-          onRecipeUpdate={setRecipe}
+          onRecipeUpdate={handleRecipeUpdate}
           shouldGenerateImageInitially={page === 'favorites' ? shouldGenerateImageForFavorite : (lastGenerationParams?.withImage ?? false)}
         />
       );
