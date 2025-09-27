@@ -92,58 +92,77 @@ export const generateRecipe = async (
     .map(cm => COOKING_METHODS.find(c => c.value === cm)?.label)
     .filter((l): l is string => !!l);
 
-  let prompt = `Generálj egy ${mealTypeLabel} receptet, ami pontosan ${numberOfServings} személyre szól.`;
+  let prompt: string;
+  const specialRequestLower = specialRequest.toLowerCase().trim();
+  const componentRequestKeywords = ['készítsünk', 'receptje', 'hogyan kell', 'készítése'];
 
-  const machineMethods = cookingMethods.filter(cm => cm !== CookingMethod.TRADITIONAL);
-  if (machineMethods.length > 0) {
-      const capacities = machineMethods
-          .map(cm => ({ name: COOKING_METHODS.find(c => c.value === cm)?.label, capacity: COOKING_METHOD_CAPACITIES[cm] }))
-          .filter(c => c.capacity !== null && c.capacity !== undefined);
-
-      if (capacities.length > 0) {
-          const minCapacityDevice = capacities.reduce((min, current) => (current.capacity! < min.capacity! ? current : min), capacities[0]);
-          if (numberOfServings > minCapacityDevice.capacity!) {
-              prompt += ` A kiválasztott elkészítési módok közül ('${minCapacityDevice.name}') maximum kapacitása kb. ${minCapacityDevice.capacity} fő. Ha a ${numberOfServings} fős adag meghaladja ezt, az instrukciókban adj egyértelmű útmutatást a több részletben való főzésre, vagy javasolj alternatívát.`;
-          }
-      }
-  }
-
-  if (ingredients.trim()) {
-    prompt += ` A recept a következő alapanyagokból készüljön: ${ingredients}.`;
+  // Check if the special request is about making a component (like sausage, pasta, etc.)
+  if (componentRequestKeywords.some(keyword => specialRequestLower.includes(keyword))) {
+      prompt = `A felhasználó egy specifikus alapanyag elkészítésére kért receptet. A kérése: "${specialRequest}".
+      Generálj egy részletes, kezdőbarát receptet PONTOSAN erre a kérésre. A recept fókuszában az alapanyag elkészítése álljon.
+      - A recept neve tükrözze a kérést (pl. "Házi Füstölt Kolbász").
+      - A leírás magyarázza el, miről szól a recept.
+      - Add meg a hozzávalókat pontos mennyiségekkel.
+      - Az elkészítési lépések legyenek részletesek.
+      - Az adag ("servings") mezőben add meg, hogy kb. mennyi végtermék (pl. "kb. 1 kg kolbász" vagy "4 adag tészta") készül a receptből.
+      - Ne vedd figyelembe az eredeti hozzávalókat (${ingredients}) vagy az étkezés típusát, mert a kérés felülírja azokat.
+      - A válasz JSON formátumban legyen.`;
   } else {
-    prompt += ` Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad. Fontos: bár a hozzávalók meglepetések, a receptnek minden más megadott feltételnek (diéta, elkészítési mód, személyek száma, különleges kérés) szigorúan meg kell felelnie.`;
+    // Original logic for generating a meal recipe
+    prompt = `Generálj egy ${mealTypeLabel} receptet, ami pontosan ${numberOfServings} személyre szól.`;
+
+    const machineMethods = cookingMethods.filter(cm => cm !== CookingMethod.TRADITIONAL);
+    if (machineMethods.length > 0) {
+        const capacities = machineMethods
+            .map(cm => ({ name: COOKING_METHODS.find(c => c.value === cm)?.label, capacity: COOKING_METHOD_CAPACITIES[cm] }))
+            .filter(c => c.capacity !== null && c.capacity !== undefined);
+
+        if (capacities.length > 0) {
+            const minCapacityDevice = capacities.reduce((min, current) => (current.capacity! < min.capacity! ? current : min), capacities[0]);
+            if (numberOfServings > minCapacityDevice.capacity!) {
+                prompt += ` A kiválasztott elkészítési módok közül ('${minCapacityDevice.name}') maximum kapacitása kb. ${minCapacityDevice.capacity} fő. Ha a ${numberOfServings} fős adag meghaladja ezt, az instrukciókban adj egyértelmű útmutatást a több részletben való főzésre, vagy javasolj alternatívát.`;
+            }
+        }
+    }
+
+    if (ingredients.trim()) {
+      prompt += ` A recept a következő alapanyagokból készüljön: ${ingredients}.`;
+    } else {
+      prompt += ` Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad. Fontos: bár a hozzávalók meglepetések, a receptnek minden más megadott feltételnek (diéta, elkészítési mód, személyek száma, különleges kérés) szigorúan meg kell felelnie.`;
+    }
+    
+    if (excludedIngredients.trim()) {
+      prompt += ` FONTOS KIKÖTÉS: A recept SOHA NE TARTALMAZZA a következőket, még nyomokban sem: ${excludedIngredients}. Vedd figyelembe az esetleges allergiákat vagy intoleranciákat (pl. ha a felhasználó a laktózt írja, akkor ne használj tejet, vajat, sajtot stb.).`;
+    }
+    
+    prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabels.join(' és ')}. Ha több gép is meg van adva, a recept logikusan használja őket (pl. az alap elkészítése az egyikben, a befejezés a másikban).`;
+    if (diet !== DietOption.NONE && dietLabel) {
+      prompt += ` A recept feleljen meg a következő diétás előírásnak: ${dietLabel}.`;
+    }
+    if (cuisine !== CuisineOption.NONE && cuisineLabel) {
+        prompt += ` A recept stílusa legyen: ${cuisineLabel}.`;
+    }
+    if (specialRequest.trim()) {
+      prompt += ` A receptnek a következő különleges kérésnek is meg kell felelnie: ${specialRequest.trim()}.`;
+    }
+
+    if (recipePace === RecipePace.QUICK) {
+      prompt += ` Különös hangsúlyt fektess arra, hogy a recept a lehető leggyorsabban elkészíthető legyen (alacsony előkészítési és főzési idő).`;
+    } else if (recipePace === RecipePace.SIMPLE) {
+      prompt += ` A recept a lehető legkevesebb hozzávalóból álljon, és az elkészítése legyen rendkívül egyszerű.`;
+    }
+
+    if (diet === DietOption.DIABETIC) {
+      prompt += ` Mivel a recept cukorbeteg diétához készül, adj meg egy becsült tápértékadatokat is 100 grammra vetítve: kalória, szénhidrát, fehérje, zsír. Továbbá, becsüld meg a recept glikémiás indexét (Alacsony, Közepes, vagy Magas). Ezenkívül adj egy rövid, hasznos tanácsot cukorbetegek számára ehhez a recepthez kapcsolódóan (pl. mire figyeljenek a köret kiválasztásánál, vagy hogyan módosíthatják az ételt).`;
+    }
+
+    if (withCost) {
+      prompt += ` Végezz egy becsült költségszámítást is a recepthez magyar forintban (Ft). A számításhoz használd a következő átlagos magyarországi bolti árakat referenciaként (az árakat arányosítsd a receptben szereplő mennyiségekkel): csirkemell: 2500 Ft/kg, sertéskaraj: 2800 Ft/kg, rizs: 800 Ft/kg, krumpli: 400 Ft/kg, liszt: 300 Ft/kg, cukor: 500 Ft/kg, tojás: 80 Ft/db, tej: 450 Ft/liter, hagyma: 400 Ft/kg, fokhagyma: 200 Ft/fej, étolaj: 900 Ft/liter, vaj/margarin: 4000 Ft/kg, paradicsom: 1000 Ft/kg, paprika: 1200 Ft/kg, sajt (trappista): 3500 Ft/kg. Ha egy hozzávaló nincs a listán, használj egy reális piaci becslést. A végeredményt egyetlen stringként add meg, pl. 'kb. 2100 Ft'.`;
+    }
+
+    prompt += ` Adj egy rövid, étvágygerjesztő leírást, az előkészítési és főzési időt, az adagok számát (formátum: "${numberOfServings} személy"), a hozzávalók listáját pontos mennyiségekkel, és az elkészítési lépéseket. Fontos: Minden hozzávalónál add meg a mennyiséget grammban vagy darabban, ÉS egy alternatív, mérleg nélküli mértékegységben is (pl. bögre, evőkanál, teáskanál, dl, ml), ahol ez értelmezhető. Például: "250g liszt (kb. 2 bögre)". A válasz JSON formátumban legyen.`;
   }
   
-  if (excludedIngredients.trim()) {
-    prompt += ` FONTOS KIKÖTÉS: A recept SOHA NE TARTALMAZZA a következőket, még nyomokban sem: ${excludedIngredients}. Vedd figyelembe az esetleges allergiákat vagy intoleranciákat (pl. ha a felhasználó a laktózt írja, akkor ne használj tejet, vajat, sajtot stb.).`;
-  }
-  
-  prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabels.join(' és ')}. Ha több gép is meg van adva, a recept logikusan használja őket (pl. az alap elkészítése az egyikben, a befejezés a másikban).`;
-  if (diet !== DietOption.NONE && dietLabel) {
-    prompt += ` A recept feleljen meg a következő diétás előírásnak: ${dietLabel}.`;
-  }
-  if (cuisine !== CuisineOption.NONE && cuisineLabel) {
-      prompt += ` A recept stílusa legyen: ${cuisineLabel}.`;
-  }
-  if (specialRequest.trim()) {
-    prompt += ` A receptnek a következő különleges kérésnek is meg kell felelnie: ${specialRequest.trim()}.`;
-  }
-
-  if (recipePace === RecipePace.QUICK) {
-    prompt += ` Különös hangsúlyt fektess arra, hogy a recept a lehető leggyorsabban elkészíthető legyen (alacsony előkészítési és főzési idő).`;
-  } else if (recipePace === RecipePace.SIMPLE) {
-    prompt += ` A recept a lehető legkevesebb hozzávalóból álljon, és az elkészítése legyen rendkívül egyszerű.`;
-  }
-
-  if (diet === DietOption.DIABETIC) {
-    prompt += ` Mivel a recept cukorbeteg diétához készül, adj meg egy becsült tápértékadatokat is 100 grammra vetítve: kalória, szénhidrát, fehérje, zsír. Továbbá, becsüld meg a recept glikémiás indexét (Alacsony, Közepes, vagy Magas). Ezenkívül adj egy rövid, hasznos tanácsot cukorbetegek számára ehhez a recepthez kapcsolódóan (pl. mire figyeljenek a köret kiválasztásánál, vagy hogyan módosíthatják az ételt).`;
-  }
-
-  if (withCost) {
-    prompt += ` Végezz egy becsült költségszámítást is a recepthez magyar forintban (Ft). A számításhoz használd a következő átlagos magyarországi bolti árakat referenciaként (az árakat arányosítsd a receptben szereplő mennyiségekkel): csirkemell: 2500 Ft/kg, sertéskaraj: 2800 Ft/kg, rizs: 800 Ft/kg, krumpli: 400 Ft/kg, liszt: 300 Ft/kg, cukor: 500 Ft/kg, tojás: 80 Ft/db, tej: 450 Ft/liter, hagyma: 400 Ft/kg, fokhagyma: 200 Ft/fej, étolaj: 900 Ft/liter, vaj/margarin: 4000 Ft/kg, paradicsom: 1000 Ft/kg, paprika: 1200 Ft/kg, sajt (trappista): 3500 Ft/kg. Ha egy hozzávaló nincs a listán, használj egy reális piaci becslést. A végeredményt egyetlen stringként add meg, pl. 'kb. 2100 Ft'.`;
-  }
-
-  prompt += ` Adj egy rövid, étvágygerjesztő leírást, az előkészítési és főzési időt, az adagok számát (formátum: "${numberOfServings} személy"), a hozzávalók listáját pontos mennyiségekkel, és az elkészítési lépéseket. Fontos: Minden hozzávalónál add meg a mennyiséget grammban vagy darabban, ÉS egy alternatív, mérleg nélküli mértékegységben is (pl. bögre, evőkanál, teáskanál, dl, ml), ahol ez értelmezhető. Például: "250g liszt (kb. 2 bögre)". A válasz JSON formátumban legyen.`;
 
   // Hiba javítása: Dinamikusan módosítjuk a sémát, hogy a modell ne adjon költségbecslést, ha nem kérték.
   // Létrehozunk egy mély másolatot a sémából, hogy ne módosítsuk az eredeti objektumot.
@@ -302,38 +321,35 @@ export const getRecipeModificationSuggestions = async (
   }
 };
 
+// Generates a simple, visual, English description of a dish for the image model.
+const generateVisualPrompt = async (recipeName: string): Promise<string> => {
+    try {
+        const prompt = `Adj egy rövid, 5-10 szavas, egyszerű, vizuális leírást a következő ételről, amit egy ételfotó-generátor is megértene: "${recipeName}". A leírás ANGOLUL legyen a jobb kompatibilitás érdekében. Csak a leírást add vissza, semmi mást. Például: "Magyaros babgulyás" -> "Hearty bean and beef soup in a rustic bowl". Vagy "Rakott krumpli" -> "Layered potato casserole with sausage and eggs".`;
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                thinkingConfig: { thinkingBudget: 0 }, // Faster response for simple task
+            }
+        });
+        const description = response.text.trim();
+        if (description) {
+            return description;
+        }
+        // Fallback if the description is empty
+        return `A dish called ${recipeName}`;
+    } catch (error) {
+        console.error("Error generating visual prompt, falling back:", error);
+        // Fallback on API error
+        return `A dish called ${recipeName}`;
+    }
+}
+
 // FIX: Added missing function to generate a recipe image.
 export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
-    // List of words that might confuse the image model
-    const problematicAdjectives = [
-        'magyaros', 'erdélyi', 'olasz', 'francia', 'spanyol', 'görög',
-        'bolgár', 'török', 'kínai', 'japán', 'thai', 'vietnámi', 'indiai',
-        'mexikói', 'amerikai', 'bajor', 'sváb', 'cigány'
-    ];
-
-    // Sanitize the recipe name for the image prompt
-    let cleanRecipeName = recipe.recipeName
-        .replace(/CUCKOO/gi, '')
-        .replace(/CROCK-POT/gi, '')
-        .replace(/Monsieur Cuisine/gi, '')
-        .replace(/REDMOND/gi, '')
-        .replace(/Okosfőzőben/gi, '')
-        .replace(/termomixerben/gi, '')
-        .replace(/lassúfőzőben/gi, '')
-        .replace(/okos rizsfőzőben/gi, '')
-        .replace(/- Ételfotó/gi, '');
-
-    // Remove problematic adjectives using a regex
-    const regex = new RegExp(`\\b(${problematicAdjectives.join('|')})\\b`, 'gi');
-    cleanRecipeName = cleanRecipeName.replace(regex, '').replace(/\s\s+/g, ' ').trim();
+    const visualDescription = await generateVisualPrompt(recipe.recipeName);
     
-    // Extract key visual ingredients. Use a more robust way to get just ingredient names.
-    const keyIngredients = recipe.ingredients
-      .map(ing => ing.split('(')[0].trim()) // Remove quantities like "(kb. 2 bögre)"
-      .slice(0, 3)
-      .join(', ');
-    
-    const prompt = `Professzionális, valósághű ételfotó. A képen kizárólag a következő étel szerepel egy tányéron, étvágygerjesztően tálalva: ${cleanRecipeName}. Főbb látható összetevők: ${keyIngredients}.`;
+    const prompt = `A professional, realistic, appetizing food photograph of: ${visualDescription}. Clean composition, high detail, studio lighting.`;
 
     try {
         const response = await ai.models.generateImages({
