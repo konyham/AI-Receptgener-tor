@@ -333,7 +333,7 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
       .slice(0, 3)
       .join(', ');
     
-    const prompt = `Élénk, professzionális ételfotó a következő ételről: "${cleanRecipeName}". Rendkívül étvágygerjesztő és ínycsiklandó. Közeli felvétel, letisztult tálalás egy tányéron, egyszerű háttérrel. A főbb összetevők, mint a ${keyIngredients} jól láthatóak. Stúdió megvilágítás.`;
+    const prompt = `Professzionális ételfotó: ${cleanRecipeName}. Rendkívül étvágygerjesztő, a főbb összetevők, mint a ${keyIngredients}, jól láthatóak. Letisztult tálalás egy tányéron.`;
 
     try {
         const response = await ai.models.generateImages({
