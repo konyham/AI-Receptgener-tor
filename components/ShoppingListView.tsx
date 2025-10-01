@@ -71,8 +71,10 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
       };
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
-      const date = new Date().toISOString().split('T')[0];
-      const suggestedName = `konyhamiki_mentes_${date}.json`;
+      const now = new Date();
+      const date = now.toISOString().split('T')[0];
+      const time = now.toTimeString().split(' ')[0].substring(0, 5).replace(':', '-');
+      const suggestedName = `konyhamiki_mentes_${date}_${time}.json`;
 
       const isPickerSupported = 'showSaveFilePicker' in window;
       const isTopFrame = window.self === window.top;
