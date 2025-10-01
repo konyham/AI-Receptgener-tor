@@ -72,8 +72,22 @@ const App: React.FC = () => {
   const [isAppVcProcessing, setIsAppVcProcessing] = useState(false);
   const [isAppVcRateLimited, setIsAppVcRateLimited] = useState(false);
   const isAppVcProcessingRef = useRef(false);
+  
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const { showNotification } = useNotification();
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+        setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    return () => {
+        document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -389,6 +403,17 @@ const App: React.FC = () => {
         showNotification('Hiba történt a logó mentése közben.', 'info');
     }
   };
+  
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch((err) => {
+            showNotification(`A teljes képernyős mód nem érhető el: ${err.message}`, 'info');
+        });
+    } else {
+        document.exitFullscreen();
+    }
+  }, [showNotification]);
+
 
   const renderContent = () => {
     if (view === 'favorites') {
@@ -482,13 +507,33 @@ const App: React.FC = () => {
   return (
     <div className="bg-gray-50 min-h-screen">
       <header className="bg-white shadow-sm sticky top-0 z-10 p-4">
-        <div className="container mx-auto max-w-4xl flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="container mx-auto max-w-4xl flex justify-between items-center gap-4">
           <div className="flex items-center gap-3">
             <img src={konyhaMikiLogo} alt="Konyha Miki logó" className="h-12 w-auto" />
             <div>
               <h1 className="text-xl font-bold text-primary-900">Konyha Miki</h1>
               <p className="text-sm text-gray-500">Az Ön személyes AI konyhafőnöke</p>
             </div>
+          </div>
+          <div>
+            <button
+                onClick={toggleFullscreen}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-primary-100 text-primary-700 transition-colors text-sm font-medium"
+                title={isFullscreen ? 'Kilépés a teljes képernyőből' : 'Teljes képernyő'}
+            >
+                {isFullscreen ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 4H4v4m12 12h4v-4M8 20H4v-4m12-12h4v4" />
+                    </svg>
+                ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4h4m12 4V4h-4M4 16v4h4m12-4v4h-4" />
+                    </svg>
+                )}
+                <span>
+                  {isFullscreen ? 'Normál nézet' : 'Teljes képernyő'}
+                </span>
+            </button>
           </div>
         </div>
       </header>
