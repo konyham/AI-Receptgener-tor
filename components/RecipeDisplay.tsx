@@ -772,11 +772,11 @@ Recept generálva Konyha Miki segítségével!
     <>
       <div id="recipe-to-print" className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden animate-fade-in">
         <div className="p-6 md:p-8">
-          <div className="flex items-start gap-4 mb-2">
-            <img src={konyhaMikiLogoBase64} alt="Konyha Miki logó" className="h-16 w-auto flex-shrink-0" />
-            <div className="flex-grow">
-              <h2 className="text-3xl font-bold text-primary-800">{recipe.recipeName}</h2>
-              <div className="mt-1">
+          <div className="flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-4 mb-2">
+            <img src={konyhaMikiLogoBase64} alt="Konyha Miki logó" className="h-16 w-auto flex-shrink-0 order-2 md:order-1" />
+            <div className="flex-grow order-1 md:order-2">
+              <h2 className="text-2xl md:text-3xl font-bold text-primary-800 break-words">{recipe.recipeName}</h2>
+              <div className="mt-1 flex justify-center md:justify-start">
                 <StarRating rating={recipe.rating || 0} onRatingChange={handleRatingChange} />
               </div>
             </div>
