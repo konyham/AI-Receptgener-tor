@@ -1,618 +1,508 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { Recipe, DietOption, MealType, Favorites, CookingMethod, RecipeSuggestions, ShoppingListItem, AppView, CuisineOption, RecipePace, SortOption, BackupData } from './types';
-import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand } from './services/geminiService';
-import * as favoritesService from './services/favoritesService';
-import * as shoppingListService from './services/shoppingListService';
+import {
+  generateRecipe,
+  getRecipeModificationSuggestions,
+  interpretAppCommand
+} from './services/geminiService';
+import { 
+    getFavorites, 
+    saveFavorites, 
+    addRecipeToFavorites, 
+    removeRecipeFromFavorites, 
+    removeCategory as removeFavoriteCategory,
+    mergeFavorites,
+    validateAndRecover as validateFavorites
+} from './services/favoritesService';
+import {
+    getShoppingList,
+    saveShoppingList,
+    addItems as addShoppingListItems,
+    updateItem as updateShoppingListItem,
+    removeItem as removeShoppingListItem,
+    clearAll as clearAllShoppingListItems,
+    clearChecked as clearCheckedShoppingListItems,
+    mergeShoppingLists,
+    validateAndRecover as validateShoppingList
+} from './services/shoppingListService';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
-import FavoritesView from './components/FavoritesView';
-import ShoppingListView from './components/ShoppingListView';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorMessage from './components/ErrorMessage';
+import FavoritesView from './components/FavoritesView';
+import ShoppingListView from './components/ShoppingListView';
 import AppVoiceControl from './components/AppVoiceControl';
+
+import {
+  Recipe,
+  DietOption,
+  MealType,
+  RecipeSuggestions,
+  AppView,
+  Favorites,
+  ShoppingListItem,
+  BackupData,
+  AppCommand,
+  SortOption,
+  CookingMethod,
+  CuisineOption,
+  RecipePace,
+} from './types';
 import { useNotification } from './contexts/NotificationContext';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
-import { isLocalStorageAvailable } from './utils/storage';
-import { SortOption as SortOptionEnum } from './types'; // Enum importálása
-
-interface RecipeGenerationParams {
-  ingredients: string;
-  excludedIngredients: string;
-  diet: DietOption;
-  mealType: MealType;
-  cuisine: CuisineOption;
-  cookingMethods: CookingMethod[];
-  specialRequest: string;
-  withCost: boolean;
-  withImage: boolean;
-  numberOfServings: number;
-  recipePace: RecipePace;
-}
+import { konyhaMikiLogo } from './assets';
 
 const App: React.FC = () => {
-  const [page, setPage] = useState<AppView>('generator');
   const [recipe, setRecipe] = useState<Recipe | null>(null);
-  const [lastGeneratedRecipe, setLastGeneratedRecipe] = useState<Recipe | null>(null);
-  const [favorites, setFavorites] = useState<Favorites>(() => {
-    try {
-      return favoritesService.getFavorites().favorites;
-    } catch (err) {
-      console.error("Hiba a kedvencek betöltésekor az inicializálás során:", err);
-      return {};
-    }
-  });
-  const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>(() => {
-    try {
-        return shoppingListService.getShoppingList().list;
-    } catch (err) {
-        console.error("Hiba a bevásárlólista betöltésekor az inicializálás során:", err);
-        return [];
-    }
-  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [storageError, setStorageError] = useState<string | null>(null);
-  const [lastGenerationParams, setLastGenerationParams] = useState<RecipeGenerationParams | null>(null);
-  const [initialFormData, setInitialFormData] = useState<Partial<RecipeGenerationParams> | null>(null);
   const [suggestions, setSuggestions] = useState<RecipeSuggestions | null>(null);
-  const { showNotification } = useNotification();
-  const [shouldGenerateImageForFavorite, setShouldGenerateImageForFavorite] = useState<boolean>(false);
-
-  // State lifted from FavoritesView for voice control and sorting
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [sortOption, setSortOption] = useState<SortOption>(SortOptionEnum.DATE_DESC);
+  const [initialFormData, setInitialFormData] = useState<any>(null);
+  const [shouldGenerateImage, setShouldGenerateImage] = useState(false);
   
-  // App-level voice control state
-  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
-  const [isAppRateLimited, setIsAppRateLimited] = useState(false);
-  const isProcessingRef = useRef(false);
+  const [view, setView] = useState<AppView>('generator');
+  const [favorites, setFavorites] = useState<Favorites>({});
+  const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
+  
+  // State for FavoritesView
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [sortOption, setSortOption] = useState<SortOption>(SortOption.DATE_DESC);
+  
+  // State for App-wide voice control
+  const [isAppVcProcessing, setIsAppVcProcessing] = useState(false);
+  const [isAppVcRateLimited, setIsAppVcRateLimited] = useState(false);
+  const isAppVcProcessingRef = useRef(false);
+
+  const { showNotification } = useNotification();
 
   useEffect(() => {
-    // This effect now only handles initial checks and notifications,
-    // not data loading, which is handled by useState initializers.
-    if (!isLocalStorageAvailable()) {
-      setStorageError(
-        "Az adatok mentése nem lehetséges, mert a böngésző helyi tárolója nem elérhető vagy le van tiltva. Kérjük, engedélyezze a 'sütiket' és a webhelyadatokat a böngésző beállításaiban a teljes funkcionalitás érdekében."
-      );
-      return;
-    }
-    // Check for recovery notifications from the initial load
     try {
-      const { recoveryNotification } = favoritesService.getFavorites();
-      if (recoveryNotification) {
-          showNotification(recoveryNotification, 'info');
+      const { favorites: loadedFavorites, recoveryNotification: favRecovery } = getFavorites();
+      setFavorites(loadedFavorites);
+      if (favRecovery) {
+        showNotification(favRecovery, 'info');
       }
     } catch (err: any) {
       showNotification(err.message, 'info');
     }
+
     try {
-      const { recoveryNotification } = shoppingListService.getShoppingList();
-       if (recoveryNotification) {
-          showNotification(recoveryNotification, 'info');
-      }
+        const { list: loadedList, recoveryNotification: listRecovery } = getShoppingList();
+        setShoppingList(loadedList);
+        if (listRecovery) {
+            showNotification(listRecovery, 'info');
+        }
     } catch (err: any) {
-      showNotification(err.message, 'info');
+        showNotification(err.message, 'info');
     }
   }, [showNotification]);
 
-  // Handlers for Shopping List - Placed here as they are fundamental
-  const handleShoppingListAddItems = (items: string[]) => {
+  const handleGenerateRecipe = async (params: {
+    ingredients: string,
+    excludedIngredients: string,
+    diet: DietOption,
+    mealType: MealType,
+    cuisine: CuisineOption,
+    cookingMethods: CookingMethod[],
+    specialRequest: string,
+    withCost: boolean,
+    withImage: boolean,
+    numberOfServings: number,
+    recipePace: RecipePace
+  }) => {
+    setIsLoading(true);
+    setError(null);
+    setRecipe(null);
+    setSuggestions(null);
+    setInitialFormData(params);
+    setShouldGenerateImage(params.withImage);
+
     try {
-      const updatedList = shoppingListService.addItems(items);
+      const newRecipe = await generateRecipe(
+        params.ingredients,
+        params.excludedIngredients,
+        params.diet,
+        params.mealType,
+        params.cuisine,
+        params.cookingMethods,
+        params.specialRequest,
+        params.withCost,
+        params.numberOfServings,
+        params.recipePace
+      );
+      setRecipe(newRecipe);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCloseRecipe = () => {
+    setRecipe(null);
+    setSuggestions(null);
+    setInitialFormData(null);
+    setError(null);
+  };
+  
+  const handleRefineRecipe = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    try {
+        if (recipe) {
+            const newSuggestions = await getRecipeModificationSuggestions(recipe.ingredients.join(', '), recipe.recipeName);
+            setSuggestions(newSuggestions);
+        }
+    } catch (err: any) {
+        showNotification((err as Error).message, 'info');
+    } finally {
+        setIsLoading(false);
+        setRecipe(null);
+    }
+  };
+
+  const handleFormPopulated = useCallback(() => {
+    setInitialFormData(null);
+  }, []);
+  
+  const handleRecipeUpdate = (updatedRecipe: Recipe) => {
+    setRecipe(updatedRecipe);
+  };
+
+  // --- Favorites Handlers ---
+  const handleSaveFavorite = (recipeToSave: Recipe, category: string) => {
+    const updatedFavorites = addRecipeToFavorites(recipeToSave, category);
+    setFavorites(updatedFavorites);
+    showNotification(`Recept elmentve a(z) "${category}" kategóriába!`, 'success');
+  };
+
+  const handleDeleteFavorite = (recipeName: string, category: string) => {
+    const updatedFavorites = removeRecipeFromFavorites(recipeName, category);
+    setFavorites(updatedFavorites);
+    showNotification('Recept törölve a kedvencekből.', 'success');
+  };
+
+  const handleDeleteCategory = (category: string) => {
+    const updatedFavorites = removeFavoriteCategory(category);
+    setFavorites(updatedFavorites);
+    showNotification(`"${category}" kategória törölve.`, 'success');
+  };
+  
+  const handleToggleCategory = (category: string) => {
+      setExpandedCategories(prev => ({...prev, [category]: !prev[category]}));
+  };
+  
+  // --- Shopping List Handlers ---
+  const handleAddItemsToShoppingList = (items: string[]) => {
+      const updatedList = addShoppingListItems(items);
       setShoppingList(updatedList);
       showNotification(`${items.length} tétel hozzáadva a bevásárlólistához!`, 'success');
-    } catch (err: any) {
-        showNotification(err.message, 'info');
-    }
+      setView('shopping-list');
   };
 
-  const handleShoppingListUpdateItem = (index: number, updatedItem: ShoppingListItem) => {
-    try {
-      const updatedList = shoppingListService.updateItem(index, updatedItem);
+  const handleUpdateShoppingListItem = (index: number, updatedItem: ShoppingListItem) => {
+      const updatedList = updateShoppingListItem(index, updatedItem);
       setShoppingList(updatedList);
-    } catch (err: any) {
-        showNotification(err.message, 'info');
-    }
   };
 
-  const handleShoppingListRemoveItem = (index: number) => {
-    try {
-      const updatedList = shoppingListService.removeItem(index);
+  const handleRemoveShoppingListItem = (index: number) => {
+      const updatedList = removeShoppingListItem(index);
       setShoppingList(updatedList);
-    } catch (err: any) {
-        showNotification(err.message, 'info');
-    }
   };
 
-  const handleShoppingListClearChecked = () => {
-    try {
-      const updatedList = shoppingListService.clearChecked();
+  const handleClearCheckedShoppingListItems = () => {
+      const updatedList = clearCheckedShoppingListItems();
       setShoppingList(updatedList);
-      showNotification('Kipipált tételek törölve.', 'info');
-    } catch (err: any) {
-        showNotification(err.message, 'info');
-    }
   };
-  
-  const handleShoppingListClearAll = () => {
-    try {
-      const updatedList = shoppingListService.clearAll();
+
+  const handleClearAllShoppingListItems = () => {
+      const updatedList = clearAllShoppingListItems();
       setShoppingList(updatedList);
-      showNotification('Bevásárlólista törölve.', 'info');
-    } catch (err: any) {
-        showNotification(err.message, 'info');
-    }
   };
-  
-  const handleImportData = (data: unknown) => {
-    try {
-      // Basic validation to check if the imported data has the expected structure.
-      if (
-        typeof data === 'object' &&
-        data !== null &&
-        'favorites' in data &&
-        'shoppingList' in data &&
-        typeof (data as BackupData).favorites === 'object' &&
-        Array.isArray((data as BackupData).shoppingList)
-      ) {
-        const backupData = data as BackupData;
-        
-        // Validate and clean the imported data before merging.
-        const { favorites: validImportedFavorites, recoveryNotification: favRecovery } = favoritesService.validateAndRecover(backupData.favorites);
-        const { list: validImportedShoppingList, recoveryNotification: listRecovery } = shoppingListService.validateAndRecover(backupData.shoppingList);
 
-        // Merge the validated imported data with the current state.
-        const { mergedFavorites, newRecipesCount } = favoritesService.mergeFavorites(favorites, validImportedFavorites);
-        const { mergedList, newItemsCount } = shoppingListService.mergeShoppingLists(shoppingList, validImportedShoppingList);
-
-        // Update the state with the merged data.
-        setFavorites(mergedFavorites);
-        setShoppingList(mergedList);
-
-        // Save the merged data to localStorage.
-        favoritesService.saveFavorites(mergedFavorites);
-        shoppingListService.saveShoppingList(mergedList);
-        
-        // Provide detailed feedback to the user.
-        const messages: string[] = [];
-        if (newRecipesCount > 0) messages.push(`${newRecipesCount} új recept`);
-        if (newItemsCount > 0) messages.push(`${newItemsCount} új bevásárlólista-tétel`);
-        
-        let feedbackMessage: string;
-        if (messages.length > 0) {
-          feedbackMessage = `Betöltés befejezve. ${messages.join(' és ')} hozzáadva.`;
-        } else {
-          feedbackMessage = 'Betöltés befejezve. Nem kerültek új adatok hozzáadásra.';
-        }
-
-        if (favRecovery || listRecovery) {
-           showNotification('Az adatok összefésülve, de néhány sérült bejegyzést ki kellett hagyni.', 'info');
-        } else {
-           showNotification(feedbackMessage, 'success');
-        }
-      } else {
-        throw new Error('A fájl formátuma érvénytelen vagy sérült.');
+  // --- Data Import/Export ---
+  const handleImportData = (data: BackupData) => {
+    let newFavCount = 0;
+    let newShopCount = 0;
+    
+    if (data.favorites) {
+      const { favorites: validatedFavorites, recoveryNotification } = validateFavorites(data.favorites);
+      const { mergedFavorites, newRecipesCount } = mergeFavorites(favorites, validatedFavorites);
+      setFavorites(mergedFavorites);
+      saveFavorites(mergedFavorites);
+      newFavCount = newRecipesCount;
+      if (recoveryNotification) {
+        showNotification(recoveryNotification, 'info');
       }
-    } catch (err: any) {
-       showNotification(err.message, 'info');
     }
+
+    if (data.shoppingList) {
+      const { list: validatedList, recoveryNotification } = validateShoppingList(data.shoppingList);
+      const { mergedList, newItemsCount } = mergeShoppingLists(shoppingList, validatedList);
+      setShoppingList(mergedList);
+      saveShoppingList(mergedList);
+      newShopCount = newItemsCount;
+       if (recoveryNotification) {
+        showNotification(recoveryNotification, 'info');
+      }
+    }
+    
+    showNotification(`Importálás kész! ${newFavCount} új recept és ${newShopCount} új bevásárlólista tétel hozzáadva.`, 'success');
   };
   
-  // Voice control logic
-  const handleAppVoiceResult = useCallback(async (transcript: string) => {
-    if (isProcessingRef.current) return;
-    
-    isProcessingRef.current = true;
-    setIsProcessingVoice(true);
+  const handleViewFavoriteRecipe = (recipeToView: Recipe) => {
+    setRecipe(recipeToView);
+    setView('generator');
+  };
 
-    const context = {
-        categories: Object.keys(favorites),
-        // FIX: Explicitly typing the parameters of the 'reduce' callback to prevent 'recipes' from being inferred as 'unknown'.
-        recipesByCategory: Object.entries(favorites).reduce((acc, [category, recipes]: [string, Recipe[]]) => {
-            acc[category] = recipes.map(r => r.recipeName);
-            return acc;
-        }, {} as { [category: string]: string[] }),
-        shoppingListItems: shoppingList.map(item => item.text),
-    };
-    
-    try {
-        const command = await interpretAppCommand(transcript, page, context);
-        switch (command.action) {
-            case 'navigate':
-                setPage(command.payload as AppView);
-                showNotification(`Navigálás: ${command.payload}`, 'info');
-                break;
-            // FIX: The type of `command.payload.split(',')` can be incorrectly inferred as `unknown`.
-            // Explicitly typing the `items` variable as `string[]` ensures type safety and allows usage of array methods.
-            case 'add_shopping_list_item':
-                if (typeof command.payload === 'string') {
-                    const items: string[] = command.payload.split(',');
-                    const itemsToAdd = items.map(s => s.trim()).filter(Boolean);
-                    if (itemsToAdd.length > 0) {
-                        handleShoppingListAddItems(itemsToAdd);
-                    }
-                    showNotification(`Hozzáadva: ${command.payload}`, 'success');
-                }
-                break;
-            case 'remove_shopping_list_item':
-                const itemToRemove = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
-                if (itemToRemove > -1) {
-                    showNotification(`Törölve: ${shoppingList[itemToRemove].text}`, 'info');
-                    handleShoppingListRemoveItem(itemToRemove);
-                }
-                break;
-             case 'check_shopping_list_item':
-                const itemToCheck = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
-                if (itemToCheck > -1 && !shoppingList[itemToCheck].checked) {
-                    handleShoppingListUpdateItem(itemToCheck, { ...shoppingList[itemToCheck], checked: true });
-                    showNotification(`Kipipálva: ${shoppingList[itemToCheck].text}`, 'info');
-                }
-                break;
-            case 'uncheck_shopping_list_item':
-                const itemToUncheck = shoppingList.findIndex(item => item.text.toLowerCase().includes((command.payload as string).toLowerCase()));
-                if (itemToUncheck > -1 && shoppingList[itemToUncheck].checked) {
-                    handleShoppingListUpdateItem(itemToUncheck, { ...shoppingList[itemToUncheck], checked: false });
-                }
-                break;
-            case 'clear_checked_shopping_list':
-                handleShoppingListClearChecked();
-                break;
-            case 'clear_all_shopping_list':
-                handleShoppingListClearAll();
-                break;
-            case 'view_favorite_recipe':
-                const payloadView = command.payload as { recipeName: string; category: string };
-                const recipeToView = favorites[payloadView.category]?.find(r => r.recipeName === payloadView.recipeName);
-                if (recipeToView) {
-                    viewFavoriteRecipe(recipeToView);
-                    showNotification(`Megnyitva: ${payloadView.recipeName}`, 'info');
-                }
-                break;
-            case 'delete_favorite_recipe':
-                const payloadDelete = command.payload as { recipeName: string; category: string };
-                handleDeleteRecipe(payloadDelete.recipeName, payloadDelete.category);
-                break;
-            case 'filter_favorites':
-                setFilterCategory(command.payload as string);
-                showNotification(`Szűrés: ${command.payload}`, 'info');
-                break;
-            case 'clear_favorites_filter':
-                setFilterCategory('all');
-                showNotification('Szűrés törölve', 'info');
-                break;
-            case 'expand_category':
-                 setExpandedCategories(prev => ({ ...prev, [command.payload as string]: true }));
-                 break;
-            case 'collapse_category':
-                 setExpandedCategories(prev => ({ ...prev, [command.payload as string]: false }));
-                 break;
-        }
-    } catch (err: any) {
-        console.error("Error interpreting app command:", err);
-        let errorMessage = 'Hiba a parancs értelmezésekor.';
-        const errorString = (typeof err.message === 'string') ? err.message : JSON.stringify(err);
-
-        if (errorString.toLowerCase().includes('resource_exhausted') || errorString.includes('429') || errorString.toLowerCase().includes('quota')) {
-            errorMessage = "Túl sok kérés. A hangvezérlés 15 másodpercre szünetel.";
-            setIsAppRateLimited(true);
-            setTimeout(() => {
-              setIsAppRateLimited(false);
-              showNotification("A hangvezérlés újra aktív.", 'success');
-            }, 15000); // Re-enable after 15 seconds
-        }
-        showNotification(errorMessage, 'info');
-    } finally {
-        isProcessingRef.current = false;
-        setIsProcessingVoice(false);
-    }
-  }, [page, favorites, shoppingList, showNotification]);
-
-  const handleAppSpeechError = useCallback((error: string) => {
+  // --- App Voice Control ---
+  const handleAppVoiceError = useCallback((error: string) => {
     if (error === 'not-allowed') {
         showNotification('A mikrofon használata le lett tiltva. A funkció használatához engedélyezze a böngészőben.', 'info');
     }
   }, [showNotification]);
 
+  const handleAppVoiceResult = useCallback(async (transcript: string) => {
+    if (isAppVcProcessingRef.current) return;
+    
+    isAppVcProcessingRef.current = true;
+    setIsAppVcProcessing(true);
+    
+    try {
+        const categories = Object.keys(favorites);
+        const recipesByCategory: { [category: string]: string[] } = {};
+        categories.forEach(cat => {
+            recipesByCategory[cat] = favorites[cat].map(r => r.recipeName);
+        });
+        const shoppingListItems = shoppingList.map(item => item.text);
+
+        const command: AppCommand = await interpretAppCommand(transcript, view, {
+            categories,
+            recipesByCategory,
+            shoppingListItems,
+        });
+
+        // Command processing logic here
+        switch (command.action) {
+            case 'navigate':
+                if (['generator', 'favorites', 'shopping-list'].includes(command.payload as string)) {
+                    setView(command.payload as AppView);
+                    showNotification(`Navigálás ide: ${command.payload}`, 'info');
+                }
+                break;
+            case 'add_shopping_list_item':
+                const items = (command.payload as string).split(',').map(s => s.trim()).filter(Boolean);
+                if (items.length > 0) {
+                    const updatedList = addShoppingListItems(items);
+                    setShoppingList(updatedList);
+                    showNotification(`${items.join(', ')} hozzáadva a listához.`, 'success');
+                    setView('shopping-list');
+                }
+                break;
+            // ... add more command handlers
+            case 'view_favorite_recipe':
+                const payload = command.payload as { recipeName: string; category: string };
+                if (payload && favorites[payload.category]) {
+                    const foundRecipe = favorites[payload.category].find(r => r.recipeName.toLowerCase() === payload.recipeName.toLowerCase());
+                    if (foundRecipe) {
+                        setRecipe(foundRecipe);
+                        setView('generator');
+                    }
+                }
+                break;
+            case 'filter_favorites':
+                const cat = command.payload as string;
+                if (Object.keys(favorites).find(c => c.toLowerCase() === cat.toLowerCase())) {
+                    setFilterCategory(cat);
+                    setView('favorites');
+                }
+                break;
+            case 'expand_category':
+                const catToExp = command.payload as string;
+                if (favorites[catToExp]) {
+                    setExpandedCategories(prev => ({...prev, [catToExp]: true}));
+                    setView('favorites');
+                }
+                break;
+            // Add other cases here
+            default:
+                // Do nothing for unknown
+                break;
+        }
+
+    } catch (err: any) {
+      console.error("Error interpreting app command:", err);
+      let errorMessage = "Hiba a hangparancs értelmezése közben.";
+      if (err.message.toLowerCase().includes('quota')) {
+          errorMessage = "Túl sok kérés. A hangvezérlés 15 másodpercre szünetel.";
+          setIsAppVcRateLimited(true);
+          setTimeout(() => setIsAppVcRateLimited(false), 15000);
+      }
+      showNotification(errorMessage, 'info');
+    } finally {
+      isAppVcProcessingRef.current = false;
+      setIsAppVcProcessing(false);
+    }
+  }, [favorites, shoppingList, view, showNotification]);
+
   const {
-    isListening: isAppListening,
-    isSupported: isVoiceSupported,
-    startListening: startAppListening,
-    stopListening: stopAppListening,
-    permissionState,
-  } = useSpeechRecognition({ 
-    onResult: handleAppVoiceResult, 
+    isListening: isAppVcListening,
+    isSupported: isAppVcSupported,
+    startListening: startAppVcListening,
+    stopListening: stopAppVcListening,
+    permissionState: appVcPermissionState,
+  } = useSpeechRecognition({
+    onResult: handleAppVoiceResult,
     continuous: false,
-    onError: handleAppSpeechError,
+    onError: handleAppVoiceError,
   });
 
   const handleAppMicClick = () => {
-    if (isAppListening) {
-      stopAppListening();
+    if (isAppVcListening) {
+      stopAppVcListening();
     } else {
-      startAppListening();
+      startAppVcListening();
     }
   };
-
-  const handleGenerateRecipe = async (params: RecipeGenerationParams) => {
-    setIsLoading(true);
-    setError(null);
-    setRecipe(null);
-    setSuggestions(null); // Clear suggestions on new generation
-    setLastGenerationParams(params);
-    try {
-      const newRecipe = await generateRecipe(params.ingredients, params.excludedIngredients, params.diet, params.mealType, params.cuisine, params.cookingMethods, params.specialRequest, params.withCost, params.numberOfServings, params.recipePace);
-      setRecipe(newRecipe);
-      setLastGeneratedRecipe(newRecipe);
-      setPage('generator');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (err: any) {
-      setError(err.message || 'Ismeretlen hiba történt.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRefineRecipe = async () => {
-    if (lastGenerationParams && recipe) {
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        const newSuggestions = await getRecipeModificationSuggestions(lastGenerationParams.ingredients, recipe.recipeName);
-        setSuggestions(newSuggestions);
-      } catch (err: any) {
-        showNotification(err.message || 'Nem sikerült javaslatokat betölteni.', 'info');
-        setSuggestions(null);
-      }
-      
-      setInitialFormData(lastGenerationParams);
-      setRecipe(null);
-      setIsLoading(false);
-    }
-  };
-  
-  const closeRecipeView = () => {
-    setSuggestions(null); // Clear suggestions when starting a new recipe
-    if (lastGenerationParams) {
-        setInitialFormData(lastGenerationParams);
-    } else {
-        setInitialFormData(null);
-    }
-    setRecipe(null);
-    setLastGeneratedRecipe(null);
-    setError(null);
-  };
-
-  const closeFavoriteRecipeView = () => {
-    setRecipe(null);
-  };
-
-  const showLastRecipe = () => {
-    if (lastGeneratedRecipe) {
-        setRecipe(lastGeneratedRecipe);
-        setPage('generator');
-    }
-  };
-
-  const viewFavoriteRecipe = (favRecipe: Recipe) => {
-    if (!favRecipe.imageUrl) {
-      if (window.confirm("Szeretne ételfotót generálni ehhez a recepthez? (Ez a művelet kvótát használ.)")) {
-        setShouldGenerateImageForFavorite(true);
-      } else {
-        setShouldGenerateImageForFavorite(false);
-      }
-    } else {
-      setShouldGenerateImageForFavorite(false);
-    }
-    setRecipe(favRecipe);
-    setPage('favorites');
-  };
-  
-  const handleSaveRecipe = (recipeToSave: Recipe, category: string) => {
-    try {
-      const updatedFavorites = favoritesService.addRecipeToFavorites(recipeToSave, category);
-      setFavorites(updatedFavorites);
-      showNotification(`Recept elmentve a(z) "${category}" kategóriába!`, 'success');
-    } catch (err: any) {
-        showNotification(err.message, 'info');
-    }
-  };
-
-  const handleDeleteRecipe = (recipeName: string, category: string) => {
-    try {
-      const updatedFavorites = favoritesService.removeRecipeFromFavorites(recipeName, category);
-      setFavorites(updatedFavorites);
-      showNotification('Recept törölve a kedvencek közül.', 'info');
-    } catch (err: any) {
-        showNotification(err.message, 'info');
-    }
-  };
-
-  const handleDeleteCategory = (category: string) => {
-    try {
-      const updatedFavorites = favoritesService.removeCategory(category);
-      setFavorites(updatedFavorites);
-      showNotification(`"${category}" kategória törölve.`, 'info');
-    } catch (err: any) {
-        showNotification(err.message, 'info');
-    }
-  };
-
-  const showGenerator = () => {
-    setRecipe(null);
-    setSuggestions(null);
-    setPage('generator');
-  };
-  
-  const showFavorites = () => {
-    setRecipe(null);
-    setSuggestions(null);
-    try {
-      const { favorites, recoveryNotification } = favoritesService.getFavorites();
-      setFavorites(favorites);
-      if (recoveryNotification) {
-          showNotification(recoveryNotification, 'info');
-      }
-    } catch (err: any) {
-        showNotification(err.message, 'info');
-        setFavorites({}); // Keep fallback for fatal errors
-    }
-    setPage('favorites');
-  };
-  
-  const showShoppingList = () => {
-    setRecipe(null);
-    setSuggestions(null);
-    setPage('shopping-list');
-  };
-
-  const handleRecipeUpdate = useCallback((updatedRecipe: Recipe) => {
-    setRecipe(updatedRecipe);
-    setLastGeneratedRecipe(updatedRecipe);
-  }, []);
-
-  const NavButton: React.FC<{
-    active: boolean;
-    onClick: () => void;
-    children: React.ReactNode;
-  }> = ({ active, onClick, children }) => (
-    <button
-      onClick={onClick}
-      className={`px-4 py-2 text-sm md:text-base font-bold rounded-lg transition-colors duration-200 ${
-        active
-          ? 'bg-primary-600 text-white shadow-md'
-          : 'bg-white text-primary-700 hover:bg-primary-100'
-      }`}
-    >
-      {children}
-    </button>
-  );
 
   const renderContent = () => {
-    if (isLoading && !recipe) {
-      return <LoadingSpinner />;
-    }
-      
-    if (recipe) {
-      const isViewingFavorite = page === 'favorites';
+    if (view === 'favorites') {
       return (
-        <RecipeDisplay
-          recipe={recipe}
-          onClose={isViewingFavorite ? closeFavoriteRecipeView : closeRecipeView}
-          onRefine={handleRefineRecipe}
-          isFromFavorites={isViewingFavorite}
+        <FavoritesView
           favorites={favorites}
-          onSave={handleSaveRecipe}
-          onAddItemsToShoppingList={handleShoppingListAddItems}
-          isLoading={isLoading}
-          onRecipeUpdate={handleRecipeUpdate}
-          shouldGenerateImageInitially={page === 'favorites' ? shouldGenerateImageForFavorite : (lastGenerationParams?.withImage ?? false)}
-        />
-      );
-    }
-    
-    if (page === 'generator') {
-      return (
-        <>
-          <RecipeInputForm
-            onSubmit={handleGenerateRecipe}
-            isLoading={isLoading}
-            initialFormData={initialFormData}
-            onFormPopulated={() => setInitialFormData(null)}
-            suggestions={suggestions}
-          />
-          {error && <div className="mt-4"><ErrorMessage message={error} /></div>}
-        </>
-      );
-    }
-
-    if (page === 'favorites') {
-      return (
-        <FavoritesView 
-          favorites={favorites}
-          onViewRecipe={viewFavoriteRecipe}
-          onDeleteRecipe={handleDeleteRecipe}
+          shoppingList={shoppingList}
+          onViewRecipe={handleViewFavoriteRecipe}
+          onDeleteRecipe={handleDeleteFavorite}
           onDeleteCategory={handleDeleteCategory}
+          onImportData={handleImportData}
           expandedCategories={expandedCategories}
-          onToggleCategory={(category) => setExpandedCategories(prev => ({...prev, [category]: !prev[category]}))}
+          onToggleCategory={handleToggleCategory}
           filterCategory={filterCategory}
           onSetFilterCategory={setFilterCategory}
           sortOption={sortOption}
           onSetSortOption={setSortOption}
-          onImportData={handleImportData}
-          shoppingList={shoppingList}
         />
       );
     }
 
-    if (page === 'shopping-list') {
+    if (view === 'shopping-list') {
       return (
         <ShoppingListView
           list={shoppingList}
-          onAddItems={handleShoppingListAddItems}
-          onUpdateItem={handleShoppingListUpdateItem}
-          onRemoveItem={handleShoppingListRemoveItem}
-          onClearChecked={handleShoppingListClearChecked}
-          onClearAll={handleShoppingListClearAll}
-          onImportData={handleImportData}
           favorites={favorites}
+          onAddItems={handleAddItemsToShoppingList}
+          onUpdateItem={handleUpdateShoppingListItem}
+          onRemoveItem={handleRemoveShoppingListItem}
+          onClearChecked={handleClearCheckedShoppingListItems}
+          onClearAll={handleClearAllShoppingListItems}
+          onImportData={handleImportData}
         />
       );
     }
-    
-    return null;
+
+    // Default view is 'generator'
+    if (recipe) {
+      return (
+        <RecipeDisplay
+          recipe={recipe}
+          onClose={handleCloseRecipe}
+          onRefine={handleRefineRecipe}
+          isFromFavorites={!!(recipe.dateAdded)}
+          favorites={favorites}
+          onSave={handleSaveFavorite}
+          onAddItemsToShoppingList={handleAddItemsToShoppingList}
+          isLoading={isLoading}
+          onRecipeUpdate={handleRecipeUpdate}
+          shouldGenerateImageInitially={shouldGenerateImage}
+        />
+      );
+    }
+
+    return (
+      <>
+        {isLoading && <LoadingSpinner />}
+        {error && <ErrorMessage message={error} />}
+        {!isLoading && !error && (
+          <RecipeInputForm
+            onSubmit={handleGenerateRecipe}
+            isLoading={isLoading}
+            initialFormData={initialFormData}
+            onFormPopulated={handleFormPopulated}
+            suggestions={suggestions}
+          />
+        )}
+      </>
+    );
   };
+  
+  const NavButton: React.FC<{
+    targetView: AppView;
+    label: string;
+    icon: JSX.Element;
+  }> = ({ targetView, label, icon }) => (
+    <button
+      onClick={() => { setView(targetView); setRecipe(null); setError(null); }}
+      className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-2 py-2 px-4 rounded-lg font-semibold transition-colors ${
+        view === targetView
+          ? 'bg-primary-600 text-white shadow-md'
+          : 'bg-white text-gray-700 hover:bg-primary-50'
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
 
   return (
-    <div className="min-h-screen bg-primary-50 font-sans text-gray-800">
-      <main className="container mx-auto px-4 py-8 md:py-12">
-        <header className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-primary-900">
-            AI recept generátor - Konyha Miki módra
-          </h1>
-          <p className="mt-3 text-lg text-primary-700 max-w-2xl mx-auto">
-            Készítsen finom recepteket, mentse el kedvenceit és használja a konyhai időzítőt!
-          </p>
-        </header>
-
-        <div className="max-w-3xl mx-auto">
-            {storageError && <div className="mb-4"><ErrorMessage message={storageError} /></div>}
-            <div className="mb-6 p-2 bg-white rounded-xl shadow-sm border border-gray-200 flex justify-center items-center gap-2 flex-wrap">
-                 <NavButton active={page === 'generator' && !recipe} onClick={showGenerator}>
-                    Recept Generátor
-                </NavButton>
-                <NavButton active={page === 'favorites'} onClick={showFavorites}>
-                    Kedvenceim
-                </NavButton>
-                <NavButton active={page === 'shopping-list'} onClick={showShoppingList}>
-                    Bevásárlólista
-                </NavButton>
-                {lastGeneratedRecipe && !recipe && (
-                    <NavButton active={false} onClick={showLastRecipe}>
-                        Vissza a recepthez
-                    </NavButton>
-                )}
+    <div className="bg-gray-50 min-h-screen">
+      <header className="bg-white shadow-sm sticky top-0 z-10 p-4">
+        <div className="container mx-auto max-w-4xl flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-3">
+            <img src={konyhaMikiLogo} alt="Konyha Miki logó" className="h-12 w-auto" />
+            <div>
+              <h1 className="text-xl font-bold text-primary-900">Konyha Miki</h1>
+              <p className="text-sm text-gray-500">Az Ön személyes AI konyhafőnöke</p>
             </div>
-            {(page === 'favorites' || page === 'shopping-list') && !recipe && (
-                 <AppVoiceControl
-                    isSupported={isVoiceSupported}
-                    isListening={isAppListening}
-                    isProcessing={isProcessingVoice}
-                    onClick={handleAppMicClick}
-                    permissionState={permissionState}
-                    isRateLimited={isAppRateLimited}
-                />
-            )}
-          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-lg border border-gray-200">
-            {renderContent()}
           </div>
         </div>
+      </header>
+      
+      <main className="container mx-auto max-w-4xl p-4 sm:p-6">
+        <nav className="mb-6 p-2 bg-white border rounded-xl shadow-sm flex flex-col sm:flex-row gap-2">
+            <NavButton 
+                targetView="generator" 
+                label="Recept Generátor"
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v1.999l4.873.001a1 1 0 01.999 1V16a1 1 0 01-1 1h-4.872l-.001 2.001a1 1 0 01-1.664.748l-6-6A1 1 0 012 12V5a1 1 0 011-1h4.872L7.873 2a1 1 0 01.748-1.664l2.678-.001zM12 10a2 2 0 11-4 0 2 2 0 014 0z" clipRule="evenodd" /></svg>}
+            />
+            <NavButton 
+                targetView="favorites" 
+                label="Kedvencek"
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>}
+            />
+            <NavButton 
+                targetView="shopping-list" 
+                label="Bevásárlólista"
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H4.72l-.21-1.257A1 1 0 003 1z" /><path d="M16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" /></svg>}
+            />
+        </nav>
         
-        <footer className="text-center mt-12 text-sm text-gray-500">
-          <p>Készítette a Gemini API.</p>
-        </footer>
+        <AppVoiceControl
+          isSupported={isAppVcSupported}
+          isListening={isAppVcListening}
+          isProcessing={isAppVcProcessing}
+          onClick={handleAppMicClick}
+          permissionState={appVcPermissionState}
+          isRateLimited={isAppVcRateLimited}
+        />
+
+        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-8">
+            {renderContent()}
+        </div>
       </main>
+      <footer className="text-center py-6 text-sm text-gray-500">
+        <p>&copy; {new Date().getFullYear()} Konyha Miki. Minden jog fenntartva.</p>
+        <p>AI-alapú receptgenerátor a Google Gemini API segítségével.</p>
+      </footer>
     </div>
   );
 };
