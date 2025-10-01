@@ -82,7 +82,8 @@ export const generateRecipe = async (
   specialRequest: string,
   withCost: boolean,
   numberOfServings: number,
-  recipePace: RecipePace
+  recipePace: RecipePace,
+  mode: 'standard' | 'leftover'
 ): Promise<Recipe> => {
   const dietLabel = DIET_OPTIONS.find((d) => d.value === diet)?.label || '';
   const mealTypeLabel =
@@ -108,8 +109,22 @@ export const generateRecipe = async (
       - Ne vedd figyelembe az eredeti hozzávalókat (${ingredients}) vagy az étkezés típusát, mert a kérés felülírja azokat.
       - A válasz JSON formátumban legyen.`;
   } else {
-    // Original logic for generating a meal recipe
-    prompt = `Generálj egy ${mealTypeLabel} receptet, ami pontosan ${numberOfServings} személyre szól.`;
+    // Main recipe generation logic
+    if (mode === 'leftover') {
+        if (!ingredients.trim()) {
+            throw new Error('A maradékokból való főzéshez kérjük, adja meg a rendelkezésre álló maradékokat.');
+        }
+        prompt = `Generálj egy ${mealTypeLabel} receptet a következő maradékok kreatív és biztonságos felhasználásával: **${ingredients}**. A cél egy teljesen új, ízletes étel létrehozása, nem csak a maradékok egyszerű felmelegítése. A recept pontosan ${numberOfServings} személyre szóljon.`;
+        prompt += ` FONTOS: Az instrukciókban kiemelten kezeld az élelmiszerbiztonságot. Ha főtt húst vagy más kényes alapanyagot tartalmaz a lista, az instrukcióknak tartalmazniuk kell az alapos, gőzölgőre hevítésre vonatkozó utasítást (legalább 75°C belső hőmérséklet). Különböző maradékok (pl. nyers zöldség és főtt hús) kombinálásakor írd le a helyes sorrendet a keresztszennyeződés elkerülése érdekében. A recept legyen logikus és a megadott maradékokhoz illeszkedő.`;
+
+    } else { // Standard mode
+        prompt = `Generálj egy ${mealTypeLabel} receptet, ami pontosan ${numberOfServings} személyre szól.`;
+        if (ingredients.trim()) {
+            prompt += ` A recept a következő alapanyagokból készüljön: ${ingredients}.`;
+        } else {
+            prompt += ` Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad. Fontos: bár a hozzávalók meglepetések, a receptnek minden más megadott feltételnek (diéta, elkészítési mód, személyek száma, különleges kérés) szigorúan meg kell felelnie.`;
+        }
+    }
 
     const machineMethods = cookingMethods.filter(cm => cm !== CookingMethod.TRADITIONAL);
     if (machineMethods.length > 0) {
@@ -123,12 +138,6 @@ export const generateRecipe = async (
                 prompt += ` A kiválasztott elkészítési módok közül ('${minCapacityDevice.name}') maximum kapacitása kb. ${minCapacityDevice.capacity} fő. Ha a ${numberOfServings} fős adag meghaladja ezt, az instrukciókban adj egyértelmű útmutatást a több részletben való főzésre, vagy javasolj alternatívát.`;
             }
         }
-    }
-
-    if (ingredients.trim()) {
-      prompt += ` A recept a következő alapanyagokból készüljön: ${ingredients}.`;
-    } else {
-      prompt += ` Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad. Fontos: bár a hozzávalók meglepetések, a receptnek minden más megadott feltételnek (diéta, elkészítési mód, személyek száma, különleges kérés) szigorúan meg kell felelnie.`;
     }
     
     if (excludedIngredients.trim()) {

@@ -7,9 +7,9 @@ import { useNotification } from '../contexts/NotificationContext';
 import { safeSetLocalStorage } from '../utils/storage';
 
 interface RecipeInputFormProps {
-  onSubmit: (params: { ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace }) => void;
+  onSubmit: (params: { ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover' }) => void;
   isLoading: boolean;
-  initialFormData?: Partial<{ ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace }> | null;
+  initialFormData?: Partial<{ ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover' }> | null;
   onFormPopulated?: () => void;
   suggestions?: RecipeSuggestions | null;
 }
@@ -61,6 +61,7 @@ const loadAndOrder = <T extends { value: string }>(key: string, defaultOrder: re
 };
 
 const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, initialFormData, onFormPopulated, suggestions }) => {
+  const [mode, setMode] = useState<'standard' | 'leftover'>('standard');
   const [ingredients, setIngredients] = useState<string[]>([]);
   const [excludedIngredients, setExcludedIngredients] = useState('');
   const [currentIngredient, setCurrentIngredient] = useState('');
@@ -77,6 +78,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
   const [hasSavedIngredients, setHasSavedIngredients] = useState(false);
+  const [isAdviceExpanded, setIsAdviceExpanded] = useState(false);
 
   const [orderedCookingMethods, setOrderedCookingMethods] = useState(() => loadAndOrder(COOKING_METHODS_ORDER_KEY, COOKING_METHODS));
   const dragItemIndex = useRef<number | null>(null);
@@ -175,6 +177,9 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         }
         if (initialFormData.withImage !== undefined) {
             setWithImage(initialFormData.withImage);
+        }
+        if (initialFormData.mode !== undefined) {
+            setMode(initialFormData.mode);
         }
         onFormPopulated();
     }
@@ -410,6 +415,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         withCost,
         withImage,
         numberOfServings,
+        mode,
       });
     }
   };
@@ -570,6 +576,24 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
           )}
         </div>
       )}
+
+      <div className="flex mb-4 border border-gray-200 rounded-lg p-1 bg-gray-100">
+        <button
+            type="button"
+            onClick={() => setMode('standard')}
+            className={`flex-1 py-2 px-4 rounded-md font-semibold transition-colors text-sm sm:text-base ${mode === 'standard' ? 'bg-primary-600 text-white shadow' : 'text-gray-600 hover:bg-primary-50'}`}
+        >
+            Új Recept Alapanyagokból
+        </button>
+        <button
+            type="button"
+            onClick={() => setMode('leftover')}
+            className={`flex-1 py-2 px-4 rounded-md font-semibold transition-colors text-sm sm:text-base ${mode === 'leftover' ? 'bg-primary-600 text-white shadow' : 'text-gray-600 hover:bg-primary-50'}`}
+        >
+            Recept Maradékokból
+        </button>
+      </div>
+
        {isSupported && (
          <button
             type="button"
@@ -614,7 +638,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
       )}
       <div>
         <label htmlFor="ingredient-input" className="block text-lg font-semibold text-gray-700 mb-2">
-          Milyen alapanyagok vannak otthon?
+          {mode === 'standard' ? 'Milyen alapanyagok vannak otthon?' : 'Milyen maradékok vannak? (nyers és főtt egyaránt)'}
         </label>
         <div className="flex items-center gap-2 mb-3">
             <input
@@ -623,7 +647,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
                 value={currentIngredient}
                 onChange={(e) => setCurrentIngredient(e.target.value)}
                 onKeyDown={handleIngredientInputKeyDown}
-                placeholder="Pl. csirkemell, rizs, hagyma..."
+                placeholder={mode === 'standard' ? "Pl. csirkemell, rizs, hagyma..." : "Pl. sült csirke, főtt rizs, tejszín..."}
                 className="flex-grow p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
             />
             <button
@@ -649,7 +673,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
                     ))}
                 </ul>
             ) : (
-                <p className="text-gray-500">Adja meg a hozzávalókat, vagy hagyja üresen egy meglepetés recepthez.</p>
+                <p className="text-gray-500">{mode === 'standard' ? 'Adja meg a hozzávalókat, vagy hagyja üresen egy meglepetés recepthez.' : 'Sorolja fel a felhasználni kívánt maradékokat.'}</p>
             )}
         </div>
         <div className="flex gap-2 mt-3">
@@ -913,13 +937,51 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         )}
       </div>
 
+      <div>
+        <button
+            type="button"
+            onClick={() => setIsAdviceExpanded(!isAdviceExpanded)}
+            className="w-full flex justify-between items-center text-left p-3 bg-gray-100 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500"
+            aria-expanded={isAdviceExpanded}
+            aria-controls="advice-content"
+        >
+            <span className="font-semibold text-gray-700">Maradékfelhasználás: Általános és biztonsági tanácsok</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${isAdviceExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+        </button>
+        {isAdviceExpanded && (
+            <div id="advice-content" className="mt-2 p-4 bg-gray-50 border rounded-lg text-gray-700 space-y-4 text-sm animate-fade-in">
+                <div>
+                    <h4 className="font-bold text-gray-800">Élelmiszerbiztonság az első!</h4>
+                    <ul className="list-disc list-inside mt-1 space-y-1">
+                        <li>Minden maradékot alaposan, gőzölgőre (legalább 75°C-ra) melegítsen újra fogyasztás előtt.</li>
+                        <li>Soha ne fagyasszon újra egyszer már felolvasztott ételt, különösen húst.</li>
+                        <li>A 2 óránál tovább szobahőmérsékleten hagyott ételeket inkább ne használja fel.</li>
+                        <li>Ha kétségei vannak egy maradék frissességével kapcsolatban, inkább dobja ki.</li>
+                        <li>Különítse el a nyers és főtt alapanyagokat a keresztszennyeződés elkerülése érdekében.</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 className="font-bold text-gray-800">Tárolási tippek</h4>
+                    <ul className="list-disc list-inside mt-1 space-y-1">
+                        <li>A maradékokat a főzés után a lehető leghamarabb (maximum 2 órán belül) tegye hűtőbe.</li>
+                        <li>Használjon légmentesen záródó edényeket a frissesség megőrzése és a szagok terjedésének megakadályozása érdekében.</li>
+                        <li>A legtöbb maradék 3-4 napig biztonságosan tárolható a hűtőben.</li>
+                        <li>Címkézze fel a lefagyasztott ételeket dátummal és tartalommal.</li>
+                    </ul>
+                </div>
+            </div>
+        )}
+      </div>
+
       <div className="pt-2">
         <button
           type="submit"
           disabled={isLoading}
           className="w-full flex justify-center items-center gap-2 bg-primary-600 text-white font-bold py-4 px-4 rounded-lg shadow-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Recept generálása...' : (ingredients.length === 0 ? 'Jöhet a meglepetés recept!' : 'Jöhet a recept!')}
+          {isLoading ? 'Recept generálása...' : (ingredients.length === 0 && mode === 'standard' ? 'Jöhet a meglepetés recept!' : 'Jöhet a recept!')}
         </button>
       </div>
     </form>

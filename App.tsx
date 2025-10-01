@@ -122,7 +122,8 @@ const App: React.FC = () => {
     withCost: boolean,
     withImage: boolean,
     numberOfServings: number,
-    recipePace: RecipePace
+    recipePace: RecipePace,
+    mode: 'standard' | 'leftover'
   }) => {
     setIsLoading(true);
     setError(null);
@@ -142,7 +143,8 @@ const App: React.FC = () => {
         params.specialRequest,
         params.withCost,
         params.numberOfServings,
-        params.recipePace
+        params.recipePace,
+        params.mode
       );
       setRecipe(newRecipe);
     } catch (err: any) {
@@ -530,7 +532,7 @@ const App: React.FC = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4h4m12 4V4h-4M4 16v4h4m12-4v4h-4" />
                     </svg>
                 )}
-                <span>
+                <span className="hidden sm:inline">
                   {isFullscreen ? 'Normál nézet' : 'Teljes képernyő'}
                 </span>
             </button>
