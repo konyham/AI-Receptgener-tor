@@ -364,6 +364,31 @@ const App: React.FC = () => {
       startAppVcListening();
     }
   };
+  
+  const handleSaveLogo = () => {
+    try {
+        const encodedContent = konyhaMikiLogo.split(',')[1];
+        if (!encodedContent) throw new Error('Érvénytelen logó adat URL');
+        
+        const decodedSvg = decodeURIComponent(encodedContent);
+        const blob = new Blob([decodedSvg], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'konyha_miki_logo.svg';
+        document.body.appendChild(link);
+        link.click();
+        
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        showNotification('Logó sikeresen letöltve!', 'success');
+    } catch (error) {
+        console.error('Hiba a logó mentése közben:', error);
+        showNotification('Hiba történt a logó mentése közben.', 'info');
+    }
+  };
 
   const renderContent = () => {
     if (view === 'favorites') {
@@ -438,10 +463,11 @@ const App: React.FC = () => {
   const NavButton: React.FC<{
     targetView: AppView;
     label: string;
-    icon: JSX.Element;
+    // FIX: Changed from JSX.Element to React.ReactElement to resolve namespace error.
+    icon: React.ReactElement;
   }> = ({ targetView, label, icon }) => (
     <button
-      onClick={() => { setView(targetView); setRecipe(null); setError(null); }}
+      onClick={() => { setView(targetView); setError(null); }}
       className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-2 py-2 px-4 rounded-lg font-semibold transition-colors ${
         view === targetView
           ? 'bg-primary-600 text-white shadow-md'
@@ -502,6 +528,12 @@ const App: React.FC = () => {
       <footer className="text-center py-6 text-sm text-gray-500">
         <p>&copy; {new Date().getFullYear()} Konyha Miki. Minden jog fenntartva.</p>
         <p>AI-alapú receptgenerátor a Google Gemini API segítségével.</p>
+        <button
+          onClick={handleSaveLogo}
+          className="mt-4 text-sm text-primary-700 hover:text-primary-900 underline focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500 rounded"
+        >
+          Logó mentése
+        </button>
       </footer>
     </div>
   );
