@@ -22,7 +22,8 @@ export const validateAndRecover = (data: unknown): { favorites: Favorites; recov
       if (Array.isArray(recipes)) {
         const validRecipes: Recipe[] = [];
         recipes.forEach((recipe: any, index: number) => {
-          if (typeof recipe === 'object' && recipe !== null && recipe.recipeName && Array.isArray(recipe.ingredients) && Array.isArray(recipe.instructions)) {
+          const isValidRating = typeof recipe.rating === 'undefined' || (typeof recipe.rating === 'number' && recipe.rating >= 1 && recipe.rating <= 5);
+          if (typeof recipe === 'object' && recipe !== null && recipe.recipeName && Array.isArray(recipe.ingredients) && Array.isArray(recipe.instructions) && isValidRating) {
             validRecipes.push(recipe);
           } else {
             console.warn(`Skipping corrupted recipe during import at index ${index} in category "${category}".`, recipe);

@@ -15,6 +15,7 @@ import InstructionCarousel from './InstructionCarousel';
 import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS } from '../constants';
 import ShareFallbackModal from './ShareFallbackModal';
 import { konyhaMikiLogo as konyhaMikiLogoBase64 } from '../assets';
+import StarRating from './StarRating';
 
 
 // FIX: Added missing props to the interface to match the usage in App.tsx.
@@ -760,15 +761,25 @@ Recept generálva Konyha Miki segítségével!
     }
   };
 
+  const handleRatingChange = (newRating: number) => {
+    const finalRating = newRating === recipe.rating ? undefined : newRating;
+    onRecipeUpdate({ ...recipe, rating: finalRating });
+  };
+
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
 
   return (
     <>
       <div id="recipe-to-print" className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden animate-fade-in">
         <div className="p-6 md:p-8">
-          <div className="flex items-center gap-4 mb-2">
+          <div className="flex items-start gap-4 mb-2">
             <img src={konyhaMikiLogoBase64} alt="Konyha Miki logó" className="h-16 w-auto flex-shrink-0" />
-            <h2 className="text-3xl font-bold text-primary-800">{recipe.recipeName}</h2>
+            <div className="flex-grow">
+              <h2 className="text-3xl font-bold text-primary-800">{recipe.recipeName}</h2>
+              <div className="mt-1">
+                <StarRating rating={recipe.rating || 0} onRatingChange={handleRatingChange} />
+              </div>
+            </div>
           </div>
           <p className="text-gray-600 italic mb-6">{recipe.description}</p>
           

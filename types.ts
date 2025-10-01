@@ -19,6 +19,7 @@ export interface Recipe {
   diet?: DietOption;
   mealType?: MealType;
   dateAdded?: string; // Hozzáadva a dátum alapú rendezéshez
+  rating?: number; // Hozzáadva a recept értékeléséhez
 }
 
 export enum DietOption {
@@ -178,6 +179,8 @@ export enum SortOption {
   DATE_ASC = 'date_asc',
   NAME_ASC = 'name_asc',
   NAME_DESC = 'name_desc',
+  RATING_DESC = 'rating_desc',
+  RATING_ASC = 'rating_asc',
 }
 
 // Interface for data backup/restore functionality

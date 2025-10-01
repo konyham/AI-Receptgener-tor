@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { Favorites, Recipe, SortOption, BackupData, ShoppingListItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
+import StarRating from './StarRating';
 
 interface FavoritesViewProps {
   favorites: Favorites;
@@ -22,6 +23,8 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: SortOption.DATE_ASC, label: 'Dátum szerint (legrégebbi elöl)' },
   { value: SortOption.NAME_ASC, label: 'Név szerint (A-Z)' },
   { value: SortOption.NAME_DESC, label: 'Név szerint (Z-A)' },
+  { value: SortOption.RATING_DESC, label: 'Értékelés szerint (legjobb elöl)' },
+  { value: SortOption.RATING_ASC, label: 'Értékelés szerint (legrosszabb elöl)' },
 ];
 
 const FavoritesView: React.FC<FavoritesViewProps> = ({
@@ -208,6 +211,10 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                     if (!a.dateAdded) return -1;
                     if (!b.dateAdded) return 1;
                     return new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime();
+                  case SortOption.RATING_DESC:
+                    return (b.rating ?? 0) - (a.rating ?? 0);
+                  case SortOption.RATING_ASC:
+                    return (a.rating ?? 0) - (b.rating ?? 0);
                   case SortOption.DATE_DESC:
                   default:
                     if (!a.dateAdded) return 1;
@@ -246,7 +253,10 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                     <ul className="divide-y divide-gray-200 bg-white p-2">
                       {sortedRecipes.map((recipe) => (
                         <li key={recipe.recipeName} className="flex items-center justify-between p-3">
-                          <span className="font-medium text-gray-800">{recipe.recipeName}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="font-medium text-gray-800">{recipe.recipeName}</span>
+                            {recipe.rating && recipe.rating > 0 && <StarRating rating={recipe.rating} readOnly />}
+                          </div>
                           <div className="flex items-center gap-2">
                             <button onClick={() => onViewRecipe(recipe)} className="text-sm font-semibold text-primary-600 hover:text-primary-800">
                               Megtekintés
