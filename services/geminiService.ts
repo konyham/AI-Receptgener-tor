@@ -22,6 +22,8 @@ import {
 
 // FIX: Initialize the GoogleGenAI client with API key from environment variables as per guidelines.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+// Capture the API key at module load time to ensure it's available for browser-side fetch calls.
+const API_KEY = process.env.API_KEY!;
 
 const recipeSchema = {
   type: Type.OBJECT,
@@ -435,7 +437,8 @@ export const getVideosOperationStatus = async (operation: Operation<GenerateVide
 export const downloadVideo = async (downloadLink: string): Promise<Blob> => {
     try {
         const url = new URL(downloadLink);
-        url.searchParams.append('key', process.env.API_KEY!);
+        // Use the captured API_KEY constant instead of trying to access process.env directly.
+        url.searchParams.append('key', API_KEY);
 
         const response = await fetch(url.toString());
 
