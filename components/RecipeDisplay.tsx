@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import type { Operation, GenerateVideosResponse } from '@google/genai';
 import { Recipe, VoiceCommand, Favorites, CookingMethod } from '../types';
-import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage, calculateRecipeCost, simplifyRecipe } from '../services/geminiService';
+import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage, calculateRecipeCost, simplifyRecipe, downloadVideo } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 import KitchenTimer from './KitchenTimer';
@@ -658,13 +658,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
 
         const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
         if (downloadLink) {
-            // The response.body contains the MP4 bytes. You must append an API key when fetching from the download link.
-            const separator = downloadLink.includes('?') ? '&' : '?';
-            const response = await fetch(`${downloadLink}${separator}key=${process.env.API_KEY}`);
-            if (!response.ok) {
-                throw new Error('Nem sikerült letölteni a generált videót.');
-            }
-            const videoBlob = await response.blob();
+            const videoBlob = await downloadVideo(downloadLink);
             const videoUrl = URL.createObjectURL(videoBlob);
             setGeneratedVideoUrl(videoUrl);
         } else {

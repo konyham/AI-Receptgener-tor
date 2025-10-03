@@ -426,6 +426,35 @@ export const getVideosOperationStatus = async (operation: Operation<GenerateVide
     }
 };
 
+/**
+ * Downloads a video from a generated URL by correctly appending the API key.
+ * This function is moved here to ensure access to the process.env.API_KEY.
+ * @param downloadLink The URI provided by the VEO API.
+ * @returns A Blob containing the video data.
+ */
+export const downloadVideo = async (downloadLink: string): Promise<Blob> => {
+    try {
+        // The API key must be appended to the download URL.
+        const separator = downloadLink.includes('?') ? '&' : '?';
+        // FIX: URL-encode the API key to handle any special characters that could break the URL.
+        const encodedApiKey = encodeURIComponent(process.env.API_KEY!);
+        const response = await fetch(`${downloadLink}${separator}key=${encodedApiKey}`);
+        if (!response.ok) {
+            console.error(`Videó letöltési hiba: ${response.status} ${response.statusText}`);
+            throw new Error(`Nem sikerült letölteni a generált videót (HTTP ${response.status}).`);
+        }
+        const videoBlob = await response.blob();
+        return videoBlob;
+    } catch (error: any) {
+        console.error('Hiba a videó letöltése közben:', error);
+        // Re-throw with a user-friendly message, but keep original if it's already specific enough.
+        if (error.message.startsWith('Nem sikerült letölteni')) {
+            throw error;
+        }
+        throw new Error('Hálózati hiba történt a videó letöltése közben.');
+    }
+};
+
 // FIX: Added missing function to calculate recipe cost on demand.
 export const calculateRecipeCost = async (recipe: Recipe): Promise<string> => {
   const ingredientsList = recipe.ingredients.join(', ');
