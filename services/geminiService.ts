@@ -57,7 +57,7 @@ const recipeSchema = {
     },
     calories: { type: Type.STRING, description: 'A recept kalóriatartalma 100 grammra vetítve, pl. "150 kcal".' },
     carbohydrates: { type: Type.STRING, description: 'A recept szénhidráttartalma 100 grammra vetítve, pl. "10 g".' },
-    protein: { type: Type.STRING, description: 'A recept fehérjetartalma 100 grammra vetítve, pl. "20 g".' },
+    protein: { type: Type.STRING, description: 'A recept fehérjéjartalma 100 grammra vetítve, pl. "20 g".' },
     fat: { type: Type.STRING, description: 'A recept zsírtartalma 100 grammra vetítve, pl. "8 g".' },
     glycemicIndex: { type: Type.STRING, description: 'A recept becsült glikémiás indexe (pl. "Alacsony", "Közepes", "Magas").' },
     diabeticAdvice: { type: Type.STRING, description: 'Rövid, hasznos tanács cukorbetegek számára a recepthez kapcsolódóan.' },
@@ -798,9 +798,10 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
         - 'READ_INTRO': A recept leírásának felolvasása. Kulcsszavak: "olvasd a leírást", "miről szól a recept".
         - 'READ_INGREDIENTS': A hozzávalók listájának felolvasása az elejétől. Kulcsszavak: "hozzávalók", "mik kellenek hozzá".
         - 'START_COOKING': Az elkészítési lépések felolvasása az elejétől. Kulcsszavak: "főzés", "kezdjük el", "start cooking".
-        - 'START_TIMER': Időzítő indítása. A parancsból ki kell nyerned az óra, perc, másodperc értékeket.
+        - 'START_TIMER': Időzítő indítása. A parancsból ki kell nyerned az óra, perc, másodperc értékeket, ha meg vannak adva.
             - "indíts egy 5 perces időzítőt" -> { "command": "START_TIMER", "payload": { "minutes": 5 } }
             - "időzítő 1 óra 30 percre" -> { "command": "START_TIMER", "payload": { "hours": 1, "minutes": 30 } }
+            - Ha a parancs csak az időzítő elindítására utal időtartam nélkül (pl. "indítsd az időzítőt", "igen", "indítsd el", "start"), akkor is 'START_TIMER' commandot adj vissza, de a 'payload' mező legyen null vagy hiányozzon.
         - 'UNKNOWN': Ha a parancs nem illik a fentiekbe.
 
         A válaszod egy JSON objektum legyen a megadott séma szerint.

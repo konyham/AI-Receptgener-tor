@@ -284,11 +284,65 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
 
   const [isSimplifying, setIsSimplifying] = useState<boolean>(false);
   const [simplifyError, setSimplifyError] = useState<string | null>(null);
+  const [detectedTime, setDetectedTime] = useState<{ hours: number; minutes: number; seconds: number } | null>(null);
 
 
   const isInterpretingRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const { showNotification } = useNotification();
+
+  const parseTimeFromInstruction = (text: string): { hours: number; minutes: number; seconds: number } | null => {
+    const timeRegex = /(\d+)\s+(óra|perc|másodperc)/gi;
+    let match;
+    const time = { hours: 0, minutes: 0, seconds: 0 };
+    let found = false;
+
+    while ((match = timeRegex.exec(text)) !== null) {
+        found = true;
+        const value = parseInt(match[1], 10);
+        const unit = match[2].toLowerCase();
+        if (unit.startsWith('ó')) time.hours += value;
+        else if (unit.startsWith('p')) time.minutes += value;
+        else if (unit.startsWith('m')) time.seconds += value;
+    }
+
+    if (time.seconds >= 60) {
+        time.minutes += Math.floor(time.seconds / 60);
+        time.seconds %= 60;
+    }
+    if (time.minutes >= 60) {
+        time.hours += Math.floor(time.minutes / 60);
+        time.minutes %= 60;
+    }
+
+    return found ? time : null;
+  };
+
+  const formatDetectedTime = (time: { hours: number; minutes: number; seconds: number }): string => {
+      const parts = [];
+      if (time.hours > 0) parts.push(`${time.hours} óra`);
+      if (time.minutes > 0) parts.push(`${time.minutes} perc`);
+      if (time.seconds > 0) parts.push(`${time.seconds} másodperc`);
+      return parts.join(' ');
+  };
+
+  useEffect(() => {
+    const currentInstruction = recipe.instructions[currentStepIndex];
+    if (currentInstruction) {
+        const time = parseTimeFromInstruction(currentInstruction);
+        setDetectedTime(time);
+    } else {
+        setDetectedTime(null);
+    }
+  }, [currentStepIndex, recipe.instructions]);
+
+  const handleStartDetectedTimer = useCallback(() => {
+    if (detectedTime) {
+        setTimerInitialValues(detectedTime);
+        setIsTimerOpen(true);
+        setDetectedTime(null);
+    }
+  }, [detectedTime]);
 
   const handleGenerateImage = useCallback(async () => {
     if (isImageLoading) return;
@@ -336,48 +390,57 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     try {
       const { command, payload } = await interpretUserCommand(transcript);
       let notificationMessage = '';
-
-      switch (command) {
-        case VoiceCommand.STOP:
-          notificationMessage = 'Parancs: Felolvasás leállítva';
-          setVoiceMode('idle');
-          break;
-        case VoiceCommand.NEXT:
-          notificationMessage = 'Parancs: Következő';
-          if (voiceMode === 'ingredients' || voiceMode === 'cooking') {
-            const list = voiceMode === 'ingredients' ? recipe.ingredients : recipe.instructions;
-            setCurrentStepIndex((prev) => (prev < list.length - 1 ? prev + 1 : prev));
-          }
-          break;
-        case VoiceCommand.READ_INTRO:
-          notificationMessage = 'Parancs: Leírás felolvasása';
-          setVoiceMode('intro');
-          break;
-        case VoiceCommand.READ_INGREDIENTS:
-          notificationMessage = 'Parancs: Hozzávalók felolvasása';
-          setCurrentStepIndex(0);
-          setVoiceMode('ingredients');
-          break;
-        case VoiceCommand.START_COOKING:
-          notificationMessage = 'Parancs: Főzés indítása';
-          setCurrentStepIndex(0);
-          setVoiceMode('cooking');
-          break;
-        case VoiceCommand.START_TIMER:
+      
+      if (command === VoiceCommand.START_TIMER) {
           if (payload) {
-            const { hours = 0, minutes = 0, seconds = 0 } = payload;
-            const timeParts = [];
-            if (hours > 0) timeParts.push(`${hours} óra`);
-            if (minutes > 0) timeParts.push(`${minutes} perc`);
-            if (seconds > 0) timeParts.push(`${seconds} másodperc`);
-            notificationMessage = `Időzítő indítása: ${timeParts.join(' ')}`;
-            setTimerInitialValues(payload);
-            setIsTimerOpen(true);
+              const { hours = 0, minutes = 0, seconds = 0 } = payload;
+              const timeParts = [];
+              if (hours > 0) timeParts.push(`${hours} óra`);
+              if (minutes > 0) timeParts.push(`${minutes} perc`);
+              if (seconds > 0) timeParts.push(`${seconds} másodperc`);
+              notificationMessage = `Időzítő indítása: ${timeParts.join(' ')}`;
+              setTimerInitialValues(payload);
+              setIsTimerOpen(true);
+          } else if (detectedTime) {
+              notificationMessage = `Időzítő indítva: ${formatDetectedTime(detectedTime)}`;
+              handleStartDetectedTimer();
+          } else {
+              notificationMessage = 'Konyhai időzítő megnyitva.';
+              setTimerInitialValues(null);
+              setIsTimerOpen(true);
           }
-          break;
-        default:
-          break;
+      } else {
+        switch (command) {
+            case VoiceCommand.STOP:
+              notificationMessage = 'Parancs: Felolvasás leállítva';
+              setVoiceMode('idle');
+              break;
+            case VoiceCommand.NEXT:
+              notificationMessage = 'Parancs: Következő';
+              if (voiceMode === 'ingredients' || voiceMode === 'cooking') {
+                const list = voiceMode === 'ingredients' ? recipe.ingredients : recipe.instructions;
+                setCurrentStepIndex((prev) => (prev < list.length - 1 ? prev + 1 : prev));
+              }
+              break;
+            case VoiceCommand.READ_INTRO:
+              notificationMessage = 'Parancs: Leírás felolvasása';
+              setVoiceMode('intro');
+              break;
+            case VoiceCommand.READ_INGREDIENTS:
+              notificationMessage = 'Parancs: Hozzávalók felolvasása';
+              setCurrentStepIndex(0);
+              setVoiceMode('ingredients');
+              break;
+            case VoiceCommand.START_COOKING:
+              notificationMessage = 'Parancs: Főzés indítása';
+              setCurrentStepIndex(0);
+              setVoiceMode('cooking');
+              break;
+            default:
+              break;
+          }
       }
+
 
       if (notificationMessage) {
         showNotification(notificationMessage, 'info');
@@ -400,7 +463,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
       isInterpretingRef.current = false;
       setIsInterpreting(false);
     }
-  }, [voiceMode, showNotification, recipe.ingredients, recipe.instructions]);
+  }, [voiceMode, showNotification, recipe.ingredients, recipe.instructions, detectedTime, handleStartDetectedTimer]);
 
   const { 
     isListening,
@@ -454,7 +517,17 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         if (currentStepIndex >= recipe.instructions.length) {
           speak('Elkészültél a főzéssel. Jó étvágyat!', () => setVoiceMode('idle'));
         } else {
-          speak(`${currentStepIndex + 1}. lépés: ${recipe.instructions[currentStepIndex]}`);
+          const currentInstruction = recipe.instructions[currentStepIndex];
+          const timeInInstruction = parseTimeFromInstruction(currentInstruction);
+          const mainText = `${currentStepIndex + 1}. lépés: ${currentInstruction}`;
+          
+          speak(mainText, () => {
+              if (timeInInstruction) {
+                  const formatted = formatDetectedTime(timeInInstruction);
+                  const questionText = `Észleltem egy ${formatted} időtartamot. Szeretnéd elindítani az időzítőt?`;
+                  speak(questionText);
+              }
+          });
         }
         break;
     
@@ -944,6 +1017,28 @@ Recept generálva Konyha Miki segítségével!
                   onStepChange={setCurrentStepIndex}
                   voiceModeActive={voiceMode === 'cooking'}
                 />
+                {detectedTime && !isTimerOpen && (
+                  <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-2 animate-fade-in transition-all">
+                      <div className="flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-sm text-green-800">
+                              Időzítő javaslat: <strong>{formatDetectedTime(detectedTime)}</strong>
+                          </span>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                          <button onClick={handleStartDetectedTimer} className="text-sm font-semibold py-1 px-3 bg-green-200 text-green-900 rounded-lg hover:bg-green-300 transition-colors">
+                              Indítás
+                          </button>
+                          <button onClick={() => setDetectedTime(null)} className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200" aria-label="Javaslat elvetése">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                          </button>
+                      </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
