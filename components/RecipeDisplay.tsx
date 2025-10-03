@@ -659,7 +659,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
         if (downloadLink) {
             // The response.body contains the MP4 bytes. You must append an API key when fetching from the download link.
-            const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+            const separator = downloadLink.includes('?') ? '&' : '?';
+            const response = await fetch(`${downloadLink}${separator}key=${process.env.API_KEY}`);
             if (!response.ok) {
                 throw new Error('Nem sikerült letölteni a generált videót.');
             }
