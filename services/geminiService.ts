@@ -434,24 +434,33 @@ export const getVideosOperationStatus = async (operation: Operation<GenerateVide
  */
 export const downloadVideo = async (downloadLink: string): Promise<Blob> => {
     try {
-        // The API key must be appended to the download URL.
-        const separator = downloadLink.includes('?') ? '&' : '?';
-        // FIX: URL-encode the API key to handle any special characters that could break the URL.
-        const encodedApiKey = encodeURIComponent(process.env.API_KEY!);
-        const response = await fetch(`${downloadLink}${separator}key=${encodedApiKey}`);
+        const url = new URL(downloadLink);
+        url.searchParams.append('key', process.env.API_KEY!);
+
+        const response = await fetch(url.toString());
+
         if (!response.ok) {
-            console.error(`Videó letöltési hiba: ${response.status} ${response.statusText}`);
-            throw new Error(`Nem sikerült letölteni a generált videót (HTTP ${response.status}).`);
+            let errorBody = 'A szerver nem adott részletes hibaüzenetet.';
+            try {
+                // Try to get more specific error info from the response body
+                errorBody = await response.text();
+            } catch (e) {
+                console.warn('Nem sikerült kiolvasni a hibaüzenet törzsét.', e);
+            }
+            console.error(`Videó letöltési hiba: ${response.status} ${response.statusText}`, `"${errorBody}"`);
+            // Construct a more detailed error message for the user.
+            throw new Error(`Nem sikerült letölteni a generált videót (HTTP ${response.status}). A szerver válasza: ${errorBody}`);
         }
         const videoBlob = await response.blob();
         return videoBlob;
     } catch (error: any) {
         console.error('Hiba a videó letöltése közben:', error);
-        // Re-throw with a user-friendly message, but keep original if it's already specific enough.
         if (error.message.startsWith('Nem sikerült letölteni')) {
             throw error;
+        } else if (error instanceof TypeError && error.message.includes('Invalid URL')) {
+            throw new Error('A videó API érvénytelen letöltési linket adott vissza.');
         }
-        throw new Error('Hálózati hiba történt a videó letöltése közben.');
+        throw new Error('Hálózati vagy egyéb hiba történt a videó letöltése közben.');
     }
 };
 
