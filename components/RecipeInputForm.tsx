@@ -7,9 +7,9 @@ import { useNotification } from '../contexts/NotificationContext';
 import { safeSetLocalStorage } from '../utils/storage';
 
 interface RecipeInputFormProps {
-  onSubmit: (params: { ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover' }) => void;
+  onSubmit: (params: { ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover', useSeasonalIngredients: boolean }) => void;
   isLoading: boolean;
-  initialFormData?: Partial<{ ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover' }> | null;
+  initialFormData?: Partial<{ ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover', useSeasonalIngredients: boolean }> | null;
   onFormPopulated?: () => void;
   suggestions?: RecipeSuggestions | null;
 }
@@ -74,6 +74,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [numberOfServings, setNumberOfServings] = useState<number>(4);
   const [withCost, setWithCost] = useState(false);
   const [withImage, setWithImage] = useState(false);
+  const [useSeasonalIngredients, setUseSeasonalIngredients] = useState(false);
   
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
@@ -177,6 +178,9 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         }
         if (initialFormData.withImage !== undefined) {
             setWithImage(initialFormData.withImage);
+        }
+        if (initialFormData.useSeasonalIngredients !== undefined) {
+            setUseSeasonalIngredients(initialFormData.useSeasonalIngredients);
         }
         if (initialFormData.mode !== undefined) {
             setMode(initialFormData.mode);
@@ -416,6 +420,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         withImage,
         numberOfServings,
         mode,
+        useSeasonalIngredients,
       });
     }
   };
@@ -756,7 +761,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <label htmlFor="withCost" className="flex items-center p-3 border border-gray-300 rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors">
             <input
                 type="checkbox"
@@ -776,6 +781,16 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
                 className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
             />
             <span className="ml-3 text-gray-700 font-medium">Ételfotó generálása</span>
+        </label>
+        <label htmlFor="useSeasonalIngredients" className="flex items-center p-3 border border-gray-300 rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors">
+            <input
+                type="checkbox"
+                id="useSeasonalIngredients"
+                checked={useSeasonalIngredients}
+                onChange={(e) => setUseSeasonalIngredients(e.target.checked)}
+                className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            <span className="ml-3 text-gray-700 font-medium">Idényjellegű alapanyagok</span>
         </label>
       </div>
 

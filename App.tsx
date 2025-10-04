@@ -112,18 +112,19 @@ const App: React.FC = () => {
   }, [showNotification]);
 
   const handleGenerateRecipe = async (params: {
-    ingredients: string,
-    excludedIngredients: string,
-    diet: DietOption,
-    mealType: MealType,
-    cuisine: CuisineOption,
-    cookingMethods: CookingMethod[],
-    specialRequest: string,
-    withCost: boolean,
-    withImage: boolean,
-    numberOfServings: number,
-    recipePace: RecipePace,
-    mode: 'standard' | 'leftover'
+    ingredients: string;
+    excludedIngredients: string;
+    diet: DietOption;
+    mealType: MealType;
+    cuisine: CuisineOption;
+    cookingMethods: CookingMethod[];
+    specialRequest: string;
+    withCost: boolean;
+    withImage: boolean;
+    numberOfServings: number;
+    recipePace: RecipePace;
+    mode: 'standard' | 'leftover';
+    useSeasonalIngredients: boolean;
   }) => {
     setIsLoading(true);
     setError(null);
@@ -144,7 +145,8 @@ const App: React.FC = () => {
         params.withCost,
         params.numberOfServings,
         params.recipePace,
-        params.mode
+        params.mode,
+        params.useSeasonalIngredients
       );
       setRecipe(newRecipe);
     } catch (err: any) {
