@@ -835,6 +835,7 @@ Recept generálva Konyha Miki segítségével!
   };
 
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
+  const suggestedCategory = MEAL_TYPES.find(m => m.value === recipe.mealType)?.label;
 
   return (
     <>
@@ -1083,6 +1084,7 @@ Recept generálva Konyha Miki segítségével!
         onClose={() => setIsSaveModalOpen(false)}
         onSave={handleSave}
         existingCategories={Object.keys(favorites)}
+        suggestedCategory={suggestedCategory}
       />
       {isGeneratingVideo && <VideoGenerationModal progressMessage={videoGenerationProgress} />}
       {generatedVideoUrl && <VideoPlayerModal videoUrl={generatedVideoUrl} recipeName={recipe.recipeName} onClose={() => setGeneratedVideoUrl(null)} />}

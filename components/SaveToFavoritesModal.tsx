@@ -5,13 +5,35 @@ interface SaveToFavoritesModalProps {
   onClose: () => void;
   onSave: (category: string) => void;
   existingCategories: string[];
+  suggestedCategory?: string;
 }
 
-const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onClose, onSave, existingCategories }) => {
-  const [selectedCategory, setSelectedCategory] = useState(existingCategories[0] || '');
+const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onClose, onSave, existingCategories, suggestedCategory }) => {
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
-  const [isCreatingNew, setIsCreatingNew] = useState(existingCategories.length === 0);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      const suggestedCategoryExists = suggestedCategory && existingCategories.some(cat => cat.toLowerCase() === suggestedCategory.toLowerCase());
+
+      if (suggestedCategoryExists) {
+        // Find the exact casing from the existing categories
+        const matchingCategory = existingCategories.find(cat => cat.toLowerCase() === suggestedCategory!.toLowerCase());
+        setSelectedCategory(matchingCategory!);
+        setIsCreatingNew(false);
+      } else if (existingCategories.length > 0) {
+        setSelectedCategory(existingCategories[0]);
+        setIsCreatingNew(false);
+      } else {
+        setSelectedCategory('');
+        setIsCreatingNew(true);
+      }
+      setNewCategory(''); // Always reset new category input
+    }
+  }, [isOpen, suggestedCategory, existingCategories]);
+
 
   useEffect(() => {
     if (!isOpen) return;
