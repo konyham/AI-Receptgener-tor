@@ -31,6 +31,7 @@ import {
   RecipePace,
   AppCommand,
   PantryLocation,
+  StorageType,
 } from './types';
 import { konyhaMikiLogo } from './assets';
 
@@ -228,8 +229,8 @@ const App: React.FC = () => {
   };
   
   // Pantry handlers
-  const handleAddItemsToPantry = (items: string[], location: PantryLocation) => {
-      setPantry(pantryService.addItems(items, location));
+  const handleAddItemsToPantry = (items: string[], location: PantryLocation, date: string, storageType: StorageType) => {
+      setPantry(pantryService.addItems(items, location, date, storageType));
       showNotification(`Tételek hozzáadva a(z) ${location} kamrához!`, 'success');
   };
   
@@ -249,7 +250,9 @@ const App: React.FC = () => {
     const checkedItems = shoppingList.filter(item => item.checked).map(item => item.text);
     if (checkedItems.length > 0) {
         setLocationCallback(() => (location: PantryLocation) => {
-            handleAddItemsToPantry(checkedItems, location);
+            // When moving, use current date and default pantry storage type
+            const today = new Date().toISOString().split('T')[0];
+            handleAddItemsToPantry(checkedItems, location, today, StorageType.PANTRY);
             handleClearCheckedShoppingList();
             showNotification(`${checkedItems.length} tétel áthelyezve a(z) ${location} kamrába.`, 'success');
             setView('pantry');

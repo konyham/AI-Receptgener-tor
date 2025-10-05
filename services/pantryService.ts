@@ -1,5 +1,5 @@
 import type { PantryItem, PantryLocation, BackupData } from '../types';
-import { PANTRY_LOCATIONS } from '../types';
+import { PANTRY_LOCATIONS, StorageType } from '../types';
 import { safeSetLocalStorage } from '../utils/storage';
 
 const PANTRY_KEY = 'ai-recipe-generator-pantry';
@@ -29,6 +29,10 @@ export const validateAndRecover = (data: unknown): { pantry: Record<PantryLocati
         const validItems: PantryItem[] = [];
         items.forEach((item: any, index: number) => {
           if (typeof item === 'object' && item !== null && typeof item.text === 'string' && typeof item.dateAdded === 'string') {
+            // Migration for old items without storageType
+            if (typeof item.storageType === 'undefined') {
+                item.storageType = StorageType.PANTRY;
+            }
             validItems.push(item);
           } else {
             console.warn(`Skipping corrupted pantry item during import at index ${index} in location "${location}".`, item);
@@ -75,7 +79,7 @@ export const getPantry = (): { pantry: Record<PantryLocation, PantryItem[]>; rec
   if (Array.isArray(parsedData)) {
     console.log("Migrating old pantry format to new multi-location format.");
     const migratedData: Record<PantryLocation, PantryItem[]> = {
-        Tiszadada: parsedData,
+        Tiszadada: parsedData.map(item => ({...item, storageType: item.storageType || StorageType.PANTRY})),
         Vásárosnamény: [],
     };
     savePantry(migratedData);
@@ -126,14 +130,18 @@ export const mergePantries = (currentPantry: Record<PantryLocation, PantryItem[]
 };
 
 // Adds one or more items to a specific location, avoiding duplicates.
-export const addItems = (itemsToAdd: string[], location: PantryLocation): Record<PantryLocation, PantryItem[]> => {
+export const addItems = (itemsToAdd: string[], location: PantryLocation, date: string, storageType: StorageType): Record<PantryLocation, PantryItem[]> => {
   const { pantry: currentPantry } = getPantry();
   const currentList = currentPantry[location] || [];
   const existingItems = new Set(currentList.map(item => item.text.toLowerCase().trim()));
   
   const newItems: PantryItem[] = itemsToAdd
     .filter(item => item.trim() && !existingItems.has(item.toLowerCase().trim()))
-    .map(text => ({ text, dateAdded: new Date().toISOString() }));
+    .map(text => ({ 
+        text, 
+        dateAdded: date,
+        storageType: storageType 
+    }));
 
   if (newItems.length > 0) {
     const updatedList = [...currentList, ...newItems];

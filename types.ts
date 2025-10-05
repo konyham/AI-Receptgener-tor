@@ -180,6 +180,12 @@ export enum SortOption {
   RATING_ASC = 'rating_asc',
 }
 
+export enum StorageType {
+  PANTRY = 'pantry',
+  REFRIGERATOR = 'refrigerator',
+  FREEZER = 'freezer',
+}
+
 // Interfaces
 export interface InstructionStep {
   text: string;
@@ -249,6 +255,7 @@ export interface PantryItem {
     text: string;
     quantity?: string;
     dateAdded: string;
+    storageType: StorageType;
 }
 
 export type PantryLocation = 'Tiszadada' | 'Vásárosnamény';
