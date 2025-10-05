@@ -210,7 +210,7 @@ const PantryView: React.FC<PantryViewProps> = ({
         favorites, 
         shoppingList, 
         pantry, 
-        users: userService.getUsers().users,
+        users: users,
         mealTypes,
         cuisineOptions,
         cookingMethods: cookingMethodsList,

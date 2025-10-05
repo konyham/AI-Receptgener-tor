@@ -106,7 +106,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         favorites,
         shoppingList: list,
         pantry,
-        users: userService.getUsers().users,
+        users: users,
         mealTypes,
         cuisineOptions,
         cookingMethods: cookingMethodsList,

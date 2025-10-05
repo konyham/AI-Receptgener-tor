@@ -81,7 +81,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         favorites,
         shoppingList,
         pantry,
-        users: userService.getUsers().users,
+        users: users,
         mealTypes,
         cuisineOptions,
         cookingMethods: cookingMethodsList,
