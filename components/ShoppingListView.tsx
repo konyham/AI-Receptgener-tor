@@ -160,7 +160,8 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   };
   
   const checkedCount = list.filter(item => item.checked).length;
-  const hasAnyData = Object.keys(favorites).length > 0 || list.length > 0 || Object.values(pantry).some(l => l.length > 0);
+  // FIX: Explicitly type `l` to `PantryItem[]` to resolve type error when accessing `.length`.
+  const hasAnyData = Object.keys(favorites).length > 0 || list.length > 0 || Object.values(pantry).some((l: PantryItem[]) => l.length > 0);
 
   return (
     <div className="space-y-6">

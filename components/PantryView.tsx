@@ -10,7 +10,8 @@ const EditPantryItemModal: React.FC<{
 }> = ({ item, onClose, onSave }) => {
   const [text, setText] = useState(item.text);
   const [quantity, setQuantity] = useState(item.quantity || '');
-  const [dateAdded, setDateAdded] = useState(item.dateAdded);
+  const [dateAdded, setDateAdded] = useState(item.dateAdded || new Date().toISOString().split('T')[0]);
+  const [isDateUnknown, setIsDateUnknown] = useState(item.dateAdded === null);
   const [storageType, setStorageType] = useState(item.storageType);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -24,7 +25,12 @@ const EditPantryItemModal: React.FC<{
 
   const handleSave = () => {
     if (text.trim()) {
-      onSave({ text: text.trim(), quantity: quantity.trim(), dateAdded, storageType });
+      onSave({ 
+        text: text.trim(), 
+        quantity: quantity.trim(), 
+        dateAdded: isDateUnknown ? null : dateAdded, 
+        storageType 
+      });
     }
   };
   
@@ -57,7 +63,11 @@ const EditPantryItemModal: React.FC<{
           </div>
           <div>
             <label htmlFor="edit-date" className="block text-sm font-medium text-gray-700">Betárolás dátuma</label>
-            <input id="edit-date" type="date" value={dateAdded} onChange={(e) => setDateAdded(e.target.value)} className="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm"/>
+            <input id="edit-date" type="date" value={dateAdded} onChange={(e) => setDateAdded(e.target.value)} disabled={isDateUnknown} className="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm disabled:bg-gray-100"/>
+             <label className="flex items-center mt-2">
+                <input type="checkbox" checked={isDateUnknown} onChange={(e) => setIsDateUnknown(e.target.checked)} className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"/>
+                <span className="ml-2 text-sm text-gray-600">Ismeretlen dátum</span>
+            </label>
           </div>
           <div>
             <span className="block text-sm font-medium text-gray-700">Tárolás helye</span>
@@ -84,7 +94,7 @@ interface PantryViewProps {
   pantry: Record<PantryLocation, PantryItem[]>;
   favorites: Favorites;
   shoppingList: ShoppingListItem[];
-  onAddItems: (items: string[], location: PantryLocation, date: string, storageType: StorageType) => void;
+  onAddItems: (items: string[], location: PantryLocation, date: string | null, storageType: StorageType) => void;
   onUpdateItem: (index: number, updatedItem: PantryItem, location: PantryLocation) => void;
   onRemoveItem: (index: number, location: PantryLocation) => void;
   onClearAll: (location: PantryLocation) => void;
@@ -109,6 +119,7 @@ const PantryView: React.FC<PantryViewProps> = ({
 }) => {
   const [newItemText, setNewItemText] = useState('');
   const [newItemDate, setNewItemDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isNewItemDateUnknown, setIsNewItemDateUnknown] = useState(false);
   const [newItemStorageType, setNewItemStorageType] = useState<StorageType>(StorageType.PANTRY);
   const [activeTab, setActiveTab] = useState<PantryLocation>('Tiszadada');
   const [editingItem, setEditingItem] = useState<{ item: PantryItem; index: number } | null>(null);
@@ -133,8 +144,13 @@ const PantryView: React.FC<PantryViewProps> = ({
       const storageType = item.storageType || StorageType.PANTRY; // Fallback for old data
       groups[storageType].push(item);
     });
-    // Sort within groups by date (oldest first)
-    Object.values(groups).forEach(group => group.sort((a, b) => new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime()));
+    // Sort within groups by date (nulls first, then oldest)
+    Object.values(groups).forEach(group => group.sort((a, b) => {
+        if (a.dateAdded === null && b.dateAdded !== null) return -1;
+        if (a.dateAdded !== null && b.dateAdded === null) return 1;
+        if (a.dateAdded === null && b.dateAdded === null) return 0;
+        return new Date(a.dateAdded!).getTime() - new Date(b.dateAdded!).getTime();
+    }));
     return groups;
   }, [pantry, activeTab]);
 
@@ -149,7 +165,7 @@ const PantryView: React.FC<PantryViewProps> = ({
     if (newItemText.trim()) {
       const itemsToAdd = newItemText.split(',').map(item => item.trim()).filter(Boolean);
       if (itemsToAdd.length > 0) {
-        onAddItems(itemsToAdd, activeTab, newItemDate, newItemStorageType);
+        onAddItems(itemsToAdd, activeTab, isNewItemDateUnknown ? null : newItemDate, newItemStorageType);
         setNewItemText('');
       }
     }
@@ -187,9 +203,11 @@ const PantryView: React.FC<PantryViewProps> = ({
     // ... (code omitted for brevity, it's unchanged)
   };
   
-  const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || Object.values(pantry).some(l => l.length > 0);
+  // FIX: Explicitly type `l` to `PantryItem[]` to resolve type error when accessing `.length`.
+  const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || Object.values(pantry).some((l: PantryItem[]) => l.length > 0);
   const checkedShoppingListItems = shoppingListItems.filter(item => item.checked).length;
-  const totalItemsInCurrentTab = Object.values(groupedItems).reduce((sum, items) => sum + items.length, 0);
+  // FIX: Explicitly type `items` to `PantryItem[]` to resolve type error when accessing `.length`.
+  const totalItemsInCurrentTab = Object.values(groupedItems).reduce((sum, items: PantryItem[]) => sum + items.length, 0);
 
   return (
     <div className="space-y-6">
@@ -211,7 +229,11 @@ const PantryView: React.FC<PantryViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label htmlFor="item-date" className="block text-sm font-medium text-gray-700 mb-1">Betárolás dátuma</label>
-                <input type="date" id="item-date" value={newItemDate} onChange={(e) => setNewItemDate(e.target.value)} className="w-full p-2 bg-white border border-gray-300 rounded-md shadow-sm"/>
+                <input type="date" id="item-date" value={newItemDate} onChange={(e) => setNewItemDate(e.target.value)} disabled={isNewItemDateUnknown} className="w-full p-2 bg-white border border-gray-300 rounded-md shadow-sm disabled:bg-gray-100"/>
+                <label className="flex items-center mt-2">
+                    <input type="checkbox" checked={isNewItemDateUnknown} onChange={(e) => setIsNewItemDateUnknown(e.target.checked)} className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"/>
+                    <span className="ml-2 text-sm text-gray-600">Ismeretlen dátum</span>
+                </label>
             </div>
             <div>
                 <span className="block text-sm font-medium text-gray-700 mb-1">Tárolás helye</span>
@@ -229,7 +251,8 @@ const PantryView: React.FC<PantryViewProps> = ({
 
       {totalItemsInCurrentTab > 0 ? (
         <div className="space-y-4">
-            {Object.entries(groupedItems).map(([storageType, items]) => {
+            {/* FIX: Explicitly type the destructured `items` to `PantryItem[]` to resolve errors on `.length` and `.map`. */}
+            {Object.entries(groupedItems).map(([storageType, items]: [string, PantryItem[]]) => {
                 if (items.length === 0) return null;
                 const type = storageType as StorageType;
                 const isExpanded = expandedGroups[type];
@@ -253,7 +276,7 @@ const PantryView: React.FC<PantryViewProps> = ({
                                     <div>
                                         <span className="font-medium text-gray-800">{item.text}{item.quantity ? ` (${item.quantity})` : ''}</span>
                                         <span className="block text-xs text-gray-500">
-                                            Betárolva: {new Date(item.dateAdded).toLocaleDateString('hu-HU')}
+                                            Betárolva: {item.dateAdded ? new Date(item.dateAdded).toLocaleDateString('hu-HU') : 'Ismeretlen dátum'}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -288,7 +311,8 @@ const PantryView: React.FC<PantryViewProps> = ({
       <div className="mt-6 pt-4 border-t border-dashed">
         <h3 className="text-lg font-bold text-center text-gray-700 mb-4">Receptötletek a kamrából</h3>
          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button onClick={onGenerateFromPantryRequest} disabled={Object.values(pantry).every(l => l.length === 0)} className="flex-1 bg-green-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">Meglepetés recept</button>
+            {/* FIX: Explicitly type `l` to `PantryItem[]` to resolve type error when accessing `.length`. */}
+            <button onClick={onGenerateFromPantryRequest} disabled={Object.values(pantry).every((l: PantryItem[]) => l.length === 0)} className="flex-1 bg-green-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">Meglepetés recept</button>
         </div>
       </div>
 

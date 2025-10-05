@@ -254,7 +254,7 @@ export interface ShoppingListItem {
 export interface PantryItem {
     text: string;
     quantity?: string;
-    dateAdded: string;
+    dateAdded: string | null;
     storageType: StorageType;
 }
 

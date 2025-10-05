@@ -66,6 +66,13 @@ const App: React.FC = () => {
       const { favorites: favs, recoveryNotification: favsRecovery } = favoritesService.getFavorites();
       setFavorites(favs);
       if (favsRecovery) showNotification(favsRecovery, 'info');
+
+      // Set all loaded categories to be expanded by default for better UX.
+      const initialExpanded = Object.keys(favs).reduce((acc, cat) => {
+        acc[cat] = true;
+        return acc;
+      }, {} as Record<string, boolean>);
+      setExpandedCategories(initialExpanded);
       
       const { list: shopList, recoveryNotification: shopListRecovery } = shoppingListService.getShoppingList();
       setShoppingList(shopList);
@@ -195,7 +202,14 @@ const App: React.FC = () => {
   };
 
   const handleDeleteCategory = (category: string) => {
-    setFavorites(favoritesService.removeCategory(category));
+    const updatedFavorites = favoritesService.removeCategory(category);
+    setFavorites(updatedFavorites);
+    // Also remove the category from the expanded state tracker to prevent stale state
+    setExpandedCategories(prev => {
+        const newState = { ...prev };
+        delete newState[category];
+        return newState;
+    });
     showNotification(`'${category}' kategória törölve.`, 'success');
   };
 
@@ -229,7 +243,7 @@ const App: React.FC = () => {
   };
   
   // Pantry handlers
-  const handleAddItemsToPantry = (items: string[], location: PantryLocation, date: string, storageType: StorageType) => {
+  const handleAddItemsToPantry = (items: string[], location: PantryLocation, date: string | null, storageType: StorageType) => {
       setPantry(pantryService.addItems(items, location, date, storageType));
       showNotification(`Tételek hozzáadva a(z) ${location} kamrához!`, 'success');
   };
@@ -239,7 +253,24 @@ const App: React.FC = () => {
   };
   
   const handleRemovePantryItem = (index: number, location: PantryLocation) => {
+    const itemToDelete = pantry[location]?.[index];
+
+    // First, remove the item from the pantry state
     setPantry(pantryService.removeItem(index, location));
+
+    // Then, if the item was found, add it to the shopping list
+    if (itemToDelete) {
+        const currentShoppingList = shoppingListService.getShoppingList().list;
+        const isAlreadyOnList = currentShoppingList.some(li => li.text.toLowerCase() === itemToDelete.text.toLowerCase());
+        
+        setShoppingList(shoppingListService.addItems([itemToDelete.text]));
+        
+        if (!isAlreadyOnList) {
+            showNotification(`'${itemToDelete.text}' áthelyezve a bevásárlólistára.`, 'success');
+        } else {
+            showNotification(`'${itemToDelete.text}' törölve a kamrából (már szerepelt a bevásárlólistán).`, 'info');
+        }
+    }
   };
 
   const handleClearPantry = (location: PantryLocation) => {
@@ -270,8 +301,14 @@ const App: React.FC = () => {
 
   const handleGenerateFromPantry = (location: PantryLocation) => {
     const ingredientsFromPantry = [...pantry[location]] // Create a copy to sort
-      .sort((a, b) => new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime()) // oldest first
-      .slice(0, 5) // take up to 5 oldest ingredients
+      .sort((a, b) => {
+            if (a.dateAdded === null && b.dateAdded !== null) return -1; // a (unknown) comes first
+            if (a.dateAdded !== null && b.dateAdded === null) return 1;  // b (unknown) comes first
+            if (a.dateAdded === null && b.dateAdded === null) return 0; // order doesn't matter
+            // both have dates, sort by oldest
+            return new Date(a.dateAdded!).getTime() - new Date(b.dateAdded!).getTime();
+      })
+      .slice(0, 5) // take up to 5 oldest/unknown ingredients
       .map(item => item.text)
       .join(', ');
 
@@ -356,7 +393,8 @@ const App: React.FC = () => {
     if (isProcessingVoiceCommandRef.current) return;
     isProcessingVoiceCommandRef.current = true;
     try {
-        const allPantryItems = Object.values(pantry).flat().map(item => item.text);
+        // FIX: Explicitly type the 'item' parameter in the map function to fix type error.
+        const allPantryItems = Object.values(pantry).flat().map((item: PantryItem) => item.text);
         const command: AppCommand = await interpretAppCommand(transcript, view, {
             categories: Object.keys(favorites),
             recipesByCategory: {}, // This context is not fully implemented yet

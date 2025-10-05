@@ -28,7 +28,7 @@ export const validateAndRecover = (data: unknown): { pantry: Record<PantryLocati
       if (Array.isArray(items)) {
         const validItems: PantryItem[] = [];
         items.forEach((item: any, index: number) => {
-          if (typeof item === 'object' && item !== null && typeof item.text === 'string' && typeof item.dateAdded === 'string') {
+          if (typeof item === 'object' && item !== null && typeof item.text === 'string' && ('dateAdded' in item) && (typeof item.dateAdded === 'string' || item.dateAdded === null)) {
             // Migration for old items without storageType
             if (typeof item.storageType === 'undefined') {
                 item.storageType = StorageType.PANTRY;
@@ -130,7 +130,7 @@ export const mergePantries = (currentPantry: Record<PantryLocation, PantryItem[]
 };
 
 // Adds one or more items to a specific location, avoiding duplicates.
-export const addItems = (itemsToAdd: string[], location: PantryLocation, date: string, storageType: StorageType): Record<PantryLocation, PantryItem[]> => {
+export const addItems = (itemsToAdd: string[], location: PantryLocation, date: string | null, storageType: StorageType): Record<PantryLocation, PantryItem[]> => {
   const { pantry: currentPantry } = getPantry();
   const currentList = currentPantry[location] || [];
   const existingItems = new Set(currentList.map(item => item.text.toLowerCase().trim()));
