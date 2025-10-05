@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
+import * as userService from '../services/userService';
 import MoveItemsModal from './MoveItemsModal';
 
 // Modal for editing a pantry item
@@ -209,7 +210,7 @@ const PantryView: React.FC<PantryViewProps> = ({
         favorites, 
         shoppingList, 
         pantry, 
-        users,
+        users: userService.getUsers().users,
         mealTypes,
         cuisineOptions,
         cookingMethods: cookingMethodsList,

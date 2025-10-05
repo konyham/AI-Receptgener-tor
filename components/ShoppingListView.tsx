@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
+import * as userService from '../services/userService';
 import ShoppingListItemActionModal from './ShoppingListItemActionModal';
 
 interface ShoppingListViewProps {
@@ -105,7 +106,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         favorites,
         shoppingList: list,
         pantry,
-        users,
+        users: userService.getUsers().users,
         mealTypes,
         cuisineOptions,
         cookingMethods: cookingMethodsList,

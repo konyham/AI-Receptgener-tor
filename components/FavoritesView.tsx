@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Favorites, Recipe, SortOption, BackupData, ShoppingListItem, PantryItem, PantryLocation, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
+import * as userService from '../services/userService';
 import StarRating from './StarRating';
 import MoveRecipeModal from './MoveRecipeModal';
 
@@ -80,7 +81,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         favorites,
         shoppingList,
         pantry,
-        users,
+        users: userService.getUsers().users,
         mealTypes,
         cuisineOptions,
         cookingMethods: cookingMethodsList,

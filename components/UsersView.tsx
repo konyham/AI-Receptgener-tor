@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { UserProfile, BackupData, Favorites, PantryItem, PantryLocation, ShoppingListItem, OptionItem } from '../types';
 import UserEditModal from './UserEditModal';
 import { useNotification } from '../contexts/NotificationContext';
+import * as userService from '../services/userService';
 
 interface UsersViewProps {
   users: UserProfile[];
@@ -63,7 +64,7 @@ const UsersView: React.FC<UsersViewProps> = ({
         favorites,
         shoppingList,
         pantry,
-        users,
+        users: userService.getUsers().users,
         mealTypes,
         cuisineOptions,
         cookingMethods: cookingMethodsList,
