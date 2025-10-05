@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption, RecipePace, UserProfile } from '../types';
-import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES, CUISINE_OPTIONS, RECIPE_PACE_OPTIONS, MEAL_TYPES_STORAGE_KEY, CUISINE_OPTIONS_STORAGE_KEY, COOKING_METHODS_STORAGE_KEY, COOKING_METHOD_CAPACITIES_STORAGE_KEY } from '../constants';
+import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption, RecipePace, UserProfile, OptionItem } from '../types';
+import { DIET_OPTIONS, MEAL_TYPES as defaultMealTypes, COOKING_METHODS as defaultCookingMethods, CUISINE_OPTIONS as defaultCuisineOptions, RECIPE_PACE_OPTIONS, MEAL_TYPES_STORAGE_KEY, CUISINE_OPTIONS_STORAGE_KEY, COOKING_METHODS_STORAGE_KEY, COOKING_METHOD_CAPACITIES_STORAGE_KEY, COOKING_METHODS_ORDER_KEY, CUISINE_OPTIONS_ORDER_KEY } from '../constants';
 import { interpretFormCommand, suggestMealType } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
@@ -13,14 +13,23 @@ interface RecipeInputFormProps {
   onFormPopulated?: () => void;
   suggestions?: RecipeSuggestions | null;
   users: UserProfile[];
+  mealTypes: OptionItem[];
+  setMealTypes: React.Dispatch<React.SetStateAction<OptionItem[]>>;
+  cuisineOptions: OptionItem[];
+  setCuisineOptions: React.Dispatch<React.SetStateAction<OptionItem[]>>;
+  cookingMethodsList: OptionItem[];
+  setCookingMethodsList: React.Dispatch<React.SetStateAction<OptionItem[]>>;
+  cookingMethodCapacities: Record<string, number | null>;
+  setCookingMethodCapacities: React.Dispatch<React.SetStateAction<Record<string, number | null>>>;
+  orderedCookingMethods: OptionItem[];
+  setOrderedCookingMethods: React.Dispatch<React.SetStateAction<OptionItem[]>>;
+  orderedCuisineOptions: OptionItem[];
+  setOrderedCuisineOptions: React.Dispatch<React.SetStateAction<OptionItem[]>>;
 }
 
 const INGREDIENTS_STORAGE_KEY = 'ai-recipe-generator-saved-ingredients';
-const COOKING_METHODS_ORDER_KEY = 'ai-recipe-generator-cooking-methods-order';
-const CUISINE_OPTIONS_ORDER_KEY = 'ai-recipe-generator-cuisine-options-order';
 
 type OptionType = 'mealType' | 'cuisine' | 'cookingMethod';
-type OptionItem = { value: string; label: string };
 
 interface EditOptionModalProps {
     isOpen: boolean;
@@ -78,22 +87,26 @@ const EditOptionModal: React.FC<EditOptionModalProps> = ({ isOpen, onClose, onSa
     );
 };
 
-
-const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
-    try {
-        const storedValue = localStorage.getItem(key);
-        if (storedValue) {
-            return JSON.parse(storedValue) as T;
-        }
-    } catch (error) {
-        console.error(`Error loading from localStorage key "${key}":`, error);
-        localStorage.removeItem(key); // Remove corrupted data
-    }
-    return defaultValue;
-};
-
-
-const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, initialFormData, onFormPopulated, suggestions, users }) => {
+const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ 
+    onSubmit, 
+    isLoading, 
+    initialFormData, 
+    onFormPopulated, 
+    suggestions, 
+    users,
+    mealTypes,
+    setMealTypes,
+    cuisineOptions,
+    setCuisineOptions,
+    cookingMethodsList,
+    setCookingMethodsList,
+    cookingMethodCapacities,
+    setCookingMethodCapacities,
+    orderedCookingMethods,
+    setOrderedCookingMethods,
+    orderedCuisineOptions,
+    setOrderedCuisineOptions,
+}) => {
   const [mode, setMode] = useState<'standard' | 'leftover'>('standard');
   const [ingredients, setIngredients] = useState<string[]>([]);
   const [excludedIngredients, setExcludedIngredients] = useState('');
@@ -114,59 +127,16 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
   const [hasSavedIngredients, setHasSavedIngredients] = useState(false);
   const [isAdviceExpanded, setIsAdviceExpanded] = useState(false);
-
-  // Editable options state
-  const [mealTypes, setMealTypes] = useState<OptionItem[]>(() => loadFromLocalStorage(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES));
-  const [cuisineOptions, setCuisineOptions] = useState<OptionItem[]>(() => loadFromLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, CUISINE_OPTIONS));
-  const [cookingMethodsList, setCookingMethodsList] = useState<OptionItem[]>(() => loadFromLocalStorage(COOKING_METHODS_STORAGE_KEY, COOKING_METHODS));
-  const [cookingMethodCapacities, setCookingMethodCapacities] = useState<Record<string, number | null>>(() => loadFromLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, COOKING_METHOD_CAPACITIES));
   
   const [isMealTypesEditing, setIsMealTypesEditing] = useState(false);
   const [isCuisineEditing, setIsCuisineEditing] = useState(false);
   const [isCookingMethodsEditing, setIsCookingMethodsEditing] = useState(false);
   const [modalState, setModalState] = useState<{ isOpen: boolean; itemToEdit: (OptionItem & { capacity?: number | null }) | null; itemType: OptionType | null }>({ isOpen: false, itemToEdit: null, itemType: null });
 
-
-  const [orderedCookingMethods, setOrderedCookingMethods] = useState<OptionItem[]>(() => {
-    const loadedCookingMethods = loadFromLocalStorage<OptionItem[]>(COOKING_METHODS_STORAGE_KEY, COOKING_METHODS);
-    const savedOrder = loadFromLocalStorage<string[] | null>(COOKING_METHODS_ORDER_KEY, null);
-
-    if (savedOrder) {
-        const optionsMap = new Map(loadedCookingMethods.map(item => [item.value, item]));
-        
-        const orderedList = savedOrder
-            .map(value => optionsMap.get(value))
-            .filter((item): item is OptionItem => !!item);
-        
-        const orderedValues = new Set(orderedList.map(item => item.value));
-        const newItems = loadedCookingMethods.filter(item => !orderedValues.has(item.value));
-        
-        return [...orderedList, ...newItems];
-    }
-    return loadedCookingMethods;
-  });
   const dragItemIndex = useRef<number | null>(null);
   const dragOverItemIndex = useRef<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   
-  const [orderedCuisineOptions, setOrderedCuisineOptions] = useState<OptionItem[]>(() => {
-    const loadedCuisineOptions = loadFromLocalStorage<OptionItem[]>(CUISINE_OPTIONS_STORAGE_KEY, CUISINE_OPTIONS);
-    const savedOrder = loadFromLocalStorage<string[] | null>(CUISINE_OPTIONS_ORDER_KEY, null);
-
-    if (savedOrder) {
-        const optionsMap = new Map(loadedCuisineOptions.map(item => [item.value, item]));
-        
-        const orderedList = savedOrder
-            .map(value => optionsMap.get(value))
-            .filter((item): item is OptionItem => !!item);
-        
-        const orderedValues = new Set(orderedList.map(item => item.value));
-        const newItems = loadedCuisineOptions.filter(item => !orderedValues.has(item.value));
-        
-        return [...orderedList, ...newItems];
-    }
-    return loadedCuisineOptions;
-  });
   const cuisineDragItemIndex = useRef<number | null>(null);
   const cuisineDragOverItemIndex = useRef<number | null>(null);
   const [isCuisineDragging, setIsCuisineDragging] = useState(false);
@@ -290,57 +260,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
       }
     }
   }, []); // Run only on mount
-  
-  // FIX: Added useEffect hooks to synchronize ordered lists with main data lists
-  useEffect(() => {
-    // When the main list of cooking methods is updated (add/edit/delete),
-    // update the ordered list to reflect these changes.
-    const methodsMap = new Map(cookingMethodsList.map(item => [item.value, item]));
-    setOrderedCookingMethods(prevOrdered => {
-        // Filter out deleted items and update labels of edited items
-        const updatedAndFiltered = prevOrdered
-            .map(item => methodsMap.get(item.value))
-            .filter((item): item is OptionItem => !!item);
-
-        // Add any new items that are not yet in the ordered list
-        const orderedValues = new Set(updatedAndFiltered.map(item => item.value));
-        const newItems = cookingMethodsList.filter(item => !orderedValues.has(item.value));
-        
-        const finalOrderedList = [...updatedAndFiltered, ...newItems];
-        
-        // Persist the new valid order to local storage
-        try {
-            safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, finalOrderedList.map(item => item.value));
-        } catch (err: any) {
-            showNotification(err.message, 'info');
-        }
-        
-        return finalOrderedList;
-    });
-  }, [cookingMethodsList, showNotification]);
-
-  useEffect(() => {
-      // Synchronize the ordered cuisine options with the main list.
-      const cuisineMap = new Map(cuisineOptions.map(item => [item.value, item]));
-      setOrderedCuisineOptions(prevOrdered => {
-          const updatedAndFiltered = prevOrdered
-              .map(item => cuisineMap.get(item.value))
-              .filter((item): item is OptionItem => !!item);
-              
-          const orderedValues = new Set(updatedAndFiltered.map(item => item.value));
-          const newItems = cuisineOptions.filter(item => !orderedValues.has(item.value));
-
-          const finalOrderedList = [...updatedAndFiltered, ...newItems];
-
-          try {
-              safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, finalOrderedList.map(item => item.value));
-          } catch (err: any) {
-              showNotification(err.message, 'info');
-          }
-
-          return finalOrderedList;
-      });
-  }, [cuisineOptions, showNotification]);
   
   const addSuggestedIngredient = (ingredient: string) => {
       if (ingredient && !ingredients.includes(ingredient)) {

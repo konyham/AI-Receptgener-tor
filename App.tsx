@@ -35,8 +35,36 @@ import {
   PantryLocation,
   StorageType,
   UserProfile,
+  OptionItem,
 } from './types';
+import {
+    MEAL_TYPES,
+    CUISINE_OPTIONS,
+    COOKING_METHODS,
+    COOKING_METHOD_CAPACITIES,
+    MEAL_TYPES_STORAGE_KEY,
+    CUISINE_OPTIONS_STORAGE_KEY,
+    COOKING_METHODS_STORAGE_KEY,
+    COOKING_METHOD_CAPACITIES_STORAGE_KEY,
+    COOKING_METHODS_ORDER_KEY,
+    CUISINE_OPTIONS_ORDER_KEY,
+} from './constants';
+import { safeSetLocalStorage } from './utils/storage';
 import { konyhaMikiLogo } from './assets';
+
+const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
+    try {
+        const storedValue = localStorage.getItem(key);
+        if (storedValue) {
+            return JSON.parse(storedValue) as T;
+        }
+    } catch (error) {
+        console.error(`Error loading from localStorage key "${key}":`, error);
+        localStorage.removeItem(key); // Remove corrupted data
+    }
+    return defaultValue;
+};
+
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('generator');
@@ -61,6 +89,16 @@ const App: React.FC = () => {
   // Location prompt state
   const [isLocationPromptOpen, setIsLocationPromptOpen] = useState(false);
   const [locationCallback, setLocationCallback] = useState<(location: PantryLocation) => void>(() => () => {});
+
+  // Customizable options state (lifted from RecipeInputForm)
+  const [mealTypes, setMealTypes] = useState<OptionItem[]>(() => loadFromLocalStorage(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES));
+  const [cuisineOptions, setCuisineOptions] = useState<OptionItem[]>(() => loadFromLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, CUISINE_OPTIONS));
+  const [cookingMethodsList, setCookingMethodsList] = useState<OptionItem[]>(() => loadFromLocalStorage(COOKING_METHODS_STORAGE_KEY, COOKING_METHODS));
+  const [cookingMethodCapacities, setCookingMethodCapacities] = useState<Record<string, number | null>>(() => loadFromLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, COOKING_METHOD_CAPACITIES));
+  
+  const [orderedCookingMethods, setOrderedCookingMethods] = useState<OptionItem[]>([]);
+  const [orderedCuisineOptions, setOrderedCuisineOptions] = useState<OptionItem[]>([]);
+
 
   const { showNotification } = useNotification();
   const isProcessingVoiceCommandRef = React.useRef(false);
@@ -98,6 +136,45 @@ const App: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Effects to sync ordered lists (lifted from RecipeInputForm)
+    useEffect(() => {
+        const savedOrder = loadFromLocalStorage<string[] | null>(COOKING_METHODS_ORDER_KEY, null);
+        const optionsMap = new Map(cookingMethodsList.map(item => [item.value, item]));
+        let finalOrderedList: OptionItem[];
+        
+        if (savedOrder) {
+            const orderedList = savedOrder
+                .map(value => optionsMap.get(value))
+                .filter((item): item is OptionItem => !!item);
+            
+            const orderedValues = new Set(orderedList.map(item => item.value));
+            const newItems = cookingMethodsList.filter(item => !orderedValues.has(item.value));
+            finalOrderedList = [...orderedList, ...newItems];
+        } else {
+            finalOrderedList = [...cookingMethodsList];
+        }
+        setOrderedCookingMethods(finalOrderedList);
+    }, [cookingMethodsList]);
+
+    useEffect(() => {
+        const savedOrder = loadFromLocalStorage<string[] | null>(CUISINE_OPTIONS_ORDER_KEY, null);
+        const optionsMap = new Map(cuisineOptions.map(item => [item.value, item]));
+        let finalOrderedList: OptionItem[];
+        
+        if (savedOrder) {
+            const orderedList = savedOrder
+                .map(value => optionsMap.get(value))
+                .filter((item): item is OptionItem => !!item);
+            
+            const orderedValues = new Set(orderedList.map(item => item.value));
+            const newItems = cuisineOptions.filter(item => !orderedValues.has(item.value));
+            finalOrderedList = [...orderedList, ...newItems];
+        } else {
+            finalOrderedList = [...cuisineOptions];
+        }
+        setOrderedCuisineOptions(finalOrderedList);
+    }, [cuisineOptions]);
 
   const handleRecipeSubmit = async (params: { ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover', useSeasonalIngredients: boolean }) => {
     setIsLoading(true);
@@ -454,7 +531,39 @@ const App: React.FC = () => {
         message = `${newCount} új elem sikeresen importálva.`;
       }
       
-      showNotification(message, 'success');
+      // Handle custom options import
+      let optionsMessage = '';
+      if (data.mealTypes && Array.isArray(data.mealTypes)) {
+          setMealTypes(data.mealTypes);
+          safeSetLocalStorage(MEAL_TYPES_STORAGE_KEY, data.mealTypes);
+          optionsMessage += ' Étkezés típusok,';
+      }
+      if (data.cuisineOptions && Array.isArray(data.cuisineOptions)) {
+          setCuisineOptions(data.cuisineOptions);
+          safeSetLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, data.cuisineOptions);
+          if (data.cuisineOptionsOrder) {
+              safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, data.cuisineOptionsOrder);
+          }
+          optionsMessage += ' konyhák,';
+      }
+      if (data.cookingMethods && Array.isArray(data.cookingMethods)) {
+          setCookingMethodsList(data.cookingMethods);
+          safeSetLocalStorage(COOKING_METHODS_STORAGE_KEY, data.cookingMethods);
+          if (data.cookingMethodCapacities) {
+              setCookingMethodCapacities(data.cookingMethodCapacities);
+              safeSetLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, data.cookingMethodCapacities);
+          }
+          if (data.cookingMethodsOrder) {
+              safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, data.cookingMethodsOrder);
+          }
+          optionsMessage += ' elkészítési módok';
+      }
+
+      if (optionsMessage) {
+        showNotification(message + ` és a személyes beállítások (${optionsMessage.trim().replace(/,$/, '')}) frissítve.`, 'success');
+      } else {
+        showNotification(message, 'success');
+      }
       
     } catch(e: any) {
         console.error("Import failed:", e);
@@ -538,6 +647,12 @@ const App: React.FC = () => {
             sortOption={sortOption}
             onSetSortOption={setSortOption}
             onMoveRecipe={handleMoveFavorite}
+            mealTypes={mealTypes}
+            cuisineOptions={cuisineOptions}
+            cookingMethodsList={cookingMethodsList}
+            cookingMethodCapacities={cookingMethodCapacities}
+            orderedCuisineOptions={orderedCuisineOptions}
+            orderedCookingMethods={orderedCookingMethods}
           />
         );
       case 'shopping-list':
@@ -554,6 +669,12 @@ const App: React.FC = () => {
             onClearAll={handleClearAllShoppingList}
             onImportData={handleImportData}
             onMoveItemToPantryRequest={handleMoveShoppingListItemToPantryRequest}
+            mealTypes={mealTypes}
+            cuisineOptions={cuisineOptions}
+            cookingMethodsList={cookingMethodsList}
+            cookingMethodCapacities={cookingMethodCapacities}
+            orderedCuisineOptions={orderedCuisineOptions}
+            orderedCookingMethods={orderedCookingMethods}
           />
         );
       case 'pantry':
@@ -572,6 +693,12 @@ const App: React.FC = () => {
               onImportData={handleImportData}
               shoppingListItems={shoppingList}
               onMoveItems={handleMovePantryItems}
+              mealTypes={mealTypes}
+              cuisineOptions={cuisineOptions}
+              cookingMethodsList={cookingMethodsList}
+              cookingMethodCapacities={cookingMethodCapacities}
+              orderedCuisineOptions={orderedCuisineOptions}
+              orderedCookingMethods={orderedCookingMethods}
             />
         );
         case 'users':
@@ -584,6 +711,12 @@ const App: React.FC = () => {
                     shoppingList={shoppingList}
                     pantry={pantry}
                     onImportData={handleImportData}
+                    mealTypes={mealTypes}
+                    cuisineOptions={cuisineOptions}
+                    cookingMethodsList={cookingMethodsList}
+                    cookingMethodCapacities={cookingMethodCapacities}
+                    orderedCuisineOptions={orderedCuisineOptions}
+                    orderedCookingMethods={orderedCookingMethods}
                 />
             );
       case 'generator':
@@ -602,6 +735,18 @@ const App: React.FC = () => {
                 onFormPopulated={handleFormPopulated}
                 suggestions={recipeSuggestions}
                 users={users}
+                mealTypes={mealTypes}
+                setMealTypes={setMealTypes}
+                cuisineOptions={cuisineOptions}
+                setCuisineOptions={setCuisineOptions}
+                cookingMethodsList={cookingMethodsList}
+                setCookingMethodsList={setCookingMethodsList}
+                cookingMethodCapacities={cookingMethodCapacities}
+                setCookingMethodCapacities={setCookingMethodCapacities}
+                orderedCookingMethods={orderedCookingMethods}
+                setOrderedCookingMethods={setOrderedCookingMethods}
+                orderedCuisineOptions={orderedCuisineOptions}
+                setOrderedCuisineOptions={setOrderedCuisineOptions}
               />
             )}
           </>

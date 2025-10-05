@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation, StorageType, UserProfile } from '../types';
+import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import ShoppingListItemActionModal from './ShoppingListItemActionModal';
 
@@ -15,6 +15,12 @@ interface ShoppingListViewProps {
   onClearAll: () => void;
   onImportData: (data: BackupData) => void;
   onMoveItemToPantryRequest: (index: number, itemText: string, storageType: StorageType) => void;
+  mealTypes: OptionItem[];
+  cuisineOptions: OptionItem[];
+  cookingMethodsList: OptionItem[];
+  cookingMethodCapacities: Record<string, number | null>;
+  orderedCuisineOptions: OptionItem[];
+  orderedCookingMethods: OptionItem[];
 }
 
 const ShoppingListView: React.FC<ShoppingListViewProps> = ({
@@ -29,6 +35,12 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   onClearAll,
   onImportData,
   onMoveItemToPantryRequest,
+  mealTypes,
+  cuisineOptions,
+  cookingMethodsList,
+  cookingMethodCapacities,
+  orderedCuisineOptions,
+  orderedCookingMethods,
 }) => {
   const [newItem, setNewItem] = useState('');
   const [actionItem, setActionItem] = useState<{ item: ShoppingListItem; index: number } | null>(null);
@@ -92,6 +104,12 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         shoppingList: list,
         pantry,
         users,
+        mealTypes,
+        cuisineOptions,
+        cookingMethods: cookingMethodsList,
+        cookingMethodCapacities,
+        cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
+        cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
       };
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });

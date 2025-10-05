@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile } from '../types';
+import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import MoveItemsModal from './MoveItemsModal';
 
@@ -105,6 +105,12 @@ interface PantryViewProps {
   onImportData: (data: Partial<BackupData>) => void;
   shoppingListItems: ShoppingListItem[];
   onMoveItems: (indices: number[], sourceLocation: PantryLocation, destinationLocation: PantryLocation) => void;
+  mealTypes: OptionItem[];
+  cuisineOptions: OptionItem[];
+  cookingMethodsList: OptionItem[];
+  cookingMethodCapacities: Record<string, number | null>;
+  orderedCuisineOptions: OptionItem[];
+  orderedCookingMethods: OptionItem[];
 }
 
 const PantryView: React.FC<PantryViewProps> = ({
@@ -121,6 +127,12 @@ const PantryView: React.FC<PantryViewProps> = ({
   onImportData,
   shoppingListItems,
   onMoveItems,
+  mealTypes,
+  cuisineOptions,
+  cookingMethodsList,
+  cookingMethodCapacities,
+  orderedCuisineOptions,
+  orderedCookingMethods,
 }) => {
   const [newItemText, setNewItemText] = useState('');
   const [newItemDate, setNewItemDate] = useState(new Date().toISOString().split('T')[0]);
@@ -191,7 +203,18 @@ const PantryView: React.FC<PantryViewProps> = ({
 
   const handleExport = async () => {
     try {
-      const dataToSave: BackupData = { favorites, shoppingList, pantry, users };
+      const dataToSave: BackupData = { 
+        favorites, 
+        shoppingList, 
+        pantry, 
+        users,
+        mealTypes,
+        cuisineOptions,
+        cookingMethods: cookingMethodsList,
+        cookingMethodCapacities,
+        cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
+        cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
+      };
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const now = new Date();

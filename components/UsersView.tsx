@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { UserProfile, BackupData, Favorites, PantryItem, PantryLocation, ShoppingListItem } from '../types';
+import { UserProfile, BackupData, Favorites, PantryItem, PantryLocation, ShoppingListItem, OptionItem } from '../types';
 import UserEditModal from './UserEditModal';
 import { useNotification } from '../contexts/NotificationContext';
 
@@ -11,9 +11,29 @@ interface UsersViewProps {
   shoppingList: ShoppingListItem[];
   pantry: Record<PantryLocation, PantryItem[]>;
   onImportData: (data: BackupData) => void;
+  mealTypes: OptionItem[];
+  cuisineOptions: OptionItem[];
+  cookingMethodsList: OptionItem[];
+  cookingMethodCapacities: Record<string, number | null>;
+  orderedCuisineOptions: OptionItem[];
+  orderedCookingMethods: OptionItem[];
 }
 
-const UsersView: React.FC<UsersViewProps> = ({ users, onSaveUser, onDeleteUser, favorites, shoppingList, pantry, onImportData }) => {
+const UsersView: React.FC<UsersViewProps> = ({ 
+  users, 
+  onSaveUser, 
+  onDeleteUser, 
+  favorites, 
+  shoppingList, 
+  pantry, 
+  onImportData,
+  mealTypes,
+  cuisineOptions,
+  cookingMethodsList,
+  cookingMethodCapacities,
+  orderedCuisineOptions,
+  orderedCookingMethods,
+}) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,6 +62,12 @@ const UsersView: React.FC<UsersViewProps> = ({ users, onSaveUser, onDeleteUser, 
         shoppingList,
         pantry,
         users,
+        mealTypes,
+        cuisineOptions,
+        cookingMethods: cookingMethodsList,
+        cookingMethodCapacities,
+        cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
+        cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
       };
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });

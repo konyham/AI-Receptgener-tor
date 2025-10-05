@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Favorites, Recipe, SortOption, BackupData, ShoppingListItem, PantryItem, PantryLocation, UserProfile } from '../types';
+import { Favorites, Recipe, SortOption, BackupData, ShoppingListItem, PantryItem, PantryLocation, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import StarRating from './StarRating';
 import MoveRecipeModal from './MoveRecipeModal';
@@ -20,6 +20,12 @@ interface FavoritesViewProps {
   sortOption: SortOption;
   onSetSortOption: (option: SortOption) => void;
   onMoveRecipe: (recipe: Recipe, fromCategory: string, toCategory: string) => void;
+  mealTypes: OptionItem[];
+  cuisineOptions: OptionItem[];
+  cookingMethodsList: OptionItem[];
+  cookingMethodCapacities: Record<string, number | null>;
+  orderedCuisineOptions: OptionItem[];
+  orderedCookingMethods: OptionItem[];
 }
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
@@ -47,6 +53,12 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   sortOption,
   onSetSortOption,
   onMoveRecipe,
+  mealTypes,
+  cuisineOptions,
+  cookingMethodsList,
+  cookingMethodCapacities,
+  orderedCuisineOptions,
+  orderedCookingMethods,
 }) => {
   const categories = Object.keys(favorites);
   const { showNotification } = useNotification();
@@ -67,6 +79,12 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         shoppingList,
         pantry,
         users,
+        mealTypes,
+        cuisineOptions,
+        cookingMethods: cookingMethodsList,
+        cookingMethodCapacities,
+        cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
+        cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
       };
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });

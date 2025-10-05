@@ -273,9 +273,20 @@ export interface UserProfile {
   allergies: string; // Comma-separated, for forbidden items
 }
 
+export interface OptionItem {
+  value: string;
+  label: string;
+}
+
 export interface BackupData {
     favorites: Favorites;
     shoppingList: ShoppingListItem[];
     pantry: Record<PantryLocation, PantryItem[]>;
     users: UserProfile[];
+    mealTypes?: OptionItem[];
+    cuisineOptions?: OptionItem[];
+    cookingMethods?: OptionItem[];
+    cookingMethodCapacities?: Record<string, number | null>;
+    cuisineOptionsOrder?: string[];
+    cookingMethodsOrder?: string[];
 }
