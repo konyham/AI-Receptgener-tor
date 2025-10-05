@@ -318,6 +318,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const [isImageLoading, setIsImageLoading] = useState<boolean>(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState<boolean>(false);
+  const [instructionImageInModal, setInstructionImageInModal] = useState<{url: string, title: string} | null>(null);
   const [isCostLoading, setIsCostLoading] = useState<boolean>(false);
   const [costError, setCostError] = useState<string | null>(null);
 
@@ -427,6 +428,13 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         setGeneratingImageForStep(null);
     }
   }, [recipe, onRecipeUpdate, showNotification, generatingImageForStep]);
+
+  const handleOpenInstructionImageModal = (imageUrl: string, stepText: string) => {
+    setInstructionImageInModal({
+      url: imageUrl,
+      title: `${recipe.recipeName} - ${stepText.substring(0, 50)}${stepText.length > 50 ? '...' : ''}`
+    });
+  };
 
   useEffect(() => {
     if (shouldGenerateImageInitially && !recipe.imageUrl) {
@@ -1099,6 +1107,7 @@ Recept generálva Konyha Miki segítségével!
                   voiceModeActive={voiceMode === 'cooking'}
                   onGenerateImage={handleGenerateInstructionImage}
                   generatingImageForStep={generatingImageForStep}
+                  onImageClick={handleOpenInstructionImageModal}
                 />
                 {detectedTime && !isTimerOpen && (
                   <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-2 animate-fade-in transition-all">
@@ -1171,6 +1180,7 @@ Recept generálva Konyha Miki segítségével!
       {isGeneratingVideo && <VideoGenerationModal progressMessage={videoGenerationProgress} />}
       {generatedVideoUrl && <VideoPlayerModal videoUrl={generatedVideoUrl} recipeName={recipe.recipeName} onClose={() => setGeneratedVideoUrl(null)} />}
       {isImageModalOpen && recipe.imageUrl && <ImageDisplayModal imageUrl={recipe.imageUrl} recipeName={recipe.recipeName} onClose={() => setIsImageModalOpen(false)} />}
+      {instructionImageInModal && <ImageDisplayModal imageUrl={instructionImageInModal.url} recipeName={instructionImageInModal.title} onClose={() => setInstructionImageInModal(null)} />}
       <ShareFallbackModal 
         isOpen={isShareFallbackModalOpen}
         onClose={() => setIsShareFallbackModalOpen(false)}
