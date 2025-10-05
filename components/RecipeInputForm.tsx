@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption, RecipePace } from '../types';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption, RecipePace, UserProfile } from '../types';
 import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES, CUISINE_OPTIONS, RECIPE_PACE_OPTIONS } from '../constants';
 import { interpretFormCommand, suggestMealType } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
@@ -12,6 +12,7 @@ interface RecipeInputFormProps {
   initialFormData?: Partial<{ ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover', useSeasonalIngredients: boolean }> | null;
   onFormPopulated?: () => void;
   suggestions?: RecipeSuggestions | null;
+  users: UserProfile[];
 }
 
 const INGREDIENTS_STORAGE_KEY = 'ai-recipe-generator-saved-ingredients';
@@ -60,7 +61,7 @@ const loadAndOrder = <T extends { value: string }>(key: string, defaultOrder: re
   return [...defaultOrder];
 };
 
-const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, initialFormData, onFormPopulated, suggestions }) => {
+const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, initialFormData, onFormPopulated, suggestions, users }) => {
   const [mode, setMode] = useState<'standard' | 'leftover'>('standard');
   const [ingredients, setIngredients] = useState<string[]>([]);
   const [excludedIngredients, setExcludedIngredients] = useState('');
@@ -75,6 +76,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [withCost, setWithCost] = useState(false);
   const [withImage, setWithImage] = useState(false);
   const [useSeasonalIngredients, setUseSeasonalIngredients] = useState(false);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
@@ -402,27 +404,53 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   };
   
   const triggerSubmit = () => {
-    if (!isLoading) {
-       const orderedSelectedMethods = orderedCookingMethods
+    if (isLoading) return;
+
+    // --- User preference aggregation ---
+    const selectedUsers = users.filter(u => selectedUserIds.includes(u.id));
+    const combinedAllergies = new Set<string>();
+    const combinedLikes = new Set<string>();
+    const combinedDislikes = new Set<string>();
+
+    selectedUsers.forEach(user => {
+        user.allergies.split(',').forEach(item => item.trim() && combinedAllergies.add(item.trim()));
+        user.likes.split(',').forEach(item => item.trim() && combinedLikes.add(item.trim()));
+        user.dislikes.split(',').forEach(item => item.trim() && combinedDislikes.add(item.trim()));
+    });
+
+    const finalExcludedIngredients = [
+        ...excludedIngredients.split(',').map(s => s.trim()).filter(Boolean),
+        ...Array.from(combinedAllergies)
+    ].join(', ');
+
+    let userPreferencesRequest = '';
+    if (combinedLikes.size > 0) {
+        userPreferencesRequest += ` A recept feleljen meg a felhasználók ízlésének, akik kedvelik: ${Array.from(combinedLikes).join(', ')}.`;
+    }
+    if (combinedDislikes.size > 0) {
+        userPreferencesRequest += ` Lehetőség szerint kerülje a következő alapanyagokat: ${Array.from(combinedDislikes).join(', ')}.`;
+    }
+    const finalSpecialRequest = [specialRequest.trim(), userPreferencesRequest.trim()].filter(Boolean).join(' ');
+    
+    const orderedSelectedMethods = orderedCookingMethods
         .map(m => m.value)
         .filter(value => cookingMethods.includes(value));
 
-      onSubmit({
+    onSubmit({
         ingredients: ingredients.join(', '),
-        excludedIngredients,
+        excludedIngredients: finalExcludedIngredients,
         diet,
         mealType,
         cuisine,
         recipePace,
         cookingMethods: orderedSelectedMethods,
-        specialRequest,
+        specialRequest: finalSpecialRequest,
         withCost,
         withImage,
         numberOfServings,
         mode,
         useSeasonalIngredients,
-      });
-    }
+    });
   };
   const triggerSubmitRef = useRef(triggerSubmit);
   triggerSubmitRef.current = triggerSubmit;
@@ -468,6 +496,14 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         
         return newState;
     });
+  };
+
+  const handleUserSelectionChange = (userId: string) => {
+    setSelectedUserIds(prev =>
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
   };
 
   const handleDragStart = (e: React.DragEvent<HTMLLabelElement>, index: number) => {
@@ -545,6 +581,30 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     .filter((item): item is { method: { value: CookingMethod; label: string; }; capacity: number; } => 
         item.method != null && item.capacity != null
     );
+
+  const {
+    profileExclusions,
+    profileLikes,
+    profileDislikes
+  } = useMemo(() => {
+    const selectedUsers = users.filter(u => selectedUserIds.includes(u.id));
+    const combinedAllergies = new Set<string>();
+    const combinedLikes = new Set<string>();
+    const combinedDislikes = new Set<string>();
+
+    selectedUsers.forEach(user => {
+        user.allergies.split(',').forEach(item => item.trim() && combinedAllergies.add(item.trim()));
+        user.likes.split(',').forEach(item => item.trim() && combinedLikes.add(item.trim()));
+        user.dislikes.split(',').forEach(item => item.trim() && combinedDislikes.add(item.trim()));
+    });
+    
+    return {
+        profileExclusions: Array.from(combinedAllergies),
+        profileLikes: Array.from(combinedLikes),
+        profileDislikes: Array.from(combinedDislikes)
+    };
+  }, [selectedUserIds, users]);
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -703,6 +763,30 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         </div>
       </div>
 
+       <div>
+        <label className="block text-lg font-semibold text-gray-700 mb-2">
+            Kinek készül a recept? (nem kötelező)
+        </label>
+        {users.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {users.map(user => (
+                    <label key={user.id} className="flex items-center p-3 border rounded-lg bg-white cursor-pointer hover:bg-gray-50 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 transition-colors">
+                        <input
+                            type="checkbox"
+                            id={`user-${user.id}`}
+                            checked={selectedUserIds.includes(user.id)}
+                            onChange={() => handleUserSelectionChange(user.id)}
+                            className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span className="ml-3 text-gray-700 font-medium">{user.name}</span>
+                    </label>
+                ))}
+            </div>
+        ) : (
+            <p className="text-gray-500 text-sm p-3 bg-gray-50 rounded-lg">Nincsenek felhasználók. A "Felhasználók" menüpont alatt adhat hozzá profilokat.</p>
+        )}
+      </div>
+
       <div>
         <label htmlFor="excluded-ingredients" className="block text-lg font-semibold text-gray-700 mb-2">
           Mi ne legyen benne? (nem kötelező)
@@ -715,7 +799,12 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
           rows={2}
           className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
         ></textarea>
-        <p className="text-sm text-gray-500 mt-1">Vesszővel elválasztva sorolja fel azokat az alapanyagokat, amiket kerülni szeretne.</p>
+        <p className="text-sm text-gray-500 mt-1">Vesszővel elválasztva sorolja fel a kerülendő alapanyagokat.</p>
+        {profileExclusions.length > 0 && (
+            <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 animate-fade-in">
+                <span className="font-semibold">Felhasználói tiltások (automatikusan hozzáadva):</span> {profileExclusions.join(', ')}
+            </div>
+        )}
       </div>
 
       <div>
@@ -730,6 +819,23 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
           rows={2}
           className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
         ></textarea>
+        {(profileLikes.length > 0 || profileDislikes.length > 0) && (
+            <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 animate-fade-in space-y-1">
+                <p className="font-semibold">Felhasználói preferenciák (automatikusan figyelembe véve):</p>
+                {profileLikes.length > 0 && (
+                    <div className="flex items-start">
+                        <span className="text-green-600 font-bold mr-2">+</span>
+                        <span>Kedveli: {profileLikes.join(', ')}.</span>
+                    </div>
+                )}
+                {profileDislikes.length > 0 && (
+                    <div className="flex items-start">
+                        <span className="text-yellow-600 font-bold mr-2">−</span>
+                        <span>Kerülendő: {profileDislikes.join(', ')}.</span>
+                    </div>
+                )}
+            </div>
+        )}
       </div>
 
        <div>

@@ -6,6 +6,7 @@ import ErrorMessage from './components/ErrorMessage';
 import FavoritesView from './components/FavoritesView';
 import ShoppingListView from './components/ShoppingListView';
 import PantryView from './components/PantryView';
+import UsersView from './components/UsersView';
 import AppVoiceControl from './components/AppVoiceControl';
 // FIX: The imported module was missing a default export. This has been fixed in the component file.
 import LocationPromptModal from './components/LocationPromptModal';
@@ -13,6 +14,7 @@ import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand }
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
 import * as pantryService from './services/pantryService';
+import * as userService from './services/userService';
 import { useNotification } from './contexts/NotificationContext';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import {
@@ -32,6 +34,7 @@ import {
   AppCommand,
   PantryLocation,
   StorageType,
+  UserProfile,
 } from './types';
 import { konyhaMikiLogo } from './assets';
 
@@ -43,6 +46,7 @@ const App: React.FC = () => {
   const [favorites, setFavorites] = useState<Favorites>({});
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
   const [pantry, setPantry] = useState<Record<PantryLocation, PantryItem[]>>({ Tiszadada: [], Vásárosnamény: [] });
+  const [users, setUsers] = useState<UserProfile[]>([]);
   // FIX: The state type for initial form data was incorrect (`Partial<Recipe>`), causing a mismatch with RecipeInputForm's props and type errors on assignment. The type now correctly reflects the form's data structure (`ingredients` as a string).
   const [initialFormData, setInitialFormData] = useState<Partial<{ ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover', useSeasonalIngredients: boolean }> | null>(null);
   const [isFromFavorites, setIsFromFavorites] = useState(false);
@@ -81,6 +85,10 @@ const App: React.FC = () => {
       const { pantry: pantryData, recoveryNotification: pantryRecovery } = pantryService.getPantry();
       setPantry(pantryData);
       if (pantryRecovery) showNotification(pantryRecovery, 'info');
+
+      const { users: usersData, recoveryNotification: usersRecovery } = userService.getUsers();
+      setUsers(usersData);
+      if (usersRecovery) showNotification(usersRecovery, 'info');
 
     } catch (e: any) {
       setError(`Hiba történt az adatok betöltése közben: ${e.message}`);
@@ -167,7 +175,7 @@ const App: React.FC = () => {
       setInitialFormData({
         ingredients: recipe.ingredients.join(', '),
         excludedIngredients: '',
-        diet: recipe.diet,
+        diet: DietOption.DIABETIC,
         mealType: recipe.mealType,
         cuisine: recipe.cuisine,
         recipePace: recipe.recipePace,
@@ -212,6 +220,16 @@ const App: React.FC = () => {
         return newState;
     });
     showNotification(`'${category}' kategória törölve.`, 'success');
+  };
+  
+  const handleMoveFavorite = (recipe: Recipe, fromCategory: string, toCategory: string) => {
+    const result = favoritesService.moveRecipe(recipe, fromCategory, toCategory);
+    if (result.success) {
+        setFavorites(result.updatedFavorites);
+        showNotification(`'${recipe.recipeName}' áthelyezve ide: '${toCategory}'`, 'success');
+    } else {
+        showNotification(result.message || 'Az áthelyezés nem sikerült.', 'info');
+    }
   };
 
   // Shopping list handlers
@@ -342,7 +360,7 @@ const App: React.FC = () => {
     setInitialFormData({
         ingredients: ingredientsFromPantry,
         excludedIngredients: '',
-        diet: DietOption.NONE,
+        diet: DietOption.DIABETIC,
         mealType: MealType.LUNCH,
         cuisine: CuisineOption.NONE,
         cookingMethods: [CookingMethod.TRADITIONAL],
@@ -359,6 +377,30 @@ const App: React.FC = () => {
     showNotification(`A kamra alapanyagai betöltve. Módosítsa a feltételeket és generáljon receptet!`, 'success');
   };
   
+  const handleMovePantryItems = (indices: number[], sourceLocation: PantryLocation, destinationLocation: PantryLocation) => {
+      const updatedPantry = pantryService.moveItems(indices, sourceLocation, destinationLocation);
+      setPantry(updatedPantry);
+      showNotification(`${indices.length} tétel sikeresen áthelyezve ide: ${destinationLocation}.`, 'success');
+  };
+
+  // User handlers
+    const handleSaveUser = (user: UserProfile) => {
+        const isNew = !users.some(u => u.id === user.id);
+        const updatedUsers = isNew ? userService.addUser(user) : userService.updateUser(user);
+        setUsers(updatedUsers);
+        showNotification(`'${user.name}' ${isNew ? 'hozzáadva' : 'adatok mentve'}.`, 'success');
+    };
+
+    const handleDeleteUser = (userId: string) => {
+        const userToDelete = users.find(u => u.id === userId);
+        if (userToDelete && window.confirm(`Biztosan törli a következő felhasználót: ${userToDelete.name}?`)) {
+            const updatedUsers = userService.deleteUser(userId);
+            setUsers(updatedUsers);
+            showNotification('Felhasználó törölve.', 'success');
+        }
+    };
+
+
   // Import/Export
   const handleImportData = (data: Partial<BackupData>) => {
     try {
@@ -367,6 +409,7 @@ const App: React.FC = () => {
       let tempFavorites = favorites;
       let tempShoppingList = shoppingList;
       let tempPantry = pantry;
+      let tempUsers = users;
       
       if(data.favorites) {
         const { favorites: validatedFavorites, recoveryNotification } = favoritesService.validateAndRecover(data.favorites);
@@ -389,14 +432,23 @@ const App: React.FC = () => {
         tempPantry = mergedPantry;
         newCount += newItemsCount;
       }
+       if(data.users) {
+        const { users: validatedUsers, recoveryNotification } = userService.validateAndRecover(data.users);
+        if (recoveryNotification) showNotification(recoveryNotification, 'info');
+        const { mergedUsers, newItemsCount: newUsersCount } = userService.mergeUsers(tempUsers, validatedUsers);
+        tempUsers = mergedUsers;
+        newCount += newUsersCount;
+      }
       
       setFavorites(tempFavorites);
       setShoppingList(tempShoppingList);
       setPantry(tempPantry);
+      setUsers(tempUsers);
       
       favoritesService.saveFavorites(tempFavorites);
       shoppingListService.saveShoppingList(tempShoppingList);
       pantryService.savePantry(tempPantry);
+      userService.saveUsers(tempUsers);
       
       if(newCount > 0) {
         message = `${newCount} új elem sikeresen importálva.`;
@@ -425,7 +477,7 @@ const App: React.FC = () => {
 
         switch(command.action) {
             case 'navigate':
-                if (['generator', 'favorites', 'shopping-list', 'pantry'].includes(command.payload)) {
+                if (['generator', 'favorites', 'shopping-list', 'pantry', 'users'].includes(command.payload)) {
                     setView(command.payload as AppView);
                     showNotification(`Navigálás ide: ${command.payload}`, 'info');
                 }
@@ -474,6 +526,7 @@ const App: React.FC = () => {
             favorites={favorites}
             shoppingList={shoppingList}
             pantry={pantry}
+            users={users}
             onViewRecipe={handleViewFavorite}
             onDeleteRecipe={handleDeleteFavorite}
             onDeleteCategory={handleDeleteCategory}
@@ -484,6 +537,7 @@ const App: React.FC = () => {
             onSetFilterCategory={setFilterCategory}
             sortOption={sortOption}
             onSetSortOption={setSortOption}
+            onMoveRecipe={handleMoveFavorite}
           />
         );
       case 'shopping-list':
@@ -492,6 +546,7 @@ const App: React.FC = () => {
             list={shoppingList}
             favorites={favorites}
             pantry={pantry}
+            users={users}
             onAddItems={handleAddItemsToShoppingList}
             onUpdateItem={handleUpdateShoppingListItem}
             onRemoveItem={handleRemoveShoppingListItem}
@@ -507,6 +562,7 @@ const App: React.FC = () => {
               pantry={pantry}
               favorites={favorites}
               shoppingList={shoppingList}
+              users={users}
               onAddItems={handleAddItemsToPantry}
               onUpdateItem={handleUpdatePantryItem}
               onRemoveItem={handleRemovePantryItem}
@@ -515,8 +571,21 @@ const App: React.FC = () => {
               onGenerateFromPantryRequest={handleGenerateFromPantryRequest}
               onImportData={handleImportData}
               shoppingListItems={shoppingList}
+              onMoveItems={handleMovePantryItems}
             />
         );
+        case 'users':
+            return (
+                <UsersView
+                    users={users}
+                    onSaveUser={handleSaveUser}
+                    onDeleteUser={handleDeleteUser}
+                    favorites={favorites}
+                    shoppingList={shoppingList}
+                    pantry={pantry}
+                    onImportData={handleImportData}
+                />
+            );
       case 'generator':
       default:
         return (
@@ -532,6 +601,7 @@ const App: React.FC = () => {
                 initialFormData={initialFormData}
                 onFormPopulated={handleFormPopulated}
                 suggestions={recipeSuggestions}
+                users={users}
               />
             )}
           </>
@@ -544,6 +614,7 @@ const App: React.FC = () => {
     { id: 'favorites', label: 'Kedvencek' },
     { id: 'pantry', label: 'Kamra' },
     { id: 'shopping-list', label: 'Bevásárlólista' },
+    { id: 'users', label: 'Felhasználók' },
   ];
 
   return (

@@ -182,3 +182,32 @@ export const clearAll = (location: PantryLocation): Record<PantryLocation, Pantr
     savePantry(updatedPantry);
     return updatedPantry;
 }
+
+// Moves items from a source location to a destination location.
+export const moveItems = (indices: number[], sourceLocation: PantryLocation, destinationLocation: PantryLocation): Record<PantryLocation, PantryItem[]> => {
+    const { pantry: currentPantry } = getPantry();
+    const sourceList = [...(currentPantry[sourceLocation] || [])];
+    const destinationList = [...(currentPantry[destinationLocation] || [])];
+
+    const indicesToMove = new Set(indices);
+    const itemsToMove: PantryItem[] = [];
+    
+    const remainingSourceItems = sourceList.filter((item, index) => {
+        if (indicesToMove.has(index)) {
+            itemsToMove.push(item);
+            return false; // Remove from source
+        }
+        return true; // Keep in source
+    });
+
+    const newDestinationList = [...destinationList, ...itemsToMove];
+    
+    const updatedPantry = {
+        ...currentPantry,
+        [sourceLocation]: remainingSourceItems,
+        [destinationLocation]: newDestinationList,
+    };
+
+    savePantry(updatedPantry);
+    return updatedPantry;
+};

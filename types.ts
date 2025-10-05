@@ -1,3 +1,5 @@
+import type { Operation, GenerateVideosResponse } from '@google/genai';
+
 // For extending the Window object for browser APIs
 declare global {
   interface Window {
@@ -169,7 +171,7 @@ export type AppCommandAction =
   | 'collapse_category'
   | 'unknown';
 
-export type AppView = 'generator' | 'favorites' | 'shopping-list' | 'pantry';
+export type AppView = 'generator' | 'favorites' | 'shopping-list' | 'pantry' | 'users';
 
 export enum SortOption {
   DATE_DESC = 'date_desc',
@@ -263,8 +265,17 @@ export const PANTRY_LOCATIONS: PantryLocation[] = ['Tiszadada', 'Vásárosnamén
 
 export type Favorites = Record<string, Recipe[]>;
 
+export interface UserProfile {
+  id: string;
+  name: string;
+  likes: string; // Comma-separated
+  dislikes: string; // Comma-separated
+  allergies: string; // Comma-separated, for forbidden items
+}
+
 export interface BackupData {
     favorites: Favorites;
     shoppingList: ShoppingListItem[];
     pantry: Record<PantryLocation, PantryItem[]>;
+    users: UserProfile[];
 }

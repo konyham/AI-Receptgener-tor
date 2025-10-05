@@ -182,6 +182,55 @@ export const removeRecipeFromFavorites = (recipeName: string, category: string):
 };
 
 /**
+ * Moves a recipe from one category to another.
+ * @param recipeToMove The full recipe object to move.
+ * @param fromCategory The source category name.
+ * @param toCategory The destination category name.
+ * @returns An object indicating success and the updated favorites.
+ */
+export const moveRecipe = (recipeToMove: Recipe, fromCategory: string, toCategory: string): { updatedFavorites: Favorites; success: boolean; message?: string } => {
+  const { favorites } = getFavorites();
+  
+  // 1. Find the recipe in the source category
+  const sourceCategoryList = favorites[fromCategory];
+  if (!sourceCategoryList) {
+    return { updatedFavorites: favorites, success: false, message: `A forráskategória ('${fromCategory}') nem található.` };
+  }
+  
+  const recipeIndex = sourceCategoryList.findIndex(r => r.recipeName === recipeToMove.recipeName);
+  if (recipeIndex === -1) {
+    return { updatedFavorites: favorites, success: false, message: `A(z) '${recipeToMove.recipeName}' recept nem található a(z) '${fromCategory}' kategóriában.` };
+  }
+
+  // 2. Check for duplicates in the destination category
+  const destinationCategoryList = favorites[toCategory] || [];
+  const alreadyExists = destinationCategoryList.some(r => r.recipeName === recipeToMove.recipeName);
+  if (alreadyExists) {
+    return { updatedFavorites: favorites, success: false, message: `A(z) '${recipeToMove.recipeName}' nevű recept már létezik a(z) '${toCategory}' kategóriában.` };
+  }
+  
+  // All checks passed, proceed with mutation.
+  const updatedFavorites = JSON.parse(JSON.stringify(favorites));
+
+  // 3. Remove from source
+  const [movedRecipe] = updatedFavorites[fromCategory].splice(recipeIndex, 1);
+  if (updatedFavorites[fromCategory].length === 0) {
+    delete updatedFavorites[fromCategory];
+  }
+
+  // 4. Add to destination
+  if (!updatedFavorites[toCategory]) {
+    updatedFavorites[toCategory] = [];
+  }
+  updatedFavorites[toCategory].push(movedRecipe);
+  
+  // 5. Save and return
+  saveFavorites(updatedFavorites);
+  return { updatedFavorites, success: true };
+};
+
+
+/**
  * Removes an entire category and all recipes within it, updating localStorage.
  * @param category The category to remove.
  * @returns The updated favorites object.

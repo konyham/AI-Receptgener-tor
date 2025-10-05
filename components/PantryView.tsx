@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType } from '../types';
+import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
+import MoveItemsModal from './MoveItemsModal';
 
 // Modal for editing a pantry item
 const EditPantryItemModal: React.FC<{
@@ -94,6 +95,7 @@ interface PantryViewProps {
   pantry: Record<PantryLocation, PantryItem[]>;
   favorites: Favorites;
   shoppingList: ShoppingListItem[];
+  users: UserProfile[];
   onAddItems: (items: string[], location: PantryLocation, date: string | null, storageType: StorageType) => void;
   onUpdateItem: (index: number, updatedItem: PantryItem, location: PantryLocation) => void;
   onRemoveItem: (index: number, location: PantryLocation) => void;
@@ -102,12 +104,14 @@ interface PantryViewProps {
   onGenerateFromPantryRequest: () => void;
   onImportData: (data: Partial<BackupData>) => void;
   shoppingListItems: ShoppingListItem[];
+  onMoveItems: (indices: number[], sourceLocation: PantryLocation, destinationLocation: PantryLocation) => void;
 }
 
 const PantryView: React.FC<PantryViewProps> = ({
   pantry,
   favorites,
   shoppingList,
+  users,
   onAddItems,
   onUpdateItem,
   onRemoveItem,
@@ -116,6 +120,7 @@ const PantryView: React.FC<PantryViewProps> = ({
   onGenerateFromPantryRequest,
   onImportData,
   shoppingListItems,
+  onMoveItems,
 }) => {
   const [newItemText, setNewItemText] = useState('');
   const [newItemDate, setNewItemDate] = useState(new Date().toISOString().split('T')[0]);
@@ -123,6 +128,8 @@ const PantryView: React.FC<PantryViewProps> = ({
   const [newItemStorageType, setNewItemStorageType] = useState<StorageType>(StorageType.PANTRY);
   const [activeTab, setActiveTab] = useState<PantryLocation>('Tiszadada');
   const [editingItem, setEditingItem] = useState<{ item: PantryItem; index: number } | null>(null);
+  const [selectedItems, setSelectedItems] = useState<Record<PantryLocation, number[]>>({ Tiszadada: [], Vásárosnamény: [] });
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<StorageType, boolean>>({
     [StorageType.FREEZER]: true,
@@ -132,6 +139,11 @@ const PantryView: React.FC<PantryViewProps> = ({
 
   const { showNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Reset selections when the active tab changes to avoid confusion
+    setSelectedItems({ Tiszadada: [], Vásárosnamény: [] });
+  }, [activeTab]);
 
   const groupedItems = useMemo(() => {
     const groups: Record<StorageType, PantryItem[]> = {
@@ -179,7 +191,7 @@ const PantryView: React.FC<PantryViewProps> = ({
 
   const handleExport = async () => {
     try {
-      const dataToSave: BackupData = { favorites, shoppingList, pantry };
+      const dataToSave: BackupData = { favorites, shoppingList, pantry, users };
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const now = new Date();
@@ -188,11 +200,37 @@ const PantryView: React.FC<PantryViewProps> = ({
       const suggestedName = `konyhamiki_mentes_${date}_${time}.json`;
 
       if ('showSaveFilePicker' in window && window.self === window.top) {
-        // ... (code omitted for brevity, it's unchanged)
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName,
+            types: [{
+              description: 'JSON Fájl',
+              accept: { 'application/json': ['.json'] },
+            }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          showNotification('Adatok sikeresen mentve!', 'success');
+        } catch (err: any) {
+          if (err.name !== 'AbortError') {
+            console.error("Hiba a mentés során (File Picker):", err);
+            showNotification('Hiba történt az adatok mentése közben.', 'info');
+          }
+        }
       } else {
-        // ... (code omitted for brevity, it's unchanged)
+        showNotification('A böngésző biztonsági korlátozásai miatt a fájl közvetlenül letöltésre kerül.', 'info');
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = suggestedName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       }
     } catch (error: any) {
+        console.error("Hiba a mentés során:", error);
         showNotification('Hiba történt az adatok mentése közben.', 'info');
     }
   };
@@ -200,14 +238,58 @@ const PantryView: React.FC<PantryViewProps> = ({
   const handleImportClick = () => { fileInputRef.current?.click(); };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    // ... (code omitted for brevity, it's unchanged)
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result;
+        if (typeof text === 'string') {
+          const data = JSON.parse(text);
+          onImportData(data);
+        } else {
+           throw new Error('A fájl tartalma nem olvasható szövegként.');
+        }
+      } catch (error) {
+        console.error("Hiba a betöltés során:", error);
+        showNotification('Hiba történt a fájl beolvasása vagy feldolgozása közben.', 'info');
+      }
+    };
+     reader.onerror = () => {
+        showNotification('Hiba történt a fájl olvasása közben.', 'info');
+    };
+    reader.onloadend = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+    reader.readAsText(file);
   };
   
-  // FIX: Explicitly type `l` to `PantryItem[]` to resolve type error when accessing `.length`.
-  const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || Object.values(pantry).some((l: PantryItem[]) => l.length > 0);
+  const handleToggleSelection = (index: number) => {
+    setSelectedItems(prev => {
+        const currentSelection = prev[activeTab] || [];
+        const newSelection = currentSelection.includes(index)
+            ? currentSelection.filter(i => i !== index)
+            : [...currentSelection, index];
+        return { ...prev, [activeTab]: newSelection };
+    });
+  };
+
+  const handleMoveSelected = (destination: PantryLocation) => {
+    const indicesToMove = selectedItems[activeTab];
+    if (indicesToMove && indicesToMove.length > 0) {
+        onMoveItems(indicesToMove, activeTab, destination);
+        setSelectedItems(prev => ({ ...prev, [activeTab]: [] }));
+    }
+    setIsMoveModalOpen(false);
+  };
+
+  const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || Object.values(pantry).some((l: PantryItem[]) => l.length > 0) || users.length > 0;
   const checkedShoppingListItems = shoppingListItems.filter(item => item.checked).length;
-  // FIX: This calculation was causing a type error due to complex inference. It's replaced with a simpler, equivalent calculation.
   const totalItemsInCurrentTab = (pantry[activeTab] || []).length;
+  const selectedCount = selectedItems[activeTab]?.length || 0;
 
   return (
     <div className="space-y-6">
@@ -251,7 +333,6 @@ const PantryView: React.FC<PantryViewProps> = ({
 
       {totalItemsInCurrentTab > 0 ? (
         <div className="space-y-4">
-            {/* FIX: Explicitly type the destructured `items` to `PantryItem[]` to resolve errors on `.length` and `.map`. */}
             {Object.entries(groupedItems).map(([storageType, items]: [string, PantryItem[]]) => {
                 if (items.length === 0) return null;
                 const type = storageType as StorageType;
@@ -273,11 +354,20 @@ const PantryView: React.FC<PantryViewProps> = ({
                              const originalIndex = (pantry[activeTab] || []).findIndex(p => p === item);
                              return (
                                 <li key={originalIndex} className="flex items-center justify-between p-3 gap-2">
-                                    <div>
-                                        <span className="font-medium text-gray-800">{item.text}{item.quantity ? ` (${item.quantity})` : ''}</span>
-                                        <span className="block text-xs text-gray-500">
-                                            Betárolva: {item.dateAdded ? new Date(item.dateAdded).toLocaleDateString('hu-HU') : 'Ismeretlen dátum'}
-                                        </span>
+                                    <div className="flex items-center gap-3 flex-grow">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedItems[activeTab]?.includes(originalIndex)}
+                                            onChange={() => handleToggleSelection(originalIndex)}
+                                            className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 flex-shrink-0"
+                                            aria-labelledby={`pantry-item-label-${originalIndex}`}
+                                        />
+                                        <div id={`pantry-item-label-${originalIndex}`}>
+                                            <span className="font-medium text-gray-800">{item.text}{item.quantity ? ` (${item.quantity})` : ''}</span>
+                                            <span className="block text-xs text-gray-500">
+                                                Betárolva: {item.dateAdded ? new Date(item.dateAdded).toLocaleDateString('hu-HU') : 'Ismeretlen dátum'}
+                                            </span>
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-2 flex-shrink-0">
                                         <button onClick={() => setEditingItem({ item, index: originalIndex })} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100" aria-label={`'${item.text}' szerkesztése`}>
@@ -296,6 +386,13 @@ const PantryView: React.FC<PantryViewProps> = ({
                 );
             })}
             <div className="pt-4 flex flex-col sm:flex-row gap-2 justify-end flex-wrap">
+                <button 
+                    onClick={() => setIsMoveModalOpen(true)}
+                    disabled={selectedCount === 0}
+                    className="text-sm bg-purple-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-600 transition-colors disabled:bg-purple-300 disabled:cursor-not-allowed"
+                >
+                    Kijelöltek áthelyezése ({selectedCount})
+                </button>
                 <button onClick={onMoveCheckedToPantryRequest} disabled={checkedShoppingListItems === 0} className="text-sm bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors disabled:bg-green-300 disabled:cursor-not-allowed">Kipipáltak áthelyezése ide ({checkedShoppingListItems})</button>
                 <button onClick={() => onClearAll(activeTab)} className="text-sm bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors">Kamra ({activeTab}) ürítése</button>
             </div>
@@ -311,7 +408,6 @@ const PantryView: React.FC<PantryViewProps> = ({
       <div className="mt-6 pt-4 border-t border-dashed">
         <h3 className="text-lg font-bold text-center text-gray-700 mb-4">Receptötletek a kamrából</h3>
          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            {/* FIX: Explicitly type `l` to `PantryItem[]` to resolve type error when accessing `.length`. */}
             <button onClick={onGenerateFromPantryRequest} disabled={Object.values(pantry).every((l: PantryItem[]) => l.length === 0)} className="flex-1 bg-green-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">Recept a kamra tartalmából</button>
         </div>
       </div>
@@ -319,7 +415,7 @@ const PantryView: React.FC<PantryViewProps> = ({
       <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-200">
         <h3 className="text-lg font-bold text-center text-gray-700 mb-4">Adatkezelés</h3>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button onClick={handleExport} disabled={!hasAnyData} className="flex-1 bg-blue-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-blue-700 disabled:bg-gray-400">Mentés Fájlba</button>
+            <button onClick={handleExport} disabled={!hasAnyData} className="flex-1 bg-blue-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed">Mentés Fájlba</button>
             <button onClick={handleImportClick} className="flex-1 bg-green-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-green-700">Betöltés Fájlból</button>
             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" aria-hidden="true" />
         </div>
@@ -331,6 +427,15 @@ const PantryView: React.FC<PantryViewProps> = ({
           item={editingItem.item}
           onClose={() => setEditingItem(null)}
           onSave={(updatedItem) => handleUpdateItem(editingItem.index, updatedItem)}
+        />
+      )}
+      {isMoveModalOpen && (
+        <MoveItemsModal
+          isOpen={isMoveModalOpen}
+          onClose={() => setIsMoveModalOpen(false)}
+          onMove={handleMoveSelected}
+          sourceLocation={activeTab}
+          itemCount={selectedCount}
         />
       )}
     </div>

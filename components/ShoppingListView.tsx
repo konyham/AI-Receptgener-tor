@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation, StorageType } from '../types';
+import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation, StorageType, UserProfile } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import ShoppingListItemActionModal from './ShoppingListItemActionModal';
 
@@ -7,6 +7,7 @@ interface ShoppingListViewProps {
   list: ShoppingListItem[];
   favorites: Favorites;
   pantry: Record<PantryLocation, PantryItem[]>;
+  users: UserProfile[];
   onAddItems: (items: string[]) => void;
   onUpdateItem: (index: number, updatedItem: ShoppingListItem) => void;
   onRemoveItem: (index: number) => void;
@@ -20,6 +21,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   list,
   favorites,
   pantry,
+  users,
   onAddItems,
   onUpdateItem,
   onRemoveItem,
@@ -89,6 +91,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         favorites,
         shoppingList: list,
         pantry,
+        users,
       };
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
@@ -179,7 +182,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   
   const checkedCount = list.filter(item => item.checked).length;
   // FIX: Explicitly type `l` to `PantryItem[]` to resolve type error when accessing `.length`.
-  const hasAnyData = Object.keys(favorites).length > 0 || list.length > 0 || Object.values(pantry).some((l: PantryItem[]) => l.length > 0);
+  const hasAnyData = Object.keys(favorites).length > 0 || list.length > 0 || Object.values(pantry).some((l: PantryItem[]) => l.length > 0) || users.length > 0;
 
   return (
     <div className="space-y-6">

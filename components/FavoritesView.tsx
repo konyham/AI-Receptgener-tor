@@ -1,12 +1,14 @@
-import React, { useRef } from 'react';
-import { Favorites, Recipe, SortOption, BackupData, ShoppingListItem, PantryItem, PantryLocation } from '../types';
+import React, { useRef, useState } from 'react';
+import { Favorites, Recipe, SortOption, BackupData, ShoppingListItem, PantryItem, PantryLocation, UserProfile } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import StarRating from './StarRating';
+import MoveRecipeModal from './MoveRecipeModal';
 
 interface FavoritesViewProps {
   favorites: Favorites;
   shoppingList: ShoppingListItem[];
   pantry: Record<PantryLocation, PantryItem[]>;
+  users: UserProfile[];
   onViewRecipe: (recipe: Recipe) => void;
   onDeleteRecipe: (recipeName: string, category: string) => void;
   onDeleteCategory: (category: string) => void;
@@ -17,6 +19,7 @@ interface FavoritesViewProps {
   onSetFilterCategory: (category: string) => void;
   sortOption: SortOption;
   onSetSortOption: (option: SortOption) => void;
+  onMoveRecipe: (recipe: Recipe, fromCategory: string, toCategory: string) => void;
 }
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
@@ -32,6 +35,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   favorites,
   shoppingList,
   pantry,
+  users,
   onViewRecipe,
   onDeleteRecipe,
   onDeleteCategory,
@@ -42,10 +46,19 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   onSetFilterCategory,
   sortOption,
   onSetSortOption,
+  onMoveRecipe,
 }) => {
   const categories = Object.keys(favorites);
   const { showNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [movingRecipe, setMovingRecipe] = useState<{ recipe: Recipe; fromCategory: string } | null>(null);
+
+  const handleMoveRecipe = (toCategory: string) => {
+    if (movingRecipe) {
+      onMoveRecipe(movingRecipe.recipe, movingRecipe.fromCategory, toCategory);
+      setMovingRecipe(null); // Close modal
+    }
+  };
 
   const handleExport = async () => {
     try {
@@ -53,6 +66,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         favorites,
         shoppingList,
         pantry,
+        users,
       };
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
@@ -129,9 +143,6 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         showNotification('Hiba történt a fájl beolvasása vagy feldolgozása közben.', 'info');
       }
     };
-    reader.onerror = () => {
-        showNotification('Hiba történt a fájl olvasása közben.', 'info');
-    };
     // A mező értékének törlése a megbízható 'onloadend' eseményben, ami siker és hiba esetén is lefut.
     reader.onloadend = () => {
         if (fileInputRef.current) {
@@ -148,7 +159,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
       : categories.filter((cat) => cat === filterCategory);
 
   // FIX: Explicitly type `pantryList` to `PantryItem[]` to resolve type error when accessing `.length`.
-  const hasAnyData = categories.length > 0 || shoppingList.length > 0 || Object.values(pantry).some((pantryList: PantryItem[]) => pantryList.length > 0);
+  const hasAnyData = categories.length > 0 || shoppingList.length > 0 || Object.values(pantry).some((pantryList: PantryItem[]) => pantryList.length > 0) || users.length > 0;
 
   return (
     <div className="space-y-6">
@@ -256,16 +267,23 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                   {expandedCategories[category] && (
                     <ul className="divide-y divide-gray-200 bg-white p-2">
                       {sortedRecipes.map((recipe) => (
-                        <li key={recipe.recipeName} className="flex items-center justify-between p-3">
-                          <div className="flex items-center gap-3">
-                            <span className="font-medium text-gray-800">{recipe.recipeName}</span>
+                        <li key={recipe.recipeName} className="flex items-center justify-between p-3 gap-2">
+                          <div className="flex items-center gap-3 flex-grow min-w-0">
+                            <span className="font-medium text-gray-800 truncate" title={recipe.recipeName}>{recipe.recipeName}</span>
                             {recipe.rating && recipe.rating > 0 && <StarRating rating={recipe.rating} readOnly />}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => onViewRecipe(recipe)} className="text-sm font-semibold text-primary-600 hover:text-primary-800">
+                          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                            <button onClick={() => onViewRecipe(recipe)} className="text-sm font-semibold text-primary-600 hover:text-primary-800 p-1">
                               Megtekintés
                             </button>
-                            <button onClick={() => onDeleteRecipe(recipe.recipeName, category)} className="text-sm font-medium text-red-600 hover:text-red-800">
+                             <button 
+                                onClick={() => setMovingRecipe({ recipe, fromCategory: category })}
+                                className="text-sm font-medium text-blue-600 hover:text-blue-800 p-1"
+                                aria-label={`'${recipe.recipeName}' áthelyezése`}
+                            >
+                                Áthelyezés
+                            </button>
+                            <button onClick={() => onDeleteRecipe(recipe.recipeName, category)} className="text-sm font-medium text-red-600 hover:text-red-800 p-1">
                               Törlés
                             </button>
                           </div>
@@ -305,6 +323,17 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         </div>
         <p className="text-xs text-center text-gray-500 mt-3">A betöltés összefésüli a meglévő adatokat az újonnan betöltöttekkel.</p>
       </div>
+
+       {movingRecipe && (
+        <MoveRecipeModal
+          isOpen={!!movingRecipe}
+          onClose={() => setMovingRecipe(null)}
+          onMove={handleMoveRecipe}
+          existingCategories={categories}
+          recipeName={movingRecipe.recipe.recipeName}
+          sourceCategory={movingRecipe.fromCategory}
+        />
+      )}
     </div>
   );
 };
