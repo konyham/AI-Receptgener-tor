@@ -7,6 +7,8 @@ import FavoritesView from './components/FavoritesView';
 import ShoppingListView from './components/ShoppingListView';
 import PantryView from './components/PantryView';
 import AppVoiceControl from './components/AppVoiceControl';
+// FIX: The imported module was missing a default export. This has been fixed in the component file.
+import LocationPromptModal from './components/LocationPromptModal';
 import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
@@ -28,6 +30,7 @@ import {
   CuisineOption,
   RecipePace,
   AppCommand,
+  PantryLocation,
 } from './types';
 import { konyhaMikiLogo } from './assets';
 
@@ -38,8 +41,9 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<Favorites>({});
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
-  const [pantry, setPantry] = useState<PantryItem[]>([]);
-  const [initialFormData, setInitialFormData] = useState<Partial<Recipe> | null>(null);
+  const [pantry, setPantry] = useState<Record<PantryLocation, PantryItem[]>>({ Tiszadada: [], Vásárosnamény: [] });
+  // FIX: The state type for initial form data was incorrect (`Partial<Recipe>`), causing a mismatch with RecipeInputForm's props and type errors on assignment. The type now correctly reflects the form's data structure (`ingredients` as a string).
+  const [initialFormData, setInitialFormData] = useState<Partial<{ ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover', useSeasonalIngredients: boolean }> | null>(null);
   const [isFromFavorites, setIsFromFavorites] = useState(false);
   const [recipeSuggestions, setRecipeSuggestions] = useState<RecipeSuggestions | null>(null);
   const [shouldGenerateImage, setShouldGenerateImage] = useState(false);
@@ -49,6 +53,10 @@ const App: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState('all');
   const [sortOption, setSortOption] = useState<SortOption>(SortOption.DATE_DESC);
   
+  // Location prompt state
+  const [isLocationPromptOpen, setIsLocationPromptOpen] = useState(false);
+  const [locationCallback, setLocationCallback] = useState<(location: PantryLocation) => void>(() => () => {});
+
   const { showNotification } = useNotification();
   const isProcessingVoiceCommandRef = React.useRef(false);
 
@@ -62,8 +70,8 @@ const App: React.FC = () => {
       setShoppingList(shopList);
       if (shopListRecovery) showNotification(shopListRecovery, 'info');
       
-      const { list: pantryList, recoveryNotification: pantryRecovery } = pantryService.getPantry();
-      setPantry(pantryList);
+      const { pantry: pantryData, recoveryNotification: pantryRecovery } = pantryService.getPantry();
+      setPantry(pantryData);
       if (pantryRecovery) showNotification(pantryRecovery, 'info');
 
     } catch (e: any) {
@@ -220,31 +228,74 @@ const App: React.FC = () => {
   };
   
   // Pantry handlers
-  const handleAddItemsToPantry = (items: string[]) => {
-      setPantry(pantryService.addItems(items));
-      showNotification('Tételek hozzáadva a kamrához!', 'success');
+  const handleAddItemsToPantry = (items: string[], location: PantryLocation) => {
+      setPantry(pantryService.addItems(items, location));
+      showNotification(`Tételek hozzáadva a(z) ${location} kamrához!`, 'success');
   };
   
-  const handleUpdatePantryItem = (index: number, updatedItem: PantryItem) => {
-    setPantry(pantryService.updateItem(index, updatedItem));
+  const handleUpdatePantryItem = (index: number, updatedItem: PantryItem, location: PantryLocation) => {
+    setPantry(pantryService.updateItem(index, updatedItem, location));
   };
   
-  const handleRemovePantryItem = (index: number) => {
-    setPantry(pantryService.removeItem(index));
+  const handleRemovePantryItem = (index: number, location: PantryLocation) => {
+    setPantry(pantryService.removeItem(index, location));
   };
 
-  const handleClearPantry = () => {
-    setPantry(pantryService.clearAll());
+  const handleClearPantry = (location: PantryLocation) => {
+    setPantry(pantryService.clearAll(location));
   };
   
-  const handleMoveCheckedToPantry = () => {
+  const handleMoveCheckedToPantryRequest = () => {
     const checkedItems = shoppingList.filter(item => item.checked).map(item => item.text);
-    if(checkedItems.length > 0) {
-      handleAddItemsToPantry(checkedItems);
-      handleClearCheckedShoppingList();
-      showNotification(`${checkedItems.length} tétel áthelyezve a kamrába.`, 'success');
-      setView('pantry');
+    if (checkedItems.length > 0) {
+        setLocationCallback(() => (location: PantryLocation) => {
+            handleAddItemsToPantry(checkedItems, location);
+            handleClearCheckedShoppingList();
+            showNotification(`${checkedItems.length} tétel áthelyezve a(z) ${location} kamrába.`, 'success');
+            setView('pantry');
+        });
+        setIsLocationPromptOpen(true);
+    } else {
+        showNotification('Nincsenek kipipált tételek a bevásárlólistán.', 'info');
     }
+  };
+
+  const handleGenerateFromPantryRequest = () => {
+    setLocationCallback(() => (location: PantryLocation) => handleGenerateFromPantry(location));
+    setIsLocationPromptOpen(true);
+  };
+
+  const handleGenerateFromPantry = (location: PantryLocation) => {
+    const ingredientsFromPantry = [...pantry[location]] // Create a copy to sort
+      .sort((a, b) => new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime()) // oldest first
+      .slice(0, 5) // take up to 5 oldest ingredients
+      .map(item => item.text)
+      .join(', ');
+
+    if (!ingredientsFromPantry) {
+        showNotification(`A kamra (${location}) üres!`, 'info');
+        return;
+    }
+    
+    // Set default parameters for a leftover recipe
+    const defaultParams = {
+        ingredients: ingredientsFromPantry,
+        excludedIngredients: '',
+        diet: DietOption.NONE,
+        mealType: MealType.LUNCH,
+        cuisine: CuisineOption.NONE,
+        cookingMethods: [CookingMethod.TRADITIONAL],
+        specialRequest: 'Készíts egy finom ételt a megadott maradékokból.',
+        withCost: false,
+        withImage: true,
+        numberOfServings: 2,
+        recipePace: RecipePace.NORMAL,
+        mode: 'leftover' as const,
+        useSeasonalIngredients: true,
+    };
+
+    handleRecipeSubmit(defaultParams);
+    setView('generator');
   };
   
   // Import/Export
@@ -271,10 +322,10 @@ const App: React.FC = () => {
         newCount += newItemsCount;
       }
       if(data.pantry) {
-        const { list: validatedList, recoveryNotification } = pantryService.validateAndRecover(data.pantry);
+        const { pantry: validatedPantry, recoveryNotification } = pantryService.validateAndRecover(data.pantry);
         if (recoveryNotification) showNotification(recoveryNotification, 'info');
-        const { mergedList, newItemsCount } = pantryService.mergePantries(tempPantry, validatedList);
-        tempPantry = mergedList;
+        const { mergedPantry, newItemsCount } = pantryService.mergePantries(tempPantry, validatedPantry);
+        tempPantry = mergedPantry;
         newCount += newItemsCount;
       }
       
@@ -302,11 +353,12 @@ const App: React.FC = () => {
     if (isProcessingVoiceCommandRef.current) return;
     isProcessingVoiceCommandRef.current = true;
     try {
+        const allPantryItems = Object.values(pantry).flat().map(item => item.text);
         const command: AppCommand = await interpretAppCommand(transcript, view, {
             categories: Object.keys(favorites),
             recipesByCategory: {}, // This context is not fully implemented yet
             shoppingListItems: shoppingList.map(i => i.text),
-            pantryItems: pantry.map(i => i.text),
+            pantryItems: allPantryItems,
         });
 
         switch(command.action) {
@@ -390,14 +442,15 @@ const App: React.FC = () => {
       case 'pantry':
         return (
             <PantryView
-              list={pantry}
+              pantry={pantry}
               favorites={favorites}
               shoppingList={shoppingList}
               onAddItems={handleAddItemsToPantry}
               onUpdateItem={handleUpdatePantryItem}
               onRemoveItem={handleRemovePantryItem}
               onClearAll={handleClearPantry}
-              onMoveCheckedToPantry={handleMoveCheckedToPantry}
+              onMoveCheckedToPantryRequest={handleMoveCheckedToPantryRequest}
+              onGenerateFromPantryRequest={handleGenerateFromPantryRequest}
               onImportData={handleImportData}
               shoppingListItems={shoppingList}
             />
@@ -478,6 +531,14 @@ const App: React.FC = () => {
       <footer className="text-center py-6 text-sm text-gray-500">
           <p>&copy; {new Date().getFullYear()} Konyha Miki. Minden jog fenntartva.</p>
       </footer>
+      <LocationPromptModal
+        isOpen={isLocationPromptOpen}
+        onClose={() => setIsLocationPromptOpen(false)}
+        onSelect={(location) => {
+          locationCallback(location);
+          setIsLocationPromptOpen(false);
+        }}
+      />
     </div>
   );
 };

@@ -1,42 +1,63 @@
-import React, { useState, useRef } from 'react';
-import { PantryItem, Favorites, BackupData, ShoppingListItem } from '../types';
+import React, { useState, useRef, useMemo } from 'react';
+import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 
 interface PantryViewProps {
-  list: PantryItem[];
+  pantry: Record<PantryLocation, PantryItem[]>;
   favorites: Favorites;
   shoppingList: ShoppingListItem[];
-  onAddItems: (items: string[]) => void;
-  onUpdateItem: (index: number, updatedItem: PantryItem) => void;
-  onRemoveItem: (index: number) => void;
-  onClearAll: () => void;
-  onMoveCheckedToPantry: () => void;
-  onImportData: (data: BackupData) => void;
+  onAddItems: (items: string[], location: PantryLocation) => void;
+  onUpdateItem: (index: number, updatedItem: PantryItem, location: PantryLocation) => void;
+  onRemoveItem: (index: number, location: PantryLocation) => void;
+  onClearAll: (location: PantryLocation) => void;
+  onMoveCheckedToPantryRequest: () => void;
+  onGenerateFromPantryRequest: () => void;
+  onImportData: (data: Partial<BackupData>) => void;
   shoppingListItems: ShoppingListItem[];
 }
 
 const PantryView: React.FC<PantryViewProps> = ({
-  list,
+  pantry,
   favorites,
   shoppingList,
   onAddItems,
   onUpdateItem,
   onRemoveItem,
   onClearAll,
-  onMoveCheckedToPantry,
+  onMoveCheckedToPantryRequest,
+  onGenerateFromPantryRequest,
   onImportData,
   shoppingListItems,
 }) => {
   const [newItem, setNewItem] = useState('');
+  const [activeTab, setActiveTab] = useState<PantryLocation>('Tiszadada');
   const { showNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const list = useMemo(() => {
+    const currentList = pantry[activeTab] || [];
+    // Sort items: those without a valid date first, then by date ascending (oldest first)
+    return [...currentList].sort((a, b) => {
+        const dateA = new Date(a.dateAdded);
+        const dateB = new Date(b.dateAdded);
+
+        const isAValid = !isNaN(dateA.getTime());
+        const isBValid = !isNaN(dateB.getTime());
+
+        if (isAValid && !isBValid) return 1;
+        if (!isAValid && isBValid) return -1;
+        if (!isAValid && !isBValid) return 0;
+        
+        return dateA.getTime() - dateB.getTime();
+    });
+  }, [pantry, activeTab]);
 
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (newItem.trim()) {
       const itemsToAdd = newItem.split(',').map(item => item.trim()).filter(Boolean);
       if (itemsToAdd.length > 0) {
-        onAddItems(itemsToAdd);
+        onAddItems(itemsToAdd, activeTab);
         setNewItem('');
       }
     }
@@ -44,7 +65,7 @@ const PantryView: React.FC<PantryViewProps> = ({
 
   const handleExport = async () => {
     try {
-      const dataToSave: BackupData = { favorites, shoppingList, pantry: list };
+      const dataToSave: BackupData = { favorites, shoppingList, pantry };
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const now = new Date();
@@ -103,12 +124,28 @@ const PantryView: React.FC<PantryViewProps> = ({
     reader.readAsText(file);
   };
   
-  const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || list.length > 0;
+  const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || Object.values(pantry).some(l => l.length > 0);
   const checkedShoppingListItems = shoppingListItems.filter(item => item.checked).length;
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-center text-primary-800">Kamra</h2>
+      
+      <div className="flex border-b border-gray-200">
+        {PANTRY_LOCATIONS.map(location => (
+          <button
+            key={location}
+            onClick={() => setActiveTab(location)}
+            className={`-mb-px py-3 px-4 font-semibold text-sm sm:text-base transition-colors ${
+              activeTab === location
+                ? 'border-l border-t border-r rounded-t-lg bg-white text-primary-600'
+                : 'border-b text-gray-500 hover:text-primary-600'
+            }`}
+          >
+            Kamra {location}
+          </button>
+        ))}
+      </div>
       
       <form onSubmit={handleAddItem} className="flex gap-2">
         <input
@@ -126,19 +163,24 @@ const PantryView: React.FC<PantryViewProps> = ({
         <div className="space-y-2">
             <ul className="divide-y divide-gray-200">
                 {list.map((item, index) => (
-                <li key={index} className="flex items-center justify-between p-3">
-                    <span className="font-medium text-gray-800">{item.text}</span>
-                    <button onClick={() => onRemoveItem(index)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100" aria-label={`'${item.text}' törlése`}>
+                <li key={`${item.text}-${index}`} className="flex items-center justify-between p-3">
+                    <div>
+                        <span className="font-medium text-gray-800">{item.text}</span>
+                        <span className="text-xs text-gray-500 ml-2">
+                            ({new Date(item.dateAdded).toLocaleDateString('hu-HU')})
+                        </span>
+                    </div>
+                    <button onClick={() => onRemoveItem(index, activeTab)} className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100" aria-label={`'${item.text}' törlése`}>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
                     </button>
                 </li>
                 ))}
             </ul>
             <div className="pt-4 flex flex-col sm:flex-row gap-2 justify-end flex-wrap">
-                 <button onClick={onMoveCheckedToPantry} disabled={checkedShoppingListItems === 0} className="text-sm bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors disabled:bg-green-300 disabled:cursor-not-allowed">
+                 <button onClick={onMoveCheckedToPantryRequest} disabled={checkedShoppingListItems === 0} className="text-sm bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 transition-colors disabled:bg-green-300 disabled:cursor-not-allowed">
                     Kipipáltak áthelyezése ide ({checkedShoppingListItems})
                 </button>
-                <button onClick={onClearAll} className="text-sm bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors">Teljes kamra ürítése</button>
+                <button onClick={() => onClearAll(activeTab)} className="text-sm bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors">Kamra ({activeTab}) ürítése</button>
             </div>
         </div>
       ) : (
@@ -146,10 +188,37 @@ const PantryView: React.FC<PantryViewProps> = ({
             <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">A kamrád üres</h3>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">A(z) {activeTab} kamrád üres</h3>
             <p className="mt-1 text-sm text-gray-500">Add hozzá a meglévő alapanyagaidat.</p>
         </div>
       )}
+
+      <div className="mt-6 pt-4 border-t border-dashed">
+        <h3 className="text-lg font-bold text-center text-gray-700 mb-4">Receptötletek a kamrából</h3>
+         <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+                onClick={() => {
+                    const oldestItems = list.slice(0, 3).map(i => i.text);
+                    if (oldestItems.length > 0) {
+                        showNotification(`Javaslat: ${oldestItems.join(', ')} felhasználása.`, 'info');
+                    } else {
+                        showNotification(`Nincs elég alapanyag a(z) ${activeTab} kamrában.`, 'info');
+                    }
+                }}
+                disabled={list.length === 0}
+                className="flex-1 bg-blue-100 text-blue-800 font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-blue-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
+            >
+                Mit használjak fel?
+            </button>
+            <button
+                onClick={onGenerateFromPantryRequest}
+                disabled={Object.values(pantry).every(l => l.length === 0)}
+                className="flex-1 bg-green-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+                Meglepetés recept
+            </button>
+        </div>
+      </div>
 
       <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-200">
         <h3 className="text-lg font-bold text-center text-gray-700 mb-4">Adatkezelés</h3>

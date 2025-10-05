@@ -1,45 +1,65 @@
-import type { PantryItem } from '../types';
+import type { PantryItem, PantryLocation, BackupData } from '../types';
+import { PANTRY_LOCATIONS } from '../types';
 import { safeSetLocalStorage } from '../utils/storage';
 
 const PANTRY_KEY = 'ai-recipe-generator-pantry';
 
+const getDefaultPantry = (): Record<PantryLocation, PantryItem[]> => ({
+    Tiszadada: [],
+    Vásárosnamény: [],
+});
+
 /**
- * Validates and recovers a raw pantry list array, typically from an import.
+ * Validates and recovers a raw pantry object, typically from an import.
  * @param data The raw data to validate.
- * @returns An object with the cleaned list and an optional recovery notification.
+ * @returns An object with the cleaned pantry data and an optional recovery notification.
  */
-export const validateAndRecover = (data: unknown): { list: PantryItem[]; recoveryNotification?: string } => {
-  if (!Array.isArray(data)) {
-    return { list: [], recoveryNotification: "Az importált kamra lista formátuma érvénytelen volt." };
+export const validateAndRecover = (data: unknown): { pantry: Record<PantryLocation, PantryItem[]>; recoveryNotification?: string } => {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return { pantry: getDefaultPantry(), recoveryNotification: "Az importált kamra formátuma érvénytelen volt." };
+  }
+  
+  const validPantry: Record<PantryLocation, PantryItem[]> = getDefaultPantry();
+  let hadCorruptedEntries = false;
+
+  for (const location of PANTRY_LOCATIONS) {
+    if (Object.prototype.hasOwnProperty.call(data, location)) {
+      const items = (data as any)[location];
+      if (Array.isArray(items)) {
+        const validItems: PantryItem[] = [];
+        items.forEach((item: any, index: number) => {
+          if (typeof item === 'object' && item !== null && typeof item.text === 'string' && typeof item.dateAdded === 'string') {
+            validItems.push(item);
+          } else {
+            console.warn(`Skipping corrupted pantry item during import at index ${index} in location "${location}".`, item);
+            hadCorruptedEntries = true;
+          }
+        });
+        if (validItems.length > 0) {
+          validPantry[location] = validItems;
+        }
+      } else {
+        console.warn(`Skipping corrupted location "${location}" during import (not an array).`, items);
+        hadCorruptedEntries = true;
+      }
+    }
   }
 
-  let hadCorruptedEntries = false;
-  const validList: PantryItem[] = [];
-  
-  data.forEach((item: any, index: number) => {
-    if (typeof item === 'object' && item !== null && typeof item.text === 'string' && typeof item.dateAdded === 'string') {
-      validList.push(item);
-    } else {
-      console.warn(`Skipping corrupted pantry item during import at index ${index}.`, item);
-      hadCorruptedEntries = true;
-    }
-  });
-
   return {
-    list: validList,
+    pantry: validPantry,
     recoveryNotification: hadCorruptedEntries ? 'Néhány sérült kamraelemet kihagytunk az importálás során.' : undefined
   };
 };
 
 /**
- * Reads the list from localStorage, attempting to recover from partial corruption.
- * @returns An object containing the list data and an optional recovery notification.
+ * Reads the pantry from localStorage, migrating old format if necessary.
+ * @returns An object containing the pantry data and an optional recovery notification.
  * @throws An error if data is unrecoverably corrupted.
  */
-export const getPantry = (): { list: PantryItem[]; recoveryNotification?: string } => {
+export const getPantry = (): { pantry: Record<PantryLocation, PantryItem[]>; recoveryNotification?: string } => {
   const listJson = localStorage.getItem(PANTRY_KEY);
   if (!listJson) {
-      return { list: [] };
+      return { pantry: getDefaultPantry() };
   }
 
   let parsedData: any;
@@ -50,48 +70,65 @@ export const getPantry = (): { list: PantryItem[]; recoveryNotification?: string
     localStorage.setItem(`${PANTRY_KEY}_corrupted_${Date.now()}`, listJson);
     throw new Error('A kamra listája súlyosan sérült, ezért nem sikerült betölteni. A sérült adatokról biztonsági mentés készült.');
   }
+
+  // Migration from old format (array) to new format (object with locations)
+  if (Array.isArray(parsedData)) {
+    console.log("Migrating old pantry format to new multi-location format.");
+    const migratedData: Record<PantryLocation, PantryItem[]> = {
+        Tiszadada: parsedData,
+        Vásárosnamény: [],
+    };
+    savePantry(migratedData);
+    return { pantry: migratedData, recoveryNotification: "A kamra adatformátuma frissült az új, több helyszínes kezeléshez." };
+  }
   
-  const { list, recoveryNotification } = validateAndRecover(parsedData);
+  const { pantry, recoveryNotification } = validateAndRecover(parsedData);
   
   if (recoveryNotification) {
-    console.log("Saving cleaned pantry list back to localStorage to prevent future errors.");
-    savePantry(list);
+    console.log("Saving cleaned pantry object back to localStorage to prevent future errors.");
+    savePantry(pantry);
   }
 
-  return { list, recoveryNotification };
+  return { pantry, recoveryNotification };
 };
 
-// Saves the list to localStorage.
-export const savePantry = (list: PantryItem[]): void => {
-  safeSetLocalStorage(PANTRY_KEY, list);
+// Saves the pantry to localStorage.
+export const savePantry = (pantry: Record<PantryLocation, PantryItem[]>): void => {
+  safeSetLocalStorage(PANTRY_KEY, pantry);
 };
 
 /**
- * Merges an imported pantry list into the current one, avoiding duplicates.
- * @param currentList The existing pantry list.
- * @param importedList The list from the imported file.
- * @returns An object with the merged list and the count of new items added.
+ * Merges an imported pantry object into the current one, avoiding duplicates.
+ * @param currentPantry The existing pantry object.
+ * @param importedPantry The object from the imported file.
+ * @returns An object with the merged pantry and the count of new items added.
  */
-export const mergePantries = (currentList: PantryItem[], importedList: PantryItem[]): { mergedList: PantryItem[]; newItemsCount: number } => {
-  const newList = [...currentList];
+export const mergePantries = (currentPantry: Record<PantryLocation, PantryItem[]>, importedPantry: Record<PantryLocation, PantryItem[]>): { mergedPantry: Record<PantryLocation, PantryItem[]>; newItemsCount: number } => {
+  const newPantry = JSON.parse(JSON.stringify(currentPantry));
   let newItemsCount = 0;
   
-  const existingItems = new Set(currentList.map(item => item.text.toLowerCase().trim()));
+  for (const location of PANTRY_LOCATIONS) {
+      const existingItems = new Set((newPantry[location] || []).map(item => item.text.toLowerCase().trim()));
+      const itemsToMerge = importedPantry[location] || [];
 
-  importedList.forEach(item => {
-    if (item.text.trim() && !existingItems.has(item.text.toLowerCase().trim())) {
-      newList.push(item);
-      newItemsCount++;
-    }
-  });
+      itemsToMerge.forEach(item => {
+          if (item.text.trim() && !existingItems.has(item.text.toLowerCase().trim())) {
+              if (!newPantry[location]) {
+                newPantry[location] = [];
+              }
+              newPantry[location].push(item);
+              newItemsCount++;
+          }
+      });
+  }
 
-  return { mergedList: newList, newItemsCount };
+  return { mergedPantry: newPantry, newItemsCount };
 };
 
-
-// Adds one or more items, avoiding duplicates.
-export const addItems = (itemsToAdd: string[]): PantryItem[] => {
-  const { list: currentList } = getPantry();
+// Adds one or more items to a specific location, avoiding duplicates.
+export const addItems = (itemsToAdd: string[], location: PantryLocation): Record<PantryLocation, PantryItem[]> => {
+  const { pantry: currentPantry } = getPantry();
+  const currentList = currentPantry[location] || [];
   const existingItems = new Set(currentList.map(item => item.text.toLowerCase().trim()));
   
   const newItems: PantryItem[] = itemsToAdd
@@ -100,33 +137,40 @@ export const addItems = (itemsToAdd: string[]): PantryItem[] => {
 
   if (newItems.length > 0) {
     const updatedList = [...currentList, ...newItems];
-    savePantry(updatedList);
-    return updatedList;
+    const updatedPantry = { ...currentPantry, [location]: updatedList };
+    savePantry(updatedPantry);
+    return updatedPantry;
   }
-  return currentList;
+  return currentPantry;
 };
 
-// Updates a single item.
-export const updateItem = (index: number, updatedItem: PantryItem): PantryItem[] => {
-    const { list: currentList } = getPantry();
+// Updates a single item at a specific location.
+export const updateItem = (index: number, updatedItem: PantryItem, location: PantryLocation): Record<PantryLocation, PantryItem[]> => {
+    const { pantry: currentPantry } = getPantry();
+    const currentList = currentPantry[location] || [];
     if (index >= 0 && index < currentList.length) {
         currentList[index] = updatedItem;
-        savePantry(currentList);
+        const updatedPantry = { ...currentPantry, [location]: currentList };
+        savePantry(updatedPantry);
+        return updatedPantry;
     }
-    return currentList;
+    return currentPantry;
 }
 
-// Removes a single item by its index.
-export const removeItem = (index: number): PantryItem[] => {
-    const { list: currentList } = getPantry();
+// Removes a single item by its index from a specific location.
+export const removeItem = (index: number, location: PantryLocation): Record<PantryLocation, PantryItem[]> => {
+    const { pantry: currentPantry } = getPantry();
+    const currentList = currentPantry[location] || [];
     const updatedList = currentList.filter((_, i) => i !== index);
-    savePantry(updatedList);
-    return updatedList;
+    const updatedPantry = { ...currentPantry, [location]: updatedList };
+    savePantry(updatedPantry);
+    return updatedPantry;
 }
 
-// Removes all items from the list.
-export const clearAll = (): PantryItem[] => {
-    const emptyList: PantryItem[] = [];
-    savePantry(emptyList);
-    return emptyList;
+// Removes all items from a specific location.
+export const clearAll = (location: PantryLocation): Record<PantryLocation, PantryItem[]> => {
+    const { pantry: currentPantry } = getPantry();
+    const updatedPantry = { ...currentPantry, [location]: [] };
+    savePantry(updatedPantry);
+    return updatedPantry;
 }

@@ -43,7 +43,8 @@ const StarRating: React.FC<StarRatingProps> = ({ rating, onRatingChange, readOnl
             onMouseLeave={handleMouseLeave}
             disabled={readOnly}
             aria-label={`Értékelés ${index} csillag`}
-            aria-pressed={(rating === index).toString()}
+            // FIX: Changed `(rating === index).toString()` to `(rating === index)` to match the expected boolean type for `aria-pressed`.
+            aria-pressed={rating === index}
           >
             <svg
               className={`w-6 h-6 ${starColor}`}

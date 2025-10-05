@@ -1,8 +1,10 @@
 // For extending the Window object for browser APIs
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    // FIX: 'SpeechRecognition' only refers to a type, but is being used as a value here. Removed `typeof`.
+    SpeechRecognition: SpeechRecognition;
+    // FIX: 'SpeechRecognition' only refers to a type, but is being used as a value here. Removed `typeof`.
+    webkitSpeechRecognition: SpeechRecognition;
     showSaveFilePicker: (options?: SaveFilePickerOptions) => Promise<FileSystemFileHandle>;
   }
 
@@ -249,10 +251,13 @@ export interface PantryItem {
     dateAdded: string;
 }
 
+export type PantryLocation = 'Tiszadada' | 'Vásárosnamény';
+export const PANTRY_LOCATIONS: PantryLocation[] = ['Tiszadada', 'Vásárosnamény'];
+
 export type Favorites = Record<string, Recipe[]>;
 
 export interface BackupData {
     favorites: Favorites;
     shoppingList: ShoppingListItem[];
-    pantry: PantryItem[];
+    pantry: Record<PantryLocation, PantryItem[]>;
 }

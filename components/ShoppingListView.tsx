@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { ShoppingListItem, Favorites, BackupData, PantryItem } from '../types';
+import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 
 interface ShoppingListViewProps {
   list: ShoppingListItem[];
   favorites: Favorites;
-  pantry: PantryItem[];
+  pantry: Record<PantryLocation, PantryItem[]>;
   onAddItems: (items: string[]) => void;
   onUpdateItem: (index: number, updatedItem: ShoppingListItem) => void;
   onRemoveItem: (index: number) => void;
@@ -160,7 +160,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   };
   
   const checkedCount = list.filter(item => item.checked).length;
-  const hasAnyData = Object.keys(favorites).length > 0 || list.length > 0 || pantry.length > 0;
+  const hasAnyData = Object.keys(favorites).length > 0 || list.length > 0 || Object.values(pantry).some(l => l.length > 0);
 
   return (
     <div className="space-y-6">
