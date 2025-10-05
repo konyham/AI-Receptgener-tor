@@ -312,7 +312,7 @@ const PantryView: React.FC<PantryViewProps> = ({
         <h3 className="text-lg font-bold text-center text-gray-700 mb-4">Receptötletek a kamrából</h3>
          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {/* FIX: Explicitly type `l` to `PantryItem[]` to resolve type error when accessing `.length`. */}
-            <button onClick={onGenerateFromPantryRequest} disabled={Object.values(pantry).every((l: PantryItem[]) => l.length === 0)} className="flex-1 bg-green-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">Meglepetés recept</button>
+            <button onClick={onGenerateFromPantryRequest} disabled={Object.values(pantry).every((l: PantryItem[]) => l.length === 0)} className="flex-1 bg-green-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">Recept a kamra tartalmából</button>
         </div>
       </div>
 

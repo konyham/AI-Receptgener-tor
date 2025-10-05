@@ -318,8 +318,8 @@ const App: React.FC = () => {
         return;
     }
     
-    // Set default parameters for a leftover recipe
-    const defaultParams = {
+    // Set initial form data for the RecipeInputForm
+    setInitialFormData({
         ingredients: ingredientsFromPantry,
         excludedIngredients: '',
         diet: DietOption.NONE,
@@ -333,10 +333,10 @@ const App: React.FC = () => {
         recipePace: RecipePace.NORMAL,
         mode: 'leftover' as const,
         useSeasonalIngredients: true,
-    };
+    });
 
-    handleRecipeSubmit(defaultParams);
     setView('generator');
+    showNotification(`A kamra alapanyagai betöltve. Módosítsa a feltételeket és generáljon receptet!`, 'success');
   };
   
   // Import/Export
@@ -431,6 +431,22 @@ const App: React.FC = () => {
   });
 
   const renderView = () => {
+    if (recipe && view === 'generator') {
+      return (
+        <RecipeDisplay
+          recipe={recipe}
+          onClose={handleCloseRecipe}
+          onRefine={handleRefineRecipe}
+          isFromFavorites={isFromFavorites}
+          favorites={favorites}
+          onSave={handleSaveToFavorites}
+          onAddItemsToShoppingList={handleAddItemsToShoppingList}
+          isLoading={isLoading}
+          onRecipeUpdate={handleRecipeUpdate}
+          shouldGenerateImageInitially={shouldGenerateImage}
+        />
+      );
+    }
     switch (view) {
       case 'favorites':
         return (
@@ -482,22 +498,6 @@ const App: React.FC = () => {
         );
       case 'generator':
       default:
-        if (recipe) {
-          return (
-            <RecipeDisplay
-              recipe={recipe}
-              onClose={handleCloseRecipe}
-              onRefine={handleRefineRecipe}
-              isFromFavorites={isFromFavorites}
-              favorites={favorites}
-              onSave={handleSaveToFavorites}
-              onAddItemsToShoppingList={handleAddItemsToShoppingList}
-              isLoading={isLoading}
-              onRecipeUpdate={handleRecipeUpdate}
-              shouldGenerateImageInitially={shouldGenerateImage}
-            />
-          );
-        }
         return (
           <>
             <h1 className="text-3xl font-bold text-center text-primary-800">Konyha Miki, a mesterséges intelligencia konyhamester</h1>
@@ -541,7 +541,10 @@ const App: React.FC = () => {
                   {navItems.map(item => (
                       <li key={item.id} className="-mb-px mr-1">
                           <button
-                              onClick={() => setView(item.id)}
+                              onClick={() => {
+                                setRecipe(null); // Clear recipe when navigating away
+                                setView(item.id);
+                              }}
                               className={`inline-block py-3 px-4 font-semibold rounded-t-lg transition-colors text-sm sm:text-base ${
                                   view === item.id 
                                   ? 'border-l border-t border-r border-gray-200 bg-white text-primary-600'
