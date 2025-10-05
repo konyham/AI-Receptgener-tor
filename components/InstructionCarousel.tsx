@@ -1,14 +1,18 @@
 import React from 'react';
+import { InstructionStep } from '../types';
 
 interface InstructionCarouselProps {
-  instructions: string[];
+  instructions: InstructionStep[];
   currentStep: number;
   onStepChange: (newStep: number) => void;
   voiceModeActive: boolean;
+  onGenerateImage: (stepIndex: number) => void;
+  generatingImageForStep: number | null;
 }
 
-const InstructionCarousel: React.FC<InstructionCarouselProps> = ({ instructions, currentStep, onStepChange, voiceModeActive }) => {
+const InstructionCarousel: React.FC<InstructionCarouselProps> = ({ instructions, currentStep, onStepChange, voiceModeActive, onGenerateImage, generatingImageForStep }) => {
   const totalSteps = instructions.length;
+  const currentInstruction = instructions[currentStep];
 
   const goToNext = () => {
     if (currentStep < totalSteps - 1) {
@@ -67,11 +71,31 @@ const InstructionCarousel: React.FC<InstructionCarouselProps> = ({ instructions,
         </div>
       </div>
       
-      <div className="relative min-h-[150px] text-gray-800 text-lg flex items-center justify-center p-4 bg-white rounded-md shadow-inner overflow-hidden">
+      <div className="relative min-h-[150px] text-gray-800 flex flex-col items-center justify-center p-4 bg-white rounded-md shadow-inner overflow-hidden">
         {/* Using a key on the paragraph will trigger a re-render with a fade animation on step change */}
-        <p key={currentStep} className="text-center animate-fade-in">
-          {instructions[currentStep]}
+        <p key={currentStep} className="text-center animate-fade-in text-lg mb-4">
+          {currentInstruction.text}
         </p>
+
+        <div className="w-full max-w-sm aspect-[4/3] rounded-md bg-gray-100 flex items-center justify-center overflow-hidden border">
+            {generatingImageForStep === currentStep ? (
+                <div className="flex flex-col items-center text-gray-500 p-4">
+                    <svg className="animate-spin h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span className="mt-2 text-sm font-medium">Kép generálása...</span>
+                </div>
+            ) : currentInstruction.imageUrl ? (
+                <img src={currentInstruction.imageUrl} alt={`Illusztráció a(z) ${currentStep + 1}. lépéshez`} className="w-full h-full object-cover"/>
+            ) : (
+                <button 
+                    onClick={() => onGenerateImage(currentStep)}
+                    disabled={generatingImageForStep !== null}
+                    className="flex flex-col items-center gap-2 text-gray-600 hover:text-primary-700 transition-colors p-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
+                    <span className="text-sm font-semibold text-center">Kép generálása ehhez a lépéshez</span>
+                </button>
+            )}
+        </div>
       </div>
 
       <div className="flex justify-center gap-2 mt-4" aria-label="Lépések állapota">

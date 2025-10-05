@@ -52,7 +52,13 @@ const recipeSchema = {
     },
     instructions: {
       type: Type.ARRAY,
-      items: { type: Type.STRING },
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          text: { type: Type.STRING, description: 'Az elkészítési lépés leírása.' },
+        },
+        required: ['text'],
+      },
       description: 'Az elkészítési lépések listája, részletesen.',
     },
     calories: { type: Type.STRING, description: 'A recept kalóriatartalma 100 grammra vetítve, pl. "150 kcal".' },
@@ -107,7 +113,7 @@ export const generateRecipe = async (
       - A recept neve tükrözze a kérést (pl. "Házi Füstölt Kolbász").
       - A leírás magyarázza el, miről szól a recept.
       - Add meg a hozzávalókat pontos mennyiségekkel.
-      - Az elkészítési lépések legyenek részletesek.
+      - Az elkészítési lépések legyenek részletesek, és egy objektumokból álló tömbként add meg őket, ahol minden objektum egy 'text' kulcsot tartalmaz a lépés leírásával.
       - Az adag ("servings") mezőben add meg, hogy kb. mennyi végtermék (pl. "kb. 1 kg kolbász" vagy "4 adag tészta") készül a receptből.
       - Ne vedd figyelembe az eredeti hozzávalókat (${ingredients}) vagy az étkezés típusát, mert a kérés felülírja azokat.
       - A válasz JSON formátumban legyen.`;
@@ -178,7 +184,7 @@ export const generateRecipe = async (
       prompt += ` Végezz egy becsült költségszámítást is a recepthez magyar forintban (Ft). A számításhoz használd a következő átlagos magyarországi bolti árakat referenciaként (az árakat arányosítsd a receptben szereplő mennyiségekkel): csirkemell: 2500 Ft/kg, sertéskaraj: 2800 Ft/kg, rizs: 800 Ft/kg, krumpli: 400 Ft/kg, liszt: 300 Ft/kg, cukor: 500 Ft/kg, tojás: 80 Ft/db, tej: 450 Ft/liter, hagyma: 400 Ft/kg, fokhagyma: 200 Ft/fej, étolaj: 900 Ft/liter, vaj/margarin: 4000 Ft/kg, paradicsom: 1000 Ft/kg, paprika: 1200 Ft/kg, sajt (trappista): 3500 Ft/kg. Ha egy hozzávaló nincs a listán, használj egy reális piaci becslést. A végeredményt egyetlen stringként add meg, pl. 'kb. 2100 Ft'.`;
     }
 
-    prompt += ` Adj egy rövid, étvágygerjesztő leírást, az előkészítési és főzési időt, az adagok számát (formátum: "${numberOfServings} személy"), a hozzávalók listáját pontos mennyiségekkel, és az elkészítési lépéseket. Fontos: Minden hozzávalónál add meg a mennyiséget grammban vagy darabban, ÉS egy alternatív, mérleg nélküli mértékegységben is (pl. bögre, evőkanál, teáskanál, dl, ml), ahol ez értelmezhető. Például: "250g liszt (kb. 2 bögre)". A válasz JSON formátumban legyen.`;
+    prompt += ` Adj egy rövid, étvágygerjesztő leírást, az előkészítési és főzési időt, az adagok számát (formátum: "${numberOfServings} személy"), a hozzávalók listáját pontos mennyiségekkel, és az elkészítési lépéseket egy objektumokból álló tömbként add meg, ahol minden objektum egy 'text' kulcsot tartalmaz a lépés leírásával. Fontos: Minden hozzávalónál add meg a mennyiséget grammban vagy darabban, ÉS egy alternatív, mérleg nélküli mértékegységben is (pl. bögre, evőkanál, teáskanál, dl, ml), ahol ez értelmezhető. Például: "250g liszt (kb. 2 bögre)". A válasz JSON formátumban legyen.`;
   }
   
 
@@ -232,7 +238,7 @@ export const generateRecipe = async (
 };
 
 export const simplifyRecipe = async (originalRecipe: Recipe): Promise<Recipe> => {
-  const prompt = `Adott a következő recept: '${originalRecipe.recipeName}'. A jelenlegi hozzávalók: ${originalRecipe.ingredients.join(', ')}. A jelenlegi elkészítési lépések: "${originalRecipe.instructions.join(' ')}".
+  const prompt = `Adott a következő recept: '${originalRecipe.recipeName}'. A jelenlegi hozzávalók: ${originalRecipe.ingredients.join(', ')}. A jelenlegi elkészítési lépések: "${originalRecipe.instructions.map(i => i.text).join(' ')}".
 
   A feladatod, hogy készíts egy egyszerűsített változatot ebből a receptből, ami kezdő szakácsok számára is könnyen követhető.
   A célok a következők:
@@ -242,6 +248,7 @@ export const simplifyRecipe = async (originalRecipe: Recipe): Promise<Recipe> =>
 
   Az új, egyszerűsített recept neve legyen "${originalRecipe.recipeName} (Egyszerűsített változat)".
   Az adagok száma maradjon ugyanaz: ${originalRecipe.servings}.
+  Az elkészítési lépéseket egy objektumokból álló tömbként add meg, ahol minden objektum egy 'text' kulcsot tartalmaz a lépés leírásával.
   A válaszod egy JSON objektum legyen a megadott séma szerint. A leírásban említsd meg, hogy ez egy egyszerűsített verzió.`;
 
   try {
@@ -394,6 +401,57 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
         throw new Error('Hiba történt az ételfotó generálása közben.');
     }
 };
+
+// Generates a simple, visual, English description for an instruction step.
+const generateVisualPromptForStep = async (recipeName: string, instructionText: string): Promise<string> => {
+    try {
+        const prompt = `Adj egy rövid, 5-10 szavas, egyszerű, vizuális leírást a következő főzési lépésről, amit egy ételfotó-generátor is megértene. A recept neve: "${recipeName}". A lépés: "${instructionText}". A leírás ANGOLUL legyen. Csak a leírást add vissza. Például: "Hagymát kockára vágjuk" -> "Dicing onions on a wooden cutting board". Vagy "A csirkét aranybarnára sütjük" -> "Frying chicken pieces until golden brown in a pan".`;
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                thinkingConfig: { thinkingBudget: 0 },
+            }
+        });
+        const description = response.text.trim();
+        return description || `A cooking step: ${instructionText}`;
+    } catch (error) {
+        console.error("Error generating visual prompt for step, falling back:", error);
+        return `A cooking step for recipe ${recipeName}: ${instructionText}`;
+    }
+}
+
+export const generateInstructionImage = async (recipeName: string, instructionText: string): Promise<string> => {
+    const visualDescription = await generateVisualPromptForStep(recipeName, instructionText);
+    
+    const prompt = `A realistic, clear photo showing this cooking step: ${visualDescription}. Clean kitchen environment, close-up shot focusing on the action.`;
+
+    try {
+        const response = await ai.models.generateImages({
+            model: 'imagen-4.0-generate-001',
+            prompt: prompt,
+            config: {
+              numberOfImages: 1,
+              outputMimeType: 'image/jpeg',
+              aspectRatio: '4:3',
+            },
+        });
+        
+        if (response.generatedImages && response.generatedImages.length > 0) {
+            return response.generatedImages[0].image.imageBytes;
+        } else {
+            throw new Error('Az API nem adott vissza képet a lépéshez.');
+        }
+    } catch (error: any) {
+        console.error('Error generating instruction image:', error);
+        const errorMessage = (error?.message || '').toLowerCase();
+        if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+            throw new Error('Elérte a képgenerálási kvótáját. Kérjük, próbálja újra később.');
+        }
+        throw new Error('Hiba történt a lépés fotójának generálása közben.');
+    }
+};
+
 
 // FIX: Added missing function to start recipe video generation.
 export const generateRecipeVideo = async (recipe: Recipe): Promise<Operation<GenerateVideosResponse>> => {

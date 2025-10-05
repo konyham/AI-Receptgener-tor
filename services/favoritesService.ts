@@ -24,6 +24,13 @@ export const validateAndRecover = (data: unknown): { favorites: Favorites; recov
         recipes.forEach((recipe: any, index: number) => {
           const isValidRating = typeof recipe.rating === 'undefined' || (typeof recipe.rating === 'number' && recipe.rating >= 1 && recipe.rating <= 5);
           if (typeof recipe === 'object' && recipe !== null && recipe.recipeName && Array.isArray(recipe.ingredients) && Array.isArray(recipe.instructions) && isValidRating) {
+            
+            // FIX: Add data migration for old instruction format (string[] -> InstructionStep[]).
+            // This ensures backward compatibility with favorites saved before the step-image feature was added.
+            if (recipe.instructions.length > 0 && typeof recipe.instructions[0] === 'string') {
+              recipe.instructions = recipe.instructions.map((text: string) => ({ text: text }));
+            }
+
             validRecipes.push(recipe);
           } else {
             console.warn(`Skipping corrupted recipe during import at index ${index} in category "${category}".`, recipe);

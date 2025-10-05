@@ -1,3 +1,8 @@
+export interface InstructionStep {
+  text: string;
+  imageUrl?: string;
+}
+
 export interface Recipe {
   recipeName: string;
   description: string;
@@ -5,7 +10,7 @@ export interface Recipe {
   cookTime: string;
   servings: string;
   ingredients: string[];
-  instructions: string[];
+  instructions: InstructionStep[];
   calories?: string;
   carbohydrates?: string;
   protein?: string;

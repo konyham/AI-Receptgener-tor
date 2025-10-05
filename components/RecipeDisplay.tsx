@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import type { Operation, GenerateVideosResponse } from '@google/genai';
 import { Recipe, VoiceCommand, Favorites, CookingMethod } from '../types';
-import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage, calculateRecipeCost, simplifyRecipe, downloadVideo } from '../services/geminiService';
+import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage, calculateRecipeCost, simplifyRecipe, downloadVideo, generateInstructionImage } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 import KitchenTimer from './KitchenTimer';
@@ -258,6 +258,48 @@ const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
     });
 };
 
+const addWatermarkToStepImage = (base64Image: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const stepImg = new Image();
+        const logoImg = new Image();
+
+        let stepImgLoaded = false;
+        let logoImgLoaded = false;
+
+        const onBothLoaded = () => {
+            if (!stepImgLoaded || !logoImgLoaded) return;
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return reject(new Error('Canvas context error.'));
+
+            canvas.width = stepImg.width;
+            canvas.height = stepImg.height;
+            ctx.drawImage(stepImg, 0, 0);
+
+            const scale = Math.max(0.5, stepImg.width / 1200);
+            const logoHeight = 40 * scale;
+            const logoWidth = (logoImg.width / logoImg.height) * logoHeight;
+            const padding = 10 * scale;
+
+            ctx.globalAlpha = 0.8;
+            ctx.drawImage(logoImg, canvas.width - logoWidth - padding, canvas.height - logoHeight - padding, logoWidth, logoHeight);
+            ctx.globalAlpha = 1.0;
+
+            resolve(canvas.toDataURL('image/jpeg', 0.9));
+        };
+
+        stepImg.onload = () => { stepImgLoaded = true; onBothLoaded(); };
+        logoImg.onload = () => { logoImgLoaded = true; onBothLoaded(); };
+        
+        stepImg.onerror = () => reject(new Error('Failed to load step image for watermarking.'));
+        logoImg.onerror = () => reject(new Error('Failed to load logo for watermarking.'));
+
+        stepImg.src = `data:image/jpeg;base64,${base64Image}`;
+        logoImg.src = konyhaMikiLogoBase64;
+    });
+};
+
 
 const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave, onAddItemsToShoppingList, isLoading, onRecipeUpdate, shouldGenerateImageInitially }) => {
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle');
@@ -285,6 +327,9 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const [isSimplifying, setIsSimplifying] = useState<boolean>(false);
   const [simplifyError, setSimplifyError] = useState<string | null>(null);
   const [detectedTime, setDetectedTime] = useState<{ hours: number; minutes: number; seconds: number } | null>(null);
+  
+  const [generatingImageForStep, setGeneratingImageForStep] = useState<number | null>(null);
+  const [stepImageError, setStepImageError] = useState<string | null>(null);
 
 
   const isInterpretingRef = useRef(false);
@@ -329,7 +374,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   useEffect(() => {
     const currentInstruction = recipe.instructions[currentStepIndex];
     if (currentInstruction) {
-        const time = parseTimeFromInstruction(currentInstruction);
+        const time = parseTimeFromInstruction(currentInstruction.text);
         setDetectedTime(time);
     } else {
         setDetectedTime(null);
@@ -360,6 +405,28 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         setIsImageLoading(false);
     }
   }, [recipe, onRecipeUpdate, showNotification, isImageLoading]);
+  
+  const handleGenerateInstructionImage = useCallback(async (stepIndex: number) => {
+    if (generatingImageForStep !== null) return;
+    setGeneratingImageForStep(stepIndex);
+    setStepImageError(null);
+    try {
+        const instructionText = recipe.instructions[stepIndex].text;
+        const base64Image = await generateInstructionImage(recipe.recipeName, instructionText);
+        const watermarkedImage = await addWatermarkToStepImage(base64Image);
+        
+        const newInstructions = [...recipe.instructions];
+        newInstructions[stepIndex] = { ...newInstructions[stepIndex], imageUrl: watermarkedImage };
+        onRecipeUpdate({ ...recipe, instructions: newInstructions });
+
+    } catch (err: any) {
+        const errorMsg = err.message || 'Hiba történt a kép generálása közben.';
+        setStepImageError(errorMsg); // You might want a dedicated state for this error
+        showNotification(errorMsg, 'info');
+    } finally {
+        setGeneratingImageForStep(null);
+    }
+  }, [recipe, onRecipeUpdate, showNotification, generatingImageForStep]);
 
   useEffect(() => {
     if (shouldGenerateImageInitially && !recipe.imageUrl) {
@@ -517,7 +584,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         if (currentStepIndex >= recipe.instructions.length) {
           speak('Elkészültél a főzéssel. Jó étvágyat!', () => setVoiceMode('idle'));
         } else {
-          const currentInstruction = recipe.instructions[currentStepIndex];
+          const currentInstruction = recipe.instructions[currentStepIndex].text;
           const timeInInstruction = parseTimeFromInstruction(currentInstruction);
           const mainText = `${currentStepIndex + 1}. lépés: ${currentInstruction}`;
           
@@ -622,7 +689,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
             .nutritional-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem; }
             .nutritional-info-item { text-align: center; padding: 0.5rem; background-color: #f0fdf4; border-radius: 0.5rem; }
             .diabetic-advice { margin: 1.5rem 0; padding: 1rem; background-color: #eff6ff; border-left: 4px solid #60a5fa; break-inside: avoid; }
-            .diabetic-advice h4 { font-weight: bold; color: #1e3a8a; margin-top: 0; }
+            li img { max-width: 200px; border-radius: 4px; margin-top: 5px; break-inside: avoid; }
           </style>
         </head>
         <body>
@@ -658,7 +725,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
           </ul>
           <h2>Elkészítés</h2>
           <ol>
-            ${recipe.instructions.map(inst => `<li>${inst}</li>`).join('')}
+            ${recipe.instructions.map(inst => `<li>${inst.text}${inst.imageUrl ? `<br><img src="${inst.imageUrl}">` : ''}</li>`).join('')}
           </ol>
         </body>
       </html>
@@ -773,7 +840,7 @@ ${recipe.description}
 ${recipe.ingredients.map(ing => `- ${ing}`).join('\n')}
 
 *Elkészítés:*
-${recipe.instructions.map((inst, i) => `${i + 1}. ${inst}`).join('\n')}
+${recipe.instructions.map((inst, i) => `${i + 1}. ${inst.text}`).join('\n')}
 
 Recept generálva Konyha Miki segítségével!
     `.trim();
@@ -911,6 +978,7 @@ Recept generálva Konyha Miki segítségével!
         <div className="p-6 md:p-8">
             {simplifyError && <div className="mb-4"><ErrorMessage message={simplifyError} /></div>}
             {videoGenerationError && <div className="mb-4"><ErrorMessage message={videoGenerationError} /></div>}
+            {stepImageError && <div className="mb-4"><ErrorMessage message={stepImageError} /></div>}
             <div className="my-6 p-3 bg-gray-50 border rounded-lg flex flex-wrap justify-center items-center gap-3 no-print">
                 <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-primary-100 text-primary-800 rounded-lg hover:bg-primary-200 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
@@ -1017,6 +1085,8 @@ Recept generálva Konyha Miki segítségével!
                   currentStep={currentStepIndex}
                   onStepChange={setCurrentStepIndex}
                   voiceModeActive={voiceMode === 'cooking'}
+                  onGenerateImage={handleGenerateInstructionImage}
+                  generatingImageForStep={generatingImageForStep}
                 />
                 {detectedTime && !isTimerOpen && (
                   <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-2 animate-fade-in transition-all">
