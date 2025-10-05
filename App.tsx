@@ -809,7 +809,6 @@ const App: React.FC = () => {
                       <li key={item.id} className="-mb-px mr-1">
                           <button
                               onClick={() => {
-                                setRecipe(null); // Clear recipe when navigating away
                                 setView(item.id);
                               }}
                               className={`inline-block py-3 px-4 font-semibold rounded-t-lg transition-colors text-sm sm:text-base ${
