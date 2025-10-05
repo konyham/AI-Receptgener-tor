@@ -96,25 +96,37 @@ export const saveUsers = (users: UserProfile[]): void => {
 };
 
 /**
- * Merges imported users into the current ones, avoiding duplicates by ID.
+ * Merges imported users into the current ones, updating existing users and adding new ones.
  * @param currentUsers The existing users array.
  * @param importedUsers The array from the imported file.
  * @returns An object with the merged list and the count of new users added.
  */
 export const mergeUsers = (currentUsers: UserProfile[], importedUsers: UserProfile[]): { mergedUsers: UserProfile[]; newItemsCount: number } => {
-  const newUserList = [...currentUsers];
-  let newItemsCount = 0;
-  
-  const existingUserIds = new Set(currentUsers.map(user => user.id));
+  // Use a Map to handle both adding new users and updating existing ones based on their unique ID.
+  const userMap = new Map<string, UserProfile>();
 
-  importedUsers.forEach(user => {
-    if (!existingUserIds.has(user.id)) {
-      newUserList.push(user);
-      newItemsCount++;
-    }
+  // First, populate the map with the current users.
+  currentUsers.forEach(user => {
+    userMap.set(user.id, user);
   });
 
-  return { mergedUsers: newUserList, newItemsCount };
+  let newItemsCount = 0;
+
+  // Now, iterate through the imported users.
+  importedUsers.forEach(importedUser => {
+    // If the user doesn't already exist, it's a new item.
+    if (!userMap.has(importedUser.id)) {
+      newItemsCount++;
+    }
+    // Add the imported user to the map. This will either add a new entry
+    // or overwrite an existing one with the same ID, effectively updating it.
+    userMap.set(importedUser.id, importedUser);
+  });
+  
+  // Convert the map's values back into an array for the final result.
+  const mergedUsers = Array.from(userMap.values());
+
+  return { mergedUsers, newItemsCount };
 };
 
 /**
