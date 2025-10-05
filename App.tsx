@@ -386,7 +386,7 @@ const App: React.FC = () => {
   // User handlers
     const handleSaveUser = (user: UserProfile) => {
         const isNew = !users.some(u => u.id === user.id);
-        const updatedUsers = isNew ? userService.addUser(user) : userService.updateUser(user);
+        const updatedUsers = isNew ? userService.addUser(users, user) : userService.updateUser(users, user);
         setUsers(updatedUsers);
         showNotification(`'${user.name}' ${isNew ? 'hozzáadva' : 'adatok mentve'}.`, 'success');
     };
@@ -394,7 +394,7 @@ const App: React.FC = () => {
     const handleDeleteUser = (userId: string) => {
         const userToDelete = users.find(u => u.id === userId);
         if (userToDelete && window.confirm(`Biztosan törli a következő felhasználót: ${userToDelete.name}?`)) {
-            const updatedUsers = userService.deleteUser(userId);
+            const updatedUsers = userService.deleteUser(users, userId);
             setUsers(updatedUsers);
             showNotification('Felhasználó törölve.', 'success');
         }

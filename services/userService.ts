@@ -119,43 +119,46 @@ export const mergeUsers = (currentUsers: UserProfile[], importedUsers: UserProfi
 
 /**
  * Adds a new user to the list with a unique ID.
+ * @param currentUsers The current list of users from the app's state.
  * @param user The user data to add (without an ID).
  * @returns The updated users array.
  */
-export const addUser = (user: Omit<UserProfile, 'id'>): UserProfile[] => {
-  const { users } = getUsers();
+export const addUser = (currentUsers: UserProfile[], user: Omit<UserProfile, 'id'>): UserProfile[] => {
   const newUser: UserProfile = {
     ...user,
     id: `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
   };
-  const updatedUsers = [...users, newUser];
+  const updatedUsers = [...currentUsers, newUser];
   saveUsers(updatedUsers);
   return updatedUsers;
 };
 
 /**
  * Updates an existing user in the list.
+ * @param currentUsers The current list of users from the app's state.
  * @param updatedUser The user with updated data.
  * @returns The updated users array.
  */
-export const updateUser = (updatedUser: UserProfile): UserProfile[] => {
-    const { users } = getUsers();
-    const userIndex = users.findIndex(u => u.id === updatedUser.id);
+export const updateUser = (currentUsers: UserProfile[], updatedUser: UserProfile): UserProfile[] => {
+    const userIndex = currentUsers.findIndex(u => u.id === updatedUser.id);
     if (userIndex !== -1) {
-        users[userIndex] = updatedUser;
-        saveUsers(users);
+        const updatedUsers = [...currentUsers]; // Create a copy for immutability
+        updatedUsers[userIndex] = updatedUser;
+        saveUsers(updatedUsers);
+        return updatedUsers;
     }
-    return users;
+    // Return original list if user to update is not found, to prevent data loss.
+    return currentUsers;
 };
 
 /**
  * Deletes a user from the list by their ID.
+ * @param currentUsers The current list of users from the app's state.
  * @param userId The ID of the user to delete.
  * @returns The updated users array.
  */
-export const deleteUser = (userId: string): UserProfile[] => {
-    const { users } = getUsers();
-    const updatedUsers = users.filter(u => u.id !== userId);
+export const deleteUser = (currentUsers: UserProfile[], userId: string): UserProfile[] => {
+    const updatedUsers = currentUsers.filter(u => u.id !== userId);
     saveUsers(updatedUsers);
     return updatedUsers;
 };

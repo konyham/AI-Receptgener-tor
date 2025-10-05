@@ -128,24 +128,44 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
 
 
   const [orderedCookingMethods, setOrderedCookingMethods] = useState<OptionItem[]>(() => {
-      const savedOrder = loadFromLocalStorage<string[] | null>(COOKING_METHODS_ORDER_KEY, null);
-      if (savedOrder) {
-        const listMap = new Map(cookingMethodsList.map(item => [item.value, item]));
-        return savedOrder.map(value => listMap.get(value)).filter((i): i is OptionItem => !!i);
-      }
-      return cookingMethodsList;
+    const loadedCookingMethods = loadFromLocalStorage<OptionItem[]>(COOKING_METHODS_STORAGE_KEY, COOKING_METHODS);
+    const savedOrder = loadFromLocalStorage<string[] | null>(COOKING_METHODS_ORDER_KEY, null);
+
+    if (savedOrder) {
+        const optionsMap = new Map(loadedCookingMethods.map(item => [item.value, item]));
+        
+        const orderedList = savedOrder
+            .map(value => optionsMap.get(value))
+            .filter((item): item is OptionItem => !!item);
+        
+        const orderedValues = new Set(orderedList.map(item => item.value));
+        const newItems = loadedCookingMethods.filter(item => !orderedValues.has(item.value));
+        
+        return [...orderedList, ...newItems];
+    }
+    return loadedCookingMethods;
   });
   const dragItemIndex = useRef<number | null>(null);
   const dragOverItemIndex = useRef<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   
   const [orderedCuisineOptions, setOrderedCuisineOptions] = useState<OptionItem[]>(() => {
-      const savedOrder = loadFromLocalStorage<string[] | null>(CUISINE_OPTIONS_ORDER_KEY, null);
-      if (savedOrder) {
-        const listMap = new Map(cuisineOptions.map(item => [item.value, item]));
-        return savedOrder.map(value => listMap.get(value)).filter((i): i is OptionItem => !!i);
-      }
-      return cuisineOptions;
+    const loadedCuisineOptions = loadFromLocalStorage<OptionItem[]>(CUISINE_OPTIONS_STORAGE_KEY, CUISINE_OPTIONS);
+    const savedOrder = loadFromLocalStorage<string[] | null>(CUISINE_OPTIONS_ORDER_KEY, null);
+
+    if (savedOrder) {
+        const optionsMap = new Map(loadedCuisineOptions.map(item => [item.value, item]));
+        
+        const orderedList = savedOrder
+            .map(value => optionsMap.get(value))
+            .filter((item): item is OptionItem => !!item);
+        
+        const orderedValues = new Set(orderedList.map(item => item.value));
+        const newItems = loadedCuisineOptions.filter(item => !orderedValues.has(item.value));
+        
+        return [...orderedList, ...newItems];
+    }
+    return loadedCuisineOptions;
   });
   const cuisineDragItemIndex = useRef<number | null>(null);
   const cuisineDragOverItemIndex = useRef<number | null>(null);
