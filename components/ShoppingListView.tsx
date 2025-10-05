@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { ShoppingListItem, Favorites, BackupData } from '../types';
+import { ShoppingListItem, Favorites, BackupData, PantryItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 
 interface ShoppingListViewProps {
   list: ShoppingListItem[];
   favorites: Favorites;
+  pantry: PantryItem[];
   onAddItems: (items: string[]) => void;
   onUpdateItem: (index: number, updatedItem: ShoppingListItem) => void;
   onRemoveItem: (index: number) => void;
@@ -16,6 +17,7 @@ interface ShoppingListViewProps {
 const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   list,
   favorites,
+  pantry,
   onAddItems,
   onUpdateItem,
   onRemoveItem,
@@ -68,6 +70,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
       const dataToSave: BackupData = {
         favorites,
         shoppingList: list,
+        pantry,
       };
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
@@ -157,7 +160,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   };
   
   const checkedCount = list.filter(item => item.checked).length;
-  const hasAnyData = Object.keys(favorites).length > 0 || list.length > 0;
+  const hasAnyData = Object.keys(favorites).length > 0 || list.length > 0 || pantry.length > 0;
 
   return (
     <div className="space-y-6">

@@ -1,11 +1,12 @@
 import React, { useRef } from 'react';
-import { Favorites, Recipe, SortOption, BackupData, ShoppingListItem } from '../types';
+import { Favorites, Recipe, SortOption, BackupData, ShoppingListItem, PantryItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import StarRating from './StarRating';
 
 interface FavoritesViewProps {
   favorites: Favorites;
   shoppingList: ShoppingListItem[];
+  pantry: PantryItem[];
   onViewRecipe: (recipe: Recipe) => void;
   onDeleteRecipe: (recipeName: string, category: string) => void;
   onDeleteCategory: (category: string) => void;
@@ -30,6 +31,7 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 const FavoritesView: React.FC<FavoritesViewProps> = ({
   favorites,
   shoppingList,
+  pantry,
   onViewRecipe,
   onDeleteRecipe,
   onDeleteCategory,
@@ -50,6 +52,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
       const dataToSave: BackupData = {
         favorites,
         shoppingList,
+        pantry,
       };
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
@@ -144,7 +147,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
       ? categories
       : categories.filter((cat) => cat === filterCategory);
 
-  const hasAnyData = categories.length > 0 || shoppingList.length > 0;
+  const hasAnyData = categories.length > 0 || shoppingList.length > 0 || pantry.length > 0;
 
   return (
     <div className="space-y-6">

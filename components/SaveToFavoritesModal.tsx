@@ -56,7 +56,7 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
 
             if (event.shiftKey) { // Shift+Tab
                 if (document.activeElement === firstElement) {
-                    // FIX: Use an instanceof check to narrow the type from `unknown` to `HTMLElement` before calling `.focus()`.
+                    // FIX: Use an instanceof check to narrow the type from `Element` to `HTMLElement` before calling `.focus()`.
                     if (lastElement instanceof HTMLElement) {
                         lastElement.focus();
                     }
@@ -64,7 +64,7 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
                 }
             } else { // Tab
                 if (document.activeElement === lastElement) {
-                    // FIX: Use an instanceof check to narrow the type from `unknown` to `HTMLElement` before calling `.focus()`.
+                    // FIX: Use an instanceof check to narrow the type from `Element` to `HTMLElement` before calling `.focus()`.
                     if (firstElement instanceof HTMLElement) {
                         firstElement.focus();
                     }
@@ -139,6 +139,7 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
                         value={selectedCategory}
                         onChange={(e) => setSelectedCategory(e.target.value)}
                         className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
+                        disabled={existingCategories.length === 0}
                     >
                         {existingCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
@@ -148,8 +149,9 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
             <button
                 onClick={handleToggleNew}
                 className="text-sm text-primary-600 hover:underline"
+                disabled={!isCreatingNew && existingCategories.length === 0}
             >
-                {isCreatingNew ? 'Választás meglévőből' : 'Új kategória létrehozása'}
+                {isCreatingNew ? (existingCategories.length > 0 ? 'Választás meglévőből' : '') : 'Új kategória létrehozása'}
             </button>
         </div>
 

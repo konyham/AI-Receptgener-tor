@@ -1,38 +1,87 @@
-export interface InstructionStep {
-  text: string;
-  imageUrl?: string;
+// For extending the Window object for browser APIs
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+    showSaveFilePicker: (options?: SaveFilePickerOptions) => Promise<FileSystemFileHandle>;
+  }
+
+  // Types for File System Access API (for showSaveFilePicker)
+  interface SaveFilePickerOptions {
+    suggestedName?: string;
+    types?: {
+      description: string;
+      accept: { [mimeType: string]: string[] };
+    }[];
+  }
+
+  interface FileSystemFileHandle {
+    createWritable(): Promise<FileSystemWritableFileStream>;
+  }
+
+  interface FileSystemWritableFileStream extends WritableStream {
+    write(data: Blob | string): Promise<void>;
+    close(): Promise<void>;
+  }
 }
 
-export interface Recipe {
-  recipeName: string;
-  description: string;
-  prepTime: string;
-  cookTime: string;
-  servings: string;
-  ingredients: string[];
-  instructions: InstructionStep[];
-  calories?: string;
-  carbohydrates?: string;
-  protein?: string;
-  fat?: string;
-  glycemicIndex?: string;
-  diabeticAdvice?: string;
-  imageUrl?: string;
-  estimatedCost?: string;
-  cookingMethods?: CookingMethod[];
-  // FIX: Add optional 'diet' and 'mealType' to the Recipe interface to resolve errors in RecipeDisplay.tsx.
-  diet?: DietOption;
-  mealType?: MealType;
-  dateAdded?: string; // Hozzáadva a dátum alapú rendezéshez
-  rating?: number; // Hozzáadva a recept értékeléséhez
+// Interfaces for Speech Recognition API
+export interface SpeechRecognitionResult {
+  [index: number]: SpeechRecognitionAlternative;
+  length: number;
+  isFinal: boolean;
 }
 
+export interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+export interface SpeechRecognitionResultList {
+  [index: number]: SpeechRecognitionResult;
+  length: number;
+}
+
+export interface SpeechRecognitionEvent extends Event {
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
+  // Based on MDN, the error property is part of the event, not a separate type
+  error?: 'no-speech' | 'aborted' | 'audio-capture' | 'network' | 'not-allowed' | 'service-not-allowed' | 'bad-grammar' | 'language-not-supported';
+}
+
+export interface SpeechRecognition extends EventTarget {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  
+  start(): void;
+  stop(): void;
+  abort(): void;
+
+  onaudiostart: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onsoundstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onspeechstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onspeechend: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onsoundend: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onaudioend: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+  onnomatch: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+  onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onend: ((this: SpeechRecognition, ev: Event) => any) | null;
+
+  new(): SpeechRecognition;
+}
+
+
+// Enums
 export enum DietOption {
   NONE = 'none',
+  DIABETIC = 'diabetic',
   VEGETARIAN = 'vegetarian',
   VEGAN = 'vegan',
-  GLUTEN_FREE = 'gluten-free',
-  DIABETIC = 'diabetic',
+  GLUTEN_FREE = 'gluten_free',
   KETOGENIC = 'ketogenic',
   PALEO = 'paleo',
   ZONE = 'zone',
@@ -42,19 +91,20 @@ export enum DietOption {
 
 export enum MealType {
   BREAKFAST = 'breakfast',
+  ELEVENSES = 'elevenses',
   LUNCH = 'lunch',
+  AFTERNOON_SNACK = 'afternoon_snack',
   DINNER = 'dinner',
+  SOUP = 'soup',
   DESSERT = 'dessert',
   SNACK = 'snack',
-  ELEVENSES = 'elevenses',
-  AFTERNOON_SNACK = 'afternoon_snack',
-  SOUP = 'soup',
   PASTA_MAKING = 'pasta_making',
 }
 
 export enum CuisineOption {
   NONE = 'none',
   HUNGARIAN = 'hungarian',
+  ERDELYI = 'erdelyi',
   ITALIAN = 'italian',
   FRENCH = 'french',
   SPANISH = 'spanish',
@@ -68,7 +118,6 @@ export enum CuisineOption {
   INDIAN = 'indian',
   MEXICAN = 'mexican',
   AMERICAN = 'american',
-  ERDELYI = 'erdelyi',
 }
 
 export enum CookingMethod {
@@ -89,73 +138,16 @@ export enum RecipePace {
 }
 
 export enum VoiceCommand {
-    NEXT = 'NEXT',
-    STOP = 'STOP',
-    READ_INTRO = 'READ_INTRO',
-    READ_INGREDIENTS = 'READ_INGREDIENTS',
-    START_COOKING = 'START_COOKING',
-    START_TIMER = 'START_TIMER',
-    UNKNOWN = 'UNKNOWN',
-}
-
-export interface VoiceCommandResult {
-    command: VoiceCommand;
-    payload?: {
-        hours?: number;
-        minutes?: number;
-        seconds?: number;
-    };
-}
-
-export interface SelectionResult {
-  key: string;
-  label: string;
+  NEXT = 'NEXT',
+  STOP = 'STOP',
+  READ_INTRO = 'READ_INTRO',
+  READ_INGREDIENTS = 'READ_INGREDIENTS',
+  START_COOKING = 'START_COOKING',
+  START_TIMER = 'START_TIMER',
+  UNKNOWN = 'UNKNOWN',
 }
 
 export type FormAction = 'add_ingredients' | 'set_diet' | 'set_meal_type' | 'set_cooking_method' | 'generate_recipe' | 'unknown';
-
-export interface FormCommand {
-    action: FormAction;
-    payload: string[] | SelectionResult | null;
-}
-
-// Centralized SpeechRecognition types to be used across the application.
-export interface SpeechRecognition {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  onstart: (() => void) | null;
-  onresult: ((event: any) => void) | null;
-  onend: (() => void) | null;
-  onerror: ((event: any) => void) | null;
-  start: () => void;
-  stop: () => void;
-}
-
-declare global {
-  interface Window {
-    SpeechRecognition: { new(): SpeechRecognition };
-    webkitSpeechRecognition: { new(): SpeechRecognition };
-    // FIX: Add `showSaveFilePicker` to the global Window type to resolve errors in FavoritesView.tsx and ShoppingListView.tsx.
-    // This browser API is not in the default TS DOM library.
-    showSaveFilePicker?(options?: any): Promise<any>;
-  }
-}
-
-export type Favorites = Record<string, Recipe[]>;
-
-export interface RecipeSuggestions {
-  suggestedIngredients: string[];
-  modificationIdeas: string[];
-}
-
-export interface ShoppingListItem {
-  text: string;
-  checked: boolean;
-}
-
-// New types for app-wide voice control
-export type AppView = 'generator' | 'favorites' | 'shopping-list';
 
 export type AppCommandAction =
   | 'navigate'
@@ -165,6 +157,8 @@ export type AppCommandAction =
   | 'uncheck_shopping_list_item'
   | 'clear_checked_shopping_list'
   | 'clear_all_shopping_list'
+  | 'add_pantry_item'
+  | 'remove_pantry_item'
   | 'view_favorite_recipe'
   | 'delete_favorite_recipe'
   | 'filter_favorites'
@@ -173,12 +167,8 @@ export type AppCommandAction =
   | 'collapse_category'
   | 'unknown';
 
-export interface AppCommand {
-    action: AppCommandAction;
-    payload?: string | { recipeName: string; category: string };
-}
+export type AppView = 'generator' | 'favorites' | 'shopping-list' | 'pantry';
 
-// Új enum a kedvencek rendezési opcióihoz
 export enum SortOption {
   DATE_DESC = 'date_desc',
   DATE_ASC = 'date_asc',
@@ -188,8 +178,81 @@ export enum SortOption {
   RATING_ASC = 'rating_asc',
 }
 
-// Interface for data backup/restore functionality
+// Interfaces
+export interface InstructionStep {
+  text: string;
+  imageUrl?: string;
+}
+
+export interface Recipe {
+  recipeName: string;
+  description: string;
+  prepTime: string;
+  cookTime: string;
+  servings: string;
+  ingredients: string[];
+  instructions: InstructionStep[];
+  calories?: string;
+  carbohydrates?: string;
+  protein?: string;
+  fat?: string;
+  glycemicIndex?: string;
+  diabeticAdvice?: string;
+  estimatedCost?: string;
+  cookingMethods: CookingMethod[];
+  diet: DietOption;
+  mealType: MealType;
+  cuisine: CuisineOption;
+  recipePace: RecipePace;
+  imageUrl?: string;
+  rating?: number;
+  dateAdded?: string;
+}
+
+export interface RecipeSuggestions {
+  suggestedIngredients: string[];
+  modificationIdeas: string[];
+}
+
+export interface SelectionResult {
+  key: string;
+  label: string;
+}
+
+export interface FormCommand {
+  action: FormAction;
+  payload: string[] | SelectionResult | null;
+}
+
+export interface VoiceCommandResult {
+  command: VoiceCommand;
+  payload?: {
+    hours?: number;
+    minutes?: number;
+    seconds?: number;
+  } | null;
+}
+
+export interface AppCommand {
+  action: AppCommandAction;
+  payload?: any;
+}
+
+export interface ShoppingListItem {
+  text: string;
+  checked: boolean;
+}
+
+export interface PantryItem {
+    text: string;
+    quantity?: string;
+    dateAdded: string;
+}
+
+export type Favorites = Record<string, Recipe[]>;
+
 export interface BackupData {
-  favorites: Favorites;
-  shoppingList: ShoppingListItem[];
+    favorites: Favorites;
+    shoppingList: ShoppingListItem[];
+    pantry: PantryItem[];
 }

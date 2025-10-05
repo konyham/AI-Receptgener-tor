@@ -759,6 +759,7 @@ export const interpretAppCommand = async (
     categories: string[];
     recipesByCategory: { [category: string]: string[] };
     shoppingListItems: string[];
+    pantryItems: string[];
   }
 ): Promise<AppCommand> => {
   const prompt = `
@@ -770,37 +771,31 @@ export const interpretAppCommand = async (
     - Kedvenc kategóriák: ${context.categories.join(', ') || 'nincs'}
     - Kedvenc receptek (kategóriánként): ${JSON.stringify(context.recipesByCategory)}
     - Bevásárlólista elemei: ${context.shoppingListItems.join(', ') || 'üres'}
+    - Kamra elemei: ${context.pantryItems.join(', ') || 'üres'}
 
     A feladatod, hogy a parancsot egy JSON objektummá alakítsd a megadott séma szerint.
     A 'payload' mezőt csak akkor add meg, ha releváns az akcióhoz.
 
     Akciók és példák:
-    - 'navigate': Navigáció a megadott nézetre ('generator', 'favorites', 'shopping-list').
-      - "menj a kedvencekhez" -> { "action": "navigate", "payload": "favorites" }
+    - 'navigate': Navigáció a megadott nézetre ('generator', 'favorites', 'shopping-list', 'pantry').
+      - "menj a kamrához" -> { "action": "navigate", "payload": "pantry" }
     - 'add_shopping_list_item': Tétel(ek) hozzáadása a bevásárlólistához. A payload egy string, vesszővel elválasztva, ha több tétel van.
       - "adj hozzá tejet és kenyeret a listához" -> { "action": "add_shopping_list_item", "payload": "tej,kenyér" }
-    - 'remove_shopping_list_item': Tétel eltávolítása a listáról. A payload a tétel neve. A legpontosabb egyezést válaszd.
-      - "töröld a tejet a listáról" -> { "action": "remove_shopping_list_item", "payload": "tej" }
+    - 'remove_shopping_list_item': Tétel eltávolítása a listáról.
     - 'check_shopping_list_item': Tétel kipipálása.
-      - "pipáld ki a kenyeret" -> { "action": "check_shopping_list_item", "payload": "kenyér" }
     - 'uncheck_shopping_list_item': Tétel pipájának eltávolítása.
-      - "vedd le a pipát a kenyérről" -> { "action": "uncheck_shopping_list_item", "payload": "kenyér" }
     - 'clear_checked_shopping_list': Kipipált tételek törlése.
-      - "töröld a kipipáltakat" -> { "action": "clear_checked_shopping_list" }
     - 'clear_all_shopping_list': Teljes lista törlése.
-      - "töröld az egész listát" -> { "action": "clear_all_shopping_list" }
-    - 'view_favorite_recipe': Kedvenc recept megtekintése. A payload egy objektum a recept nevével és kategóriájával.
-      - "nyisd meg a pörköltet a főételek közül" -> { "action": "view_favorite_recipe", "payload": { "recipeName": "Pörkölt", "category": "Főételek" } }
+    - 'add_pantry_item': Tétel(ek) hozzáadása a kamrához. A payload egy string, vesszővel elválasztva, ha több tétel van.
+      - "tegyél csirkemellet a kamrába" -> { "action": "add_pantry_item", "payload": "csirkemell" }
+      - "van otthon hagyma és krumpli" -> { "action": "add_pantry_item", "payload": "hagyma,krumpli" }
+    - 'remove_pantry_item': Tétel eltávolítása a kamrából.
+    - 'view_favorite_recipe': Kedvenc recept megtekintése.
     - 'delete_favorite_recipe': Kedvenc recept törlése.
-      - "töröld a pörköltet a főételek közül" -> { "action": "delete_favorite_recipe", "payload": { "recipeName": "Pörkölt", "category": "Főételek" } }
     - 'filter_favorites': Kedvencek szűrése kategóriára.
-      - "szűrj a levesekre" -> { "action": "filter_favorites", "payload": "Levesek" }
     - 'clear_favorites_filter': Szűrés törlése.
-      - "mutasd az összeset" -> { "action": "clear_favorites_filter" }
     - 'expand_category': Kategória lenyitása.
-      - "nyisd le a főételeket" -> { "action": "expand_category", "payload": "Főételek" }
     - 'collapse_category': Kategória becsukása.
-      - "csukd be a főételeket" -> { "action": "collapse_category", "payload": "Főételek" }
     - 'unknown': Ha a parancs nem értelmezhető.
   `;
 

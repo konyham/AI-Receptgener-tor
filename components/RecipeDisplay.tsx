@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-// FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import type { Operation, GenerateVideosResponse } from '@google/genai';
 import { Recipe, VoiceCommand, Favorites, CookingMethod } from '../types';
 import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage, calculateRecipeCost, simplifyRecipe, downloadVideo, generateInstructionImage } from '../services/geminiService';
@@ -12,13 +11,12 @@ import VideoPlayerModal from './VideoPlayerModal';
 import ImageDisplayModal from './ImageDisplayModal';
 import ErrorMessage from './ErrorMessage';
 import InstructionCarousel from './InstructionCarousel';
-import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS } from '../constants';
+import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, CUISINE_OPTIONS } from '../constants';
 import ShareFallbackModal from './ShareFallbackModal';
 import { konyhaMikiLogo as konyhaMikiLogoBase64 } from '../assets';
 import StarRating from './StarRating';
 
 
-// FIX: Added missing props to the interface to match the usage in App.tsx.
 interface RecipeDisplayProps {
   recipe: Recipe;
   onClose: () => void;
@@ -650,6 +648,9 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     const imageHtml = recipe.imageUrl
       ? `<div style="text-align: center; margin: 1.5rem 0; break-inside: avoid;"><img src="${recipe.imageUrl}" alt="Fotó a receptről: ${recipe.recipeName}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: cover; display: inline-block;"></div>`
       : '';
+    
+    const cuisineLabel = CUISINE_OPTIONS.find(c => c.value === recipe.cuisine)?.label;
+    const dietLabel = DIET_OPTIONS.find(d => d.value === recipe.diet)?.label;
 
     const printHtml = `
       <html>
@@ -708,6 +709,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
             <div><span>Előkészítés:</span> ${recipe.prepTime}</div>
             <div><span>Főzési idő:</span> ${recipe.cookTime}</div>
             <div><span>Adag:</span> ${recipe.servings}</div>
+            ${cuisineLabel && cuisineLabel !== 'Nincs megadva' ? `<div><span>Konyha:</span> ${cuisineLabel}</div>` : ''}
+            ${dietLabel && dietLabel !== 'Nincs megadva' ? `<div><span>Diéta:</span> ${dietLabel}</div>` : ''}
             ${recipe.estimatedCost ? `<div><span>Becsült költség:</span> ${recipe.estimatedCost}</div>` : ''}
           </div>
           ${(recipe.calories || recipe.carbohydrates) ? `
@@ -1024,9 +1027,9 @@ Recept generálva Konyha Miki segítségével!
                     </svg>
                     {isSimplifying ? 'Egyszerűsítés...' : 'Recept egyszerűsítése'}
                 </button>
-                 <button onClick={handleGenerateVideo} disabled={true} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed" title="A videógenerálás funkció jelenleg nem érhető el.">
+                 <button onClick={handleGenerateVideo} disabled={isGeneratingVideo} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-purple-100 text-purple-800 rounded-lg hover:bg-purple-200 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
-                    Videó generálása
+                    {isGeneratingVideo ? "Generálás..." : "Videó generálása"}
                 </button>
                 <button onClick={() => setIsTimerOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
