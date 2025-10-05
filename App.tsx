@@ -96,6 +96,7 @@ const App: React.FC = () => {
     setError(null);
     setRecipe(null);
     setRecipeSuggestions(null);
+    setView('generator'); // Make sure we are on the generator view
 
     try {
       const generatedRecipe = await generateRecipe(
@@ -430,23 +431,6 @@ const App: React.FC = () => {
   });
 
   const renderView = () => {
-    if (recipe) {
-      return (
-        <RecipeDisplay
-          recipe={recipe}
-          onClose={handleCloseRecipe}
-          onRefine={handleRefineRecipe}
-          isFromFavorites={isFromFavorites}
-          favorites={favorites}
-          onSave={handleSaveToFavorites}
-          onAddItemsToShoppingList={handleAddItemsToShoppingList}
-          isLoading={isLoading}
-          onRecipeUpdate={handleRecipeUpdate}
-          shouldGenerateImageInitially={shouldGenerateImage}
-        />
-      );
-    }
-
     switch (view) {
       case 'favorites':
         return (
@@ -498,6 +482,22 @@ const App: React.FC = () => {
         );
       case 'generator':
       default:
+        if (recipe) {
+          return (
+            <RecipeDisplay
+              recipe={recipe}
+              onClose={handleCloseRecipe}
+              onRefine={handleRefineRecipe}
+              isFromFavorites={isFromFavorites}
+              favorites={favorites}
+              onSave={handleSaveToFavorites}
+              onAddItemsToShoppingList={handleAddItemsToShoppingList}
+              isLoading={isLoading}
+              onRecipeUpdate={handleRecipeUpdate}
+              shouldGenerateImageInitially={shouldGenerateImage}
+            />
+          );
+        }
         return (
           <>
             <h1 className="text-3xl font-bold text-center text-primary-800">Konyha Miki, a mesterséges intelligencia konyhamester</h1>

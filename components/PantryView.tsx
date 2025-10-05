@@ -206,8 +206,8 @@ const PantryView: React.FC<PantryViewProps> = ({
   // FIX: Explicitly type `l` to `PantryItem[]` to resolve type error when accessing `.length`.
   const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || Object.values(pantry).some((l: PantryItem[]) => l.length > 0);
   const checkedShoppingListItems = shoppingListItems.filter(item => item.checked).length;
-  // FIX: Explicitly type the accumulator `sum` and parameter `items` to resolve type errors.
-  const totalItemsInCurrentTab = Object.values(groupedItems).reduce((sum: number, items: PantryItem[]) => sum + items.length, 0);
+  // FIX: This calculation was causing a type error due to complex inference. It's replaced with a simpler, equivalent calculation.
+  const totalItemsInCurrentTab = (pantry[activeTab] || []).length;
 
   return (
     <div className="space-y-6">
@@ -259,7 +259,7 @@ const PantryView: React.FC<PantryViewProps> = ({
 
                 return (
                 <div key={type} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-                    <button onClick={() => setExpandedGroups(prev => ({...prev, [type]: !prev}))} className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100">
+                    <button onClick={() => setExpandedGroups(prev => ({...prev, [type]: !prev[type]}))} className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100">
                         <div className="flex items-center gap-3">
                             <span className="text-xl">{storageTypeLabels[type].icon}</span>
                             <span className="font-bold text-lg text-primary-700">{storageTypeLabels[type].label}</span>
