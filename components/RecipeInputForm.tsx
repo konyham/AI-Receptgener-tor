@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption, RecipePace, UserProfile, OptionItem } from '../types';
-import { DIET_OPTIONS, MEAL_TYPES as defaultMealTypes, COOKING_METHODS as defaultCookingMethods, CUISINE_OPTIONS as defaultCuisineOptions, RECIPE_PACE_OPTIONS, MEAL_TYPES_STORAGE_KEY, CUISINE_OPTIONS_STORAGE_KEY, COOKING_METHODS_STORAGE_KEY, COOKING_METHOD_CAPACITIES_STORAGE_KEY, COOKING_METHODS_ORDER_KEY, CUISINE_OPTIONS_ORDER_KEY } from '../constants';
+import { DIET_OPTIONS, MEAL_TYPES as defaultMealTypes, COOKING_METHODS as defaultCookingMethods, CUISINE_OPTIONS as defaultCuisineOptions, RECIPE_PACE_OPTIONS, MEAL_TYPES_STORAGE_KEY, CUISINE_OPTIONS_STORAGE_KEY, COOKING_METHODS_STORAGE_KEY, COOKING_METHOD_CAPACITIES_STORAGE_KEY, MEAL_TYPES_ORDER_KEY, COOKING_METHODS_ORDER_KEY, CUISINE_OPTIONS_ORDER_KEY } from '../constants';
 import { interpretFormCommand, suggestMealType } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
@@ -21,6 +21,8 @@ interface RecipeInputFormProps {
   setCookingMethodsList: React.Dispatch<React.SetStateAction<OptionItem[]>>;
   cookingMethodCapacities: Record<string, number | null>;
   setCookingMethodCapacities: React.Dispatch<React.SetStateAction<Record<string, number | null>>>;
+  orderedMealTypes: OptionItem[];
+  setOrderedMealTypes: React.Dispatch<React.SetStateAction<OptionItem[]>>;
   orderedCookingMethods: OptionItem[];
   setOrderedCookingMethods: React.Dispatch<React.SetStateAction<OptionItem[]>>;
   orderedCuisineOptions: OptionItem[];
@@ -102,6 +104,8 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     setCookingMethodsList,
     cookingMethodCapacities,
     setCookingMethodCapacities,
+    orderedMealTypes,
+    setOrderedMealTypes,
     orderedCookingMethods,
     setOrderedCookingMethods,
     orderedCuisineOptions,
@@ -133,6 +137,10 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
   const [isCookingMethodsEditing, setIsCookingMethodsEditing] = useState(false);
   const [modalState, setModalState] = useState<{ isOpen: boolean; itemToEdit: (OptionItem & { capacity?: number | null }) | null; itemType: OptionType | null }>({ isOpen: false, itemToEdit: null, itemType: null });
 
+  const mealDragItemIndex = useRef<number | null>(null);
+  const mealDragOverItemIndex = useRef<number | null>(null);
+  const [isMealDragging, setIsMealDragging] = useState(false);
+  
   const dragItemIndex = useRef<number | null>(null);
   const dragOverItemIndex = useRef<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -661,6 +669,35 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     }
   };
 
+    const handleMealDragStart = (e: React.DragEvent<HTMLLabelElement>, index: number) => {
+        mealDragItemIndex.current = index;
+        setTimeout(() => setIsMealDragging(true), 0);
+    };
+
+    const handleMealDragEnter = (e: React.DragEvent<HTMLLabelElement>, index: number) => {
+        e.preventDefault();
+        mealDragOverItemIndex.current = index;
+    };
+
+    const handleMealDragEnd = () => {
+        if (mealDragItemIndex.current !== null && mealDragOverItemIndex.current !== null && mealDragItemIndex.current !== mealDragOverItemIndex.current) {
+            const newMealTypes = [...orderedMealTypes];
+            const draggedItemContent = newMealTypes.splice(mealDragItemIndex.current, 1)[0];
+            newMealTypes.splice(mealDragOverItemIndex.current, 0, draggedItemContent);
+            setOrderedMealTypes(newMealTypes);
+            try {
+                const orderToSave = newMealTypes.map(item => item.value);
+                safeSetLocalStorage(MEAL_TYPES_ORDER_KEY, orderToSave);
+            } catch (err: any) {
+                showNotification(err.message, 'info');
+            }
+        }
+        mealDragItemIndex.current = null;
+        mealDragOverItemIndex.current = null;
+        setIsMealDragging(false);
+    };
+
+
   const handleDragStart = (e: React.DragEvent<HTMLLabelElement>, index: number) => {
     dragItemIndex.current = index;
     setTimeout(() => {
@@ -1096,9 +1133,18 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
                 <button type="button" onClick={() => setIsMealTypesEditing(!isMealTypesEditing)} className="text-sm font-semibold text-primary-600 hover:text-primary-800">{isMealTypesEditing ? 'Kész' : 'Szerkesztés'}</button>
             </div>
             <div className="space-y-2">
-                {mealTypes.map(option => (
+                {orderedMealTypes.map((option, index) => (
                     <div key={option.value} className="flex items-center">
-                        <label htmlFor={`meal-type-${option.value}`} className="flex-grow flex items-center p-3 border rounded-lg bg-white cursor-pointer hover:bg-gray-50 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400">
+                        <label 
+                          htmlFor={`meal-type-${option.value}`} 
+                          className={`flex-grow flex items-center p-3 border rounded-lg bg-white ${isMealTypesEditing ? '' : 'cursor-grab'} hover:bg-gray-50 transition-all duration-200 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500 ${isMealDragging && mealDragItemIndex.current === index ? 'opacity-40 scale-105 shadow-xl' : 'opacity-100'}`}
+                          draggable={!isMealTypesEditing}
+                          onDragStart={(e) => handleMealDragStart(e, index)}
+                          onDragEnter={(e) => handleMealDragEnter(e, index)}
+                          onDragEnd={handleMealDragEnd}
+                          onDragOver={(e) => e.preventDefault()}
+                        >
+                            {!isMealTypesEditing && <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>}
                             <input type="radio" id={`meal-type-${option.value}`} name="meal-type" value={option.value} checked={mealType === option.value} onChange={(e) => setMealType(e.target.value as MealType)} className="h-5 w-5 border-gray-300 text-primary-600 focus:ring-primary-500" />
                             <span className="ml-3 text-gray-700 font-medium">{option.label}</span>
                         </label>

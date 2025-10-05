@@ -15,6 +15,7 @@ interface UsersViewProps {
   cuisineOptions: OptionItem[];
   cookingMethodsList: OptionItem[];
   cookingMethodCapacities: Record<string, number | null>;
+  orderedMealTypes: OptionItem[];
   orderedCuisineOptions: OptionItem[];
   orderedCookingMethods: OptionItem[];
 }
@@ -31,6 +32,7 @@ const UsersView: React.FC<UsersViewProps> = ({
   cuisineOptions,
   cookingMethodsList,
   cookingMethodCapacities,
+  orderedMealTypes,
   orderedCuisineOptions,
   orderedCookingMethods,
 }) => {
@@ -66,6 +68,7 @@ const UsersView: React.FC<UsersViewProps> = ({
         cuisineOptions,
         cookingMethods: cookingMethodsList,
         cookingMethodCapacities,
+        mealTypesOrder: orderedMealTypes.map(item => item.value),
         cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
         cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
       };

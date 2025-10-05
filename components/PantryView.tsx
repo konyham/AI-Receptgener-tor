@@ -109,6 +109,7 @@ interface PantryViewProps {
   cuisineOptions: OptionItem[];
   cookingMethodsList: OptionItem[];
   cookingMethodCapacities: Record<string, number | null>;
+  orderedMealTypes: OptionItem[];
   orderedCuisineOptions: OptionItem[];
   orderedCookingMethods: OptionItem[];
 }
@@ -131,6 +132,7 @@ const PantryView: React.FC<PantryViewProps> = ({
   cuisineOptions,
   cookingMethodsList,
   cookingMethodCapacities,
+  orderedMealTypes,
   orderedCuisineOptions,
   orderedCookingMethods,
 }) => {
@@ -212,6 +214,7 @@ const PantryView: React.FC<PantryViewProps> = ({
         cuisineOptions,
         cookingMethods: cookingMethodsList,
         cookingMethodCapacities,
+        mealTypesOrder: orderedMealTypes.map(item => item.value),
         cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
         cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
       };

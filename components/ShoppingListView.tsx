@@ -19,6 +19,7 @@ interface ShoppingListViewProps {
   cuisineOptions: OptionItem[];
   cookingMethodsList: OptionItem[];
   cookingMethodCapacities: Record<string, number | null>;
+  orderedMealTypes: OptionItem[];
   orderedCuisineOptions: OptionItem[];
   orderedCookingMethods: OptionItem[];
 }
@@ -39,6 +40,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   cuisineOptions,
   cookingMethodsList,
   cookingMethodCapacities,
+  orderedMealTypes,
   orderedCuisineOptions,
   orderedCookingMethods,
 }) => {
@@ -108,6 +110,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         cuisineOptions,
         cookingMethods: cookingMethodsList,
         cookingMethodCapacities,
+        mealTypesOrder: orderedMealTypes.map(item => item.value),
         cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
         cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
       };

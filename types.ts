@@ -287,6 +287,7 @@ export interface BackupData {
     cuisineOptions?: OptionItem[];
     cookingMethods?: OptionItem[];
     cookingMethodCapacities?: Record<string, number | null>;
+    mealTypesOrder?: string[];
     cuisineOptionsOrder?: string[];
     cookingMethodsOrder?: string[];
 }

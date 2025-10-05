@@ -46,6 +46,7 @@ import {
     CUISINE_OPTIONS_STORAGE_KEY,
     COOKING_METHODS_STORAGE_KEY,
     COOKING_METHOD_CAPACITIES_STORAGE_KEY,
+    MEAL_TYPES_ORDER_KEY,
     COOKING_METHODS_ORDER_KEY,
     CUISINE_OPTIONS_ORDER_KEY,
 } from './constants';
@@ -96,6 +97,7 @@ const App: React.FC = () => {
   const [cookingMethodsList, setCookingMethodsList] = useState<OptionItem[]>(() => loadFromLocalStorage(COOKING_METHODS_STORAGE_KEY, COOKING_METHODS));
   const [cookingMethodCapacities, setCookingMethodCapacities] = useState<Record<string, number | null>>(() => loadFromLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, COOKING_METHOD_CAPACITIES));
   
+  const [orderedMealTypes, setOrderedMealTypes] = useState<OptionItem[]>([]);
   const [orderedCookingMethods, setOrderedCookingMethods] = useState<OptionItem[]>([]);
   const [orderedCuisineOptions, setOrderedCuisineOptions] = useState<OptionItem[]>([]);
 
@@ -138,6 +140,25 @@ const App: React.FC = () => {
   }, [loadData]);
 
   // Effects to sync ordered lists (lifted from RecipeInputForm)
+    useEffect(() => {
+        const savedOrder = loadFromLocalStorage<string[] | null>(MEAL_TYPES_ORDER_KEY, null);
+        const optionsMap = new Map(mealTypes.map(item => [item.value, item]));
+        let finalOrderedList: OptionItem[];
+        
+        if (savedOrder) {
+            const orderedList = savedOrder
+                .map(value => optionsMap.get(value))
+                .filter((item): item is OptionItem => !!item);
+            
+            const orderedValues = new Set(orderedList.map(item => item.value));
+            const newItems = mealTypes.filter(item => !orderedValues.has(item.value));
+            finalOrderedList = [...orderedList, ...newItems];
+        } else {
+            finalOrderedList = [...mealTypes];
+        }
+        setOrderedMealTypes(finalOrderedList);
+    }, [mealTypes]);
+    
     useEffect(() => {
         const savedOrder = loadFromLocalStorage<string[] | null>(COOKING_METHODS_ORDER_KEY, null);
         const optionsMap = new Map(cookingMethodsList.map(item => [item.value, item]));
@@ -536,6 +557,9 @@ const App: React.FC = () => {
       if (data.mealTypes && Array.isArray(data.mealTypes)) {
           setMealTypes(data.mealTypes);
           safeSetLocalStorage(MEAL_TYPES_STORAGE_KEY, data.mealTypes);
+          if (data.mealTypesOrder) {
+              safeSetLocalStorage(MEAL_TYPES_ORDER_KEY, data.mealTypesOrder);
+          }
           optionsMessage += ' Étkezés típusok,';
       }
       if (data.cuisineOptions && Array.isArray(data.cuisineOptions)) {
@@ -651,6 +675,7 @@ const App: React.FC = () => {
             cuisineOptions={cuisineOptions}
             cookingMethodsList={cookingMethodsList}
             cookingMethodCapacities={cookingMethodCapacities}
+            orderedMealTypes={orderedMealTypes}
             orderedCuisineOptions={orderedCuisineOptions}
             orderedCookingMethods={orderedCookingMethods}
           />
@@ -673,6 +698,7 @@ const App: React.FC = () => {
             cuisineOptions={cuisineOptions}
             cookingMethodsList={cookingMethodsList}
             cookingMethodCapacities={cookingMethodCapacities}
+            orderedMealTypes={orderedMealTypes}
             orderedCuisineOptions={orderedCuisineOptions}
             orderedCookingMethods={orderedCookingMethods}
           />
@@ -697,6 +723,7 @@ const App: React.FC = () => {
               cuisineOptions={cuisineOptions}
               cookingMethodsList={cookingMethodsList}
               cookingMethodCapacities={cookingMethodCapacities}
+              orderedMealTypes={orderedMealTypes}
               orderedCuisineOptions={orderedCuisineOptions}
               orderedCookingMethods={orderedCookingMethods}
             />
@@ -715,6 +742,7 @@ const App: React.FC = () => {
                     cuisineOptions={cuisineOptions}
                     cookingMethodsList={cookingMethodsList}
                     cookingMethodCapacities={cookingMethodCapacities}
+                    orderedMealTypes={orderedMealTypes}
                     orderedCuisineOptions={orderedCuisineOptions}
                     orderedCookingMethods={orderedCookingMethods}
                 />
@@ -743,6 +771,8 @@ const App: React.FC = () => {
                 setCookingMethodsList={setCookingMethodsList}
                 cookingMethodCapacities={cookingMethodCapacities}
                 setCookingMethodCapacities={setCookingMethodCapacities}
+                orderedMealTypes={orderedMealTypes}
+                setOrderedMealTypes={setOrderedMealTypes}
                 orderedCookingMethods={orderedCookingMethods}
                 setOrderedCookingMethods={setOrderedCookingMethods}
                 orderedCuisineOptions={orderedCuisineOptions}

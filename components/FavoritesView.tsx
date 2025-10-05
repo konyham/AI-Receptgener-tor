@@ -24,6 +24,7 @@ interface FavoritesViewProps {
   cuisineOptions: OptionItem[];
   cookingMethodsList: OptionItem[];
   cookingMethodCapacities: Record<string, number | null>;
+  orderedMealTypes: OptionItem[];
   orderedCuisineOptions: OptionItem[];
   orderedCookingMethods: OptionItem[];
 }
@@ -57,6 +58,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   cuisineOptions,
   cookingMethodsList,
   cookingMethodCapacities,
+  orderedMealTypes,
   orderedCuisineOptions,
   orderedCookingMethods,
 }) => {
@@ -83,6 +85,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         cuisineOptions,
         cookingMethods: cookingMethodsList,
         cookingMethodCapacities,
+        mealTypesOrder: orderedMealTypes.map(item => item.value),
         cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
         cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
       };
