@@ -755,11 +755,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   };
 
   const handleSave = (category: string) => {
-    // To ensure favorites can always be saved without hitting browser storage limits,
-    // we save the recipe data *without* the generated image's large data URL.
-    // The image will be automatically re-generated whenever the favorite is viewed.
-    const { imageUrl, ...recipeToSave } = recipe;
-    onSave(recipeToSave as Recipe, category);
+    // A felhasználó kérésére a teljes receptobjektumot mentjük, beleértve a generált képeket is.
+    onSave(recipe, category);
     setIsSaveModalOpen(false);
   };
 
@@ -919,21 +916,40 @@ Recept generálva Konyha Miki segítségével!
           </div>
           <p className="text-gray-600 italic mb-6">{recipe.description}</p>
           
-          <div className="my-6">
+           <div className="my-6">
             {isImageLoading && (
-              <div className="aspect-[4/3] w-full bg-gray-200 rounded-lg animate-pulse"></div>
+                <div className="aspect-[4/3] w-full bg-gray-200 rounded-lg animate-pulse flex items-center justify-center text-gray-500">
+                    <svg className="animate-spin h-8 w-8 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Generálás...
+                </div>
             )}
             {imageError && !isImageLoading && <ErrorMessage message={imageError} />}
+            
             {recipe.imageUrl && !isImageLoading && (
-              <button 
-                onClick={() => setIsImageModalOpen(true)} 
-                className="w-full block rounded-lg overflow-hidden shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-all duration-300"
-                aria-label="Ételfotó megtekintése nagyban"
-              >
-                <img src={recipe.imageUrl} alt={`Fotó a receptről: ${recipe.recipeName}`} className="w-full h-full object-cover" />
-              </button>
+                <div className="relative group">
+                    <button 
+                        onClick={() => setIsImageModalOpen(true)} 
+                        className="w-full block rounded-lg overflow-hidden shadow-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-all duration-300"
+                        aria-label="Ételfotó megtekintése nagyban"
+                    >
+                        <img src={recipe.imageUrl} alt={`Fotó a receptről: ${recipe.recipeName}`} className="w-full h-full object-cover" />
+                    </button>
+                    <div className="absolute bottom-2 right-2">
+                        <button onClick={handleGenerateImage} disabled={isImageLoading} className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 bg-white/80 backdrop-blur-sm text-gray-800 rounded-full hover:bg-white shadow transition-colors disabled:opacity-50">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
+                            Újragenerálás
+                        </button>
+                    </div>
+                </div>
             )}
-          </div>
+
+            {!recipe.imageUrl && !isImageLoading && (
+                <button onClick={handleGenerateImage} disabled={isImageLoading} className="w-full flex flex-col items-center justify-center gap-2 aspect-[4/3] bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:bg-gray-200 hover:border-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
+                    <span className="font-semibold">Kattintson ide ételfotó generálásához</span>
+                </button>
+            )}
+        </div>
           
           <div className="flex flex-wrap gap-4 md:gap-8 mb-6 text-gray-700">
               <div className="flex items-center gap-2">
@@ -994,10 +1010,6 @@ Recept generálva Konyha Miki segítségével!
                         {isCostLoading ? 'Számítás...' : 'Költségbecslés'}
                     </button>
                 )}
-                <button onClick={handleGenerateImage} disabled={isImageLoading} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isImageLoading ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
-                    {isImageLoading ? 'Generálás...' : (recipe.imageUrl ? 'Ételkép újragenerálása' : 'Ételkép generálása')}
-                </button>
                  <button onClick={handleSimplifyRecipe} disabled={isSimplifying} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-green-100 text-green-800 rounded-lg hover:bg-green-200 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M10 3.5a.75.75 0 01.75.75V6h1.75a.75.75 0 010 1.5H10.75V9.25a.75.75 0 01-1.5 0V7.5H7.5a.75.75 0 010-1.5H9.25V4.25A.75.75 0 0110 3.5zM3.5 10a.75.75 0 01.75-.75H6V7.5a.75.75 0 011.5 0v1.75H9.25a.75.75 0 010 1.5H7.5v1.75a.75.75 0 01-1.5 0V10.75H4.25a.75.75 0 01-.75-.75zM10 12.5a.75.75 0 01.75.75v1.75h1.75a.75.75 0 010 1.5H10.75V18a.75.75 0 01-1.5 0v-1.75H7.5a.75.75 0 010-1.5h1.75V13.25a.75.75 0 01.75-.75zM12.5 10a.75.75 0 01.75-.75h1.75v-1.75a.75.75 0 011.5 0V9.25h1.75a.75.75 0 010 1.5H16.25v1.75a.75.75 0 01-1.5 0V10.75H13.25a.75.75 0 01-.75-.75z" />

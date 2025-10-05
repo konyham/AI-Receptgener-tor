@@ -84,7 +84,19 @@ const InstructionCarousel: React.FC<InstructionCarouselProps> = ({ instructions,
                     <span className="mt-2 text-sm font-medium">Kép generálása...</span>
                 </div>
             ) : currentInstruction.imageUrl ? (
-                <img src={currentInstruction.imageUrl} alt={`Illusztráció a(z) ${currentStep + 1}. lépéshez`} className="w-full h-full object-cover"/>
+                <div className="relative w-full h-full group">
+                    <img src={currentInstruction.imageUrl} alt={`Illusztráció a(z) ${currentStep + 1}. lépéshez`} className="w-full h-full object-cover"/>
+                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        <button 
+                            onClick={() => onGenerateImage(currentStep)}
+                            disabled={generatingImageForStep !== null}
+                            className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 bg-white/80 backdrop-blur-sm text-gray-800 rounded-full hover:bg-white shadow transition-colors disabled:opacity-50"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
+                            Újragenerálás
+                        </button>
+                    </div>
+                </div>
             ) : (
                 <button 
                     onClick={() => onGenerateImage(currentStep)}

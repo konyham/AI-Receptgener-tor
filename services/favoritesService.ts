@@ -128,8 +128,9 @@ export const mergeFavorites = (currentFavorites: Favorites, importedFavorites: F
 };
 
 /**
- * Adds a recipe to a specific category in favorites and saves to localStorage.
- * @param recipe The recipe to add.
+ * Adds a recipe to a specific category in favorites or updates it if it already exists.
+ * Saves the full recipe object, including any generated images.
+ * @param recipe The recipe to add or update.
  * @param category The category to add the recipe to.
  * @returns The updated favorites object.
  */
@@ -138,17 +139,26 @@ export const addRecipeToFavorites = (recipe: Recipe, category: string): Favorite
   if (!favorites[category]) {
     favorites[category] = [];
   }
+  
+  // Add or update the recipe with a timestamp. If it's a new save, add a timestamp.
+  // If it's an update (e.g., re-saving from favorites view with a new rating),
+  // preserve the original dateAdded.
+  const recipeToSave: Recipe = {
+    ...recipe,
+    dateAdded: recipe.dateAdded || new Date().toISOString(),
+  };
 
-  // Defensively create a copy and remove imageUrl to prevent localStorage quota issues.
-  // This ensures the image is never stored, even if the calling component sends it.
-  const recipeToSave = { ...recipe, dateAdded: new Date().toISOString() };
-  delete (recipeToSave as Partial<Recipe>).imageUrl;
+  const existingRecipeIndex = favorites[category].findIndex(r => r.recipeName === recipeToSave.recipeName);
 
-  // Avoid adding duplicate recipes in the same category.
-  if (!favorites[category].some(r => r.recipeName === recipeToSave.recipeName)) {
+  if (existingRecipeIndex !== -1) {
+    // Recipe exists, so update it in place.
+    favorites[category][existingRecipeIndex] = recipeToSave;
+  } else {
+    // Recipe is new, add it to the category.
     favorites[category].push(recipeToSave);
-    saveFavorites(favorites);
   }
+
+  saveFavorites(favorites);
   return favorites;
 };
 
