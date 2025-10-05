@@ -206,8 +206,8 @@ const PantryView: React.FC<PantryViewProps> = ({
   // FIX: Explicitly type `l` to `PantryItem[]` to resolve type error when accessing `.length`.
   const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || Object.values(pantry).some((l: PantryItem[]) => l.length > 0);
   const checkedShoppingListItems = shoppingListItems.filter(item => item.checked).length;
-  // FIX: Explicitly type `items` to `PantryItem[]` to resolve type error when accessing `.length`.
-  const totalItemsInCurrentTab = Object.values(groupedItems).reduce((sum, items: PantryItem[]) => sum + items.length, 0);
+  // FIX: Explicitly type the accumulator `sum` and parameter `items` to resolve type errors.
+  const totalItemsInCurrentTab = Object.values(groupedItems).reduce((sum: number, items: PantryItem[]) => sum + items.length, 0);
 
   return (
     <div className="space-y-6">

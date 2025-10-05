@@ -349,7 +349,7 @@ export const getRecipeModificationSuggestions = async (
 // Generates a simple, visual, English description of a dish for the image model.
 const generateVisualPrompt = async (recipeName: string): Promise<string> => {
     try {
-        const prompt = `Adj egy rövid, 5-10 szavas, egyszerű, vizuális leírást a következő ételről, amit egy ételfotó-generátor is megértene: "${recipeName}". A leírás ANGOLUL legyen a jobb kompatibilitás érdekében. Csak a leírást add vissza, semmi mást. Például: "Magyaros babgulyás" -> "Hearty bean and beef soup in a rustic bowl". Vagy "Rakott krumpli" -> "Layered potato casserole with sausage and eggs".`;
+        const prompt = `Adj egy rövid, de étvágygerjesztő és vizuálisan részletes leírást a következő ételről, amit egy ételfotó-generátor is megértene: "${recipeName}". A leírás ANGOLUL legyen. Fókuszálj a textúrákra, a színekre és a tálalásra. Csak a leírást add vissza. Például: "Magyaros babgulyás" -> "A rich, hearty Hungarian goulash soup with tender beef and beans, in a rustic bowl, garnished with fresh parsley". Vagy "Rakott krumpli" -> "Golden-brown layered potato casserole with slices of sausage and egg, bubbling cheese on top, served in a ceramic dish".`;
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
@@ -374,7 +374,7 @@ const generateVisualPrompt = async (recipeName: string): Promise<string> => {
 export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
     const visualDescription = await generateVisualPrompt(recipe.recipeName);
     
-    const prompt = `A professional, realistic, appetizing food photograph of: ${visualDescription}. Clean composition, high detail, studio lighting.`;
+    const prompt = `Ultra-realistic, professional food photography of: ${visualDescription}. Shot with a DSLR camera, 8K resolution, sharp focus, high detail. The lighting should be bright and natural, creating soft shadows. The composition should be clean and aesthetically pleasing, possibly with a shallow depth of field to emphasize the main dish. Include fresh garnishes and a hint of steam if appropriate. The background should be a rustic wooden table or a clean, modern surface that complements the food.`;
 
     try {
         const response = await ai.models.generateImages({
@@ -405,7 +405,7 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
 // Generates a simple, visual, English description for an instruction step.
 const generateVisualPromptForStep = async (recipeName: string, instructionText: string): Promise<string> => {
     try {
-        const prompt = `Adj egy rövid, 5-10 szavas, egyszerű, vizuális leírást a következő főzési lépésről, amit egy ételfotó-generátor is megértene. A recept neve: "${recipeName}". A lépés: "${instructionText}". A leírás ANGOLUL legyen. Csak a leírást add vissza. Például: "Hagymát kockára vágjuk" -> "Dicing onions on a wooden cutting board". Vagy "A csirkét aranybarnára sütjük" -> "Frying chicken pieces until golden brown in a pan".`;
+        const prompt = `Adj egy rövid, vizuálisan leíró, akciódús mondatot a következő főzési lépésről, amit egy képalkotó AI megértene. A recept neve: "${recipeName}". A lépés: "${instructionText}". A leírás ANGOLUL legyen. Csak magát a leíró mondatot add vissza. Például: "Hagymát kockára vágjuk" -> "Close-up of hands dicing a white onion on a wooden cutting board with a sharp knife". Vagy "A csirkét aranybarnára sütjük" -> "Sizzling chicken pieces frying to a perfect golden-brown in a hot pan".`;
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
@@ -424,7 +424,7 @@ const generateVisualPromptForStep = async (recipeName: string, instructionText: 
 export const generateInstructionImage = async (recipeName: string, instructionText: string): Promise<string> => {
     const visualDescription = await generateVisualPromptForStep(recipeName, instructionText);
     
-    const prompt = `A realistic, clear photo showing this cooking step: ${visualDescription}. Clean kitchen environment, close-up shot focusing on the action.`;
+    const prompt = `Action shot, realistic photo from a cooking tutorial, showing this step: ${visualDescription}. The shot should be a close-up or a top-down view, focusing on the hands and the ingredients. Clean, modern kitchen environment with natural lighting. High detail and sharp focus to clearly illustrate the process.`;
 
     try {
         const response = await ai.models.generateImages({

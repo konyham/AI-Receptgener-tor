@@ -44,6 +44,17 @@ const InstructionCarousel: React.FC<InstructionCarouselProps> = ({ instructions,
         role="region"
         aria-label="Recept elkészítési lépések"
     >
+      <div className="w-full bg-gray-200 rounded-full h-1.5 mb-4" aria-label={`Elkészítési folyamat: ${currentStep + 1} / ${totalSteps}`}>
+        <div 
+          className="bg-primary-500 h-1.5 rounded-full transition-all duration-500 ease-in-out" 
+          style={{ width: `${((currentStep + 1) / totalSteps) * 100}%` }}
+          role="progressbar"
+          aria-valuenow={currentStep + 1}
+          aria-valuemin={1}
+          aria-valuemax={totalSteps}
+        ></div>
+      </div>
+
       <div className="flex justify-between items-center mb-4">
         <h4 className="font-bold text-lg text-primary-700">
           {currentStep + 1}. Lépés <span className="text-gray-500 font-normal">/ {totalSteps}</span>
@@ -72,7 +83,7 @@ const InstructionCarousel: React.FC<InstructionCarouselProps> = ({ instructions,
         </div>
       </div>
       
-      <div className="relative min-h-[150px] text-gray-800 flex flex-col items-center justify-center p-4 bg-white rounded-md shadow-inner overflow-hidden">
+      <div className={`relative min-h-[150px] text-gray-800 flex flex-col items-center justify-center p-4 bg-white rounded-md shadow-inner overflow-hidden transition-colors ${voiceModeActive ? 'animate-pulse-bg' : ''}`}>
         {/* Using a key on the paragraph will trigger a re-render with a fade animation on step change */}
         <p key={currentStep} className="text-center animate-fade-in text-lg mb-4">
           {currentInstruction.text}
