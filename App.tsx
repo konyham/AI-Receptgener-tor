@@ -295,6 +295,26 @@ const App: React.FC = () => {
     }
   };
 
+  const storageTypeLabels: Record<StorageType, { label: string; icon: string }> = {
+    [StorageType.FREEZER]: { label: "Fagyasztó", icon: "❄️" },
+    [StorageType.REFRIGERATOR]: { label: "Hűtő", icon: "🧊" },
+    [StorageType.PANTRY]: { label: "Kamra", icon: "🥫" },
+  };
+
+  const handleMoveShoppingListItemToPantryRequest = (index: number, itemText: string, storageType: StorageType) => {
+    setLocationCallback(() => (location: PantryLocation) => {
+        const today = new Date().toISOString().split('T')[0];
+        // 1. Add item to pantry state and storage
+        setPantry(pantryService.addItems([itemText], location, today, storageType));
+        // 2. Remove item from shopping list state and storage
+        setShoppingList(shoppingListService.removeItem(index));
+
+        showNotification(`'${itemText}' áthelyezve a(z) ${location} kamrába (${storageTypeLabels[storageType].label}).`, 'success');
+    });
+    setIsLocationPromptOpen(true);
+  };
+
+
   const handleGenerateFromPantryRequest = () => {
     setLocationCallback(() => (location: PantryLocation) => handleGenerateFromPantry(location));
     setIsLocationPromptOpen(true);
@@ -328,7 +348,7 @@ const App: React.FC = () => {
         cookingMethods: [CookingMethod.TRADITIONAL],
         specialRequest: 'Készíts egy finom ételt a megadott maradékokból.',
         withCost: false,
-        withImage: true,
+        withImage: false,
         numberOfServings: 2,
         recipePace: RecipePace.NORMAL,
         mode: 'leftover' as const,
@@ -478,6 +498,7 @@ const App: React.FC = () => {
             onClearChecked={handleClearCheckedShoppingList}
             onClearAll={handleClearAllShoppingList}
             onImportData={handleImportData}
+            onMoveItemToPantryRequest={handleMoveShoppingListItemToPantryRequest}
           />
         );
       case 'pantry':
@@ -521,8 +542,8 @@ const App: React.FC = () => {
   const navItems: { id: AppView; label: string }[] = [
     { id: 'generator', label: 'Receptgenerátor' },
     { id: 'favorites', label: 'Kedvencek' },
-    { id: 'shopping-list', label: 'Bevásárlólista' },
     { id: 'pantry', label: 'Kamra' },
+    { id: 'shopping-list', label: 'Bevásárlólista' },
   ];
 
   return (

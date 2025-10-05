@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation } from '../types';
+import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation, StorageType } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
+import ShoppingListItemActionModal from './ShoppingListItemActionModal';
 
 interface ShoppingListViewProps {
   list: ShoppingListItem[];
@@ -12,6 +13,7 @@ interface ShoppingListViewProps {
   onClearChecked: () => void;
   onClearAll: () => void;
   onImportData: (data: BackupData) => void;
+  onMoveItemToPantryRequest: (index: number, itemText: string, storageType: StorageType) => void;
 }
 
 const ShoppingListView: React.FC<ShoppingListViewProps> = ({
@@ -24,8 +26,10 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   onClearChecked,
   onClearAll,
   onImportData,
+  onMoveItemToPantryRequest,
 }) => {
   const [newItem, setNewItem] = useState('');
+  const [actionItem, setActionItem] = useState<{ item: ShoppingListItem; index: number } | null>(null);
   const { showNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -44,6 +48,20 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     const item = list[index];
     onUpdateItem(index, { ...item, checked: !item.checked });
   };
+  
+  const handleItemAction = (action: StorageType | 'delete') => {
+    if (!actionItem) return;
+
+    if (action === 'delete') {
+      onRemoveItem(actionItem.index);
+      showNotification(`'${actionItem.item.text}' törölve.`, 'success');
+    } else {
+      // The action is a StorageType
+      onMoveItemToPantryRequest(actionItem.index, actionItem.item.text, action);
+    }
+    setActionItem(null); // Close the modal
+  };
+
 
   const handleCopyList = async () => {
     if (list.length === 0) {
@@ -206,9 +224,9 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
                     </span>
                     </label>
                     <button
-                    onClick={() => onRemoveItem(index)}
+                    onClick={() => setActionItem({ item, index })}
                     className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100"
-                    aria-label={`'${item.text}' törlése`}
+                    aria-label={`'${item.text}' törlése vagy áthelyezése`}
                     >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
                     </button>
@@ -278,6 +296,13 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         </div>
          <p className="text-xs text-center text-gray-500 mt-3">A betöltés összefésüli a meglévő adatokat az újonnan betöltöttekkel.</p>
       </div>
+
+      <ShoppingListItemActionModal
+        isOpen={!!actionItem}
+        onClose={() => setActionItem(null)}
+        itemName={actionItem?.item.text || ''}
+        onAction={handleItemAction}
+      />
     </div>
   );
 };

@@ -221,9 +221,9 @@ export const generateRecipe = async (
     return recipeData;
   } catch (error: any) {
     console.error('Error generating recipe:', error);
-    const errorMessage = (error?.message || '').toLowerCase();
+    const errorString = JSON.stringify(error).toLowerCase();
 
-    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+    if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
       throw new Error('Elérte a napi kvótáját a receptgeneráláshoz. A ingyenes kvóta általában 24 óránként frissül. Kérjük, próbálja újra később, vagy ellenőrizze a fiókbeállításait.');
     }
 
@@ -276,9 +276,9 @@ export const simplifyRecipe = async (originalRecipe: Recipe): Promise<Recipe> =>
     return simplifiedRecipeData;
   } catch (error: any) {
     console.error('Error simplifying recipe:', error);
-    const errorMessage = (error?.message || '').toLowerCase();
+    const errorString = JSON.stringify(error).toLowerCase();
 
-    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+    if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
       throw new Error('Elérte a napi kvótáját a recept egyszerűsítéséhez. Kérjük, próbálja újra később.');
     }
     if (error instanceof SyntaxError) {
@@ -338,8 +338,8 @@ export const getRecipeModificationSuggestions = async (
     return JSON.parse(jsonText);
   } catch (error: any) {
     console.error('Error generating recipe suggestions:', error);
-    const errorMessage = (error?.message || '').toLowerCase();
-    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+    const errorString = JSON.stringify(error).toLowerCase();
+    if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
       throw new Error('Elérte a napi kvótáját. Kérjük, próbálja újra később.');
     }
     throw new Error('Nem sikerült javaslatokat generálni. Próbálja újra később.');
@@ -394,8 +394,8 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
         }
     } catch (error: any) {
         console.error('Error generating recipe image:', error);
-        const errorMessage = (error?.message || '').toLowerCase();
-        if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+        const errorString = JSON.stringify(error).toLowerCase();
+        if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
             throw new Error('Elérte a képgenerálási kvótáját erre az időszakra. Kérjük, próbálja újra később, vagy generáljon képet a következő recepthez.');
         }
         throw new Error('Hiba történt az ételfotó generálása közben.');
@@ -444,8 +444,8 @@ export const generateInstructionImage = async (recipeName: string, instructionTe
         }
     } catch (error: any) {
         console.error('Error generating instruction image:', error);
-        const errorMessage = (error?.message || '').toLowerCase();
-        if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+        const errorString = JSON.stringify(error).toLowerCase();
+        if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
             throw new Error('Elérte a képgenerálási kvótáját. Kérjük, próbálja újra később.');
         }
         throw new Error('Hiba történt a lépés fotójának generálása közben.');
@@ -470,8 +470,8 @@ export const generateRecipeVideo = async (recipe: Recipe): Promise<Operation<Gen
         return operation;
     } catch (error: any) {
         console.error('Error starting video generation:', error);
-        const errorMessage = (error?.message || '').toLowerCase();
-        if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+        const errorString = JSON.stringify(error).toLowerCase();
+        if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
             throw new Error('Elérte a videógenerálási kvótáját. Kérjük, próbálja újra később.');
         }
         throw new Error('Hiba történt a videó generálásának elindítása közben.');
@@ -485,8 +485,8 @@ export const getVideosOperationStatus = async (operation: Operation<GenerateVide
         return updatedOperation;
     } catch (error: any) {
         console.error('Error getting video operation status:', error);
-        const errorMessage = (error?.message || '').toLowerCase();
-        if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+        const errorString = JSON.stringify(error).toLowerCase();
+        if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
             throw new Error('Túl sok kérés a videó állapotára. Kérjük, várjon egy kicsit.');
         }
         throw new Error('Hiba történt a videó állapotának lekérdezése közben.');
@@ -561,8 +561,8 @@ export const calculateRecipeCost = async (recipe: Recipe): Promise<string> => {
     return result.cost;
   } catch (error: any) {
     console.error('Error calculating recipe cost:', error);
-    const errorMessage = (error?.message || '').toLowerCase();
-    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+    const errorString = JSON.stringify(error).toLowerCase();
+    if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
       throw new Error('Elérte a napi kvótáját. Kérjük, próbálja újra később.');
     }
     throw new Error('Hiba történt a költségbecslés közben.');
@@ -740,8 +740,8 @@ export const interpretFormCommand = async (
     };
   } catch (error: any) {
     console.error('Error interpreting form command:', error);
-    const errorMessage = (error?.message || '').toLowerCase();
-    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+    const errorString = JSON.stringify(error).toLowerCase();
+    if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
       throw new Error('Elérte a hangvezérlési kvótáját. Kérjük, próbálja újra később.');
     }
     if (error instanceof SyntaxError) {
@@ -837,8 +837,8 @@ export const interpretAppCommand = async (
     };
   } catch (error: any) {
     console.error('Error interpreting app command:', error);
-    const errorMessage = (error?.message || '').toLowerCase();
-    if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+    const errorString = JSON.stringify(error).toLowerCase();
+    if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
       throw new Error('Elérte a hangvezérlési kvótáját. Kérjük, próbálja újra később.');
     }
     throw new Error('Nem sikerült az alkalmazás parancsot értelmezni.');
@@ -897,8 +897,8 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
         return result as VoiceCommandResult;
     } catch (error: any) {
         console.error('Error interpreting user command:', error);
-        const errorMessage = (error?.message || '').toLowerCase();
-        if (errorMessage.includes('quota') || errorMessage.includes('resource_exhausted') || errorMessage.includes('429')) {
+        const errorString = JSON.stringify(error).toLowerCase();
+        if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
       throw new Error('Elérte a hangvezérlési kvótáját. Kérjük, próbálja újra később.');
     }
         throw new Error('Nem sikerült a felhasználói parancsot értelmezni.');
