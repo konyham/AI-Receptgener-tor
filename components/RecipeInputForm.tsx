@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption, RecipePace, UserProfile } from '../types';
-import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES, CUISINE_OPTIONS, RECIPE_PACE_OPTIONS } from '../constants';
+import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES, CUISINE_OPTIONS, RECIPE_PACE_OPTIONS, MEAL_TYPES_STORAGE_KEY, CUISINE_OPTIONS_STORAGE_KEY, COOKING_METHODS_STORAGE_KEY, COOKING_METHOD_CAPACITIES_STORAGE_KEY } from '../constants';
 import { interpretFormCommand, suggestMealType } from '../services/geminiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
@@ -19,47 +19,80 @@ const INGREDIENTS_STORAGE_KEY = 'ai-recipe-generator-saved-ingredients';
 const COOKING_METHODS_ORDER_KEY = 'ai-recipe-generator-cooking-methods-order';
 const CUISINE_OPTIONS_ORDER_KEY = 'ai-recipe-generator-cuisine-options-order';
 
-/**
- * Loads a custom item order from localStorage. If not present or corrupted, returns the default order.
- * It's robust against new items being added to the default constants over time.
- * @param key The localStorage key where the order (an array of item values) is stored.
- * @param defaultOrder The fallback default array of items.
- * @returns A correctly ordered array of items.
- */
-const loadAndOrder = <T extends { value: string }>(key: string, defaultOrder: readonly T[]): T[] => {
-  try {
-    const savedOrderJson = localStorage.getItem(key);
-    if (savedOrderJson) {
-      const savedOrderKeys = JSON.parse(savedOrderJson) as string[];
-      const defaultOrderMap = new Map(defaultOrder.map(item => [item.value, item]));
-      
-      const orderedItems: T[] = [];
-      const seenKeys = new Set<string>();
+type OptionType = 'mealType' | 'cuisine' | 'cookingMethod';
+type OptionItem = { value: string; label: string };
 
-      // Add items from the saved order first, ensuring they still exist in the default constants.
-      for (const itemKey of savedOrderKeys) {
-        if (defaultOrderMap.has(itemKey)) {
-          orderedItems.push(defaultOrderMap.get(itemKey)!);
-          seenKeys.add(itemKey);
-        }
-      }
+interface EditOptionModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (label: string, capacity: number | null) => void;
+    itemToEdit: OptionItem | null;
+    itemType: OptionType;
+}
 
-      // Append any new items from the default order that weren't in the saved order.
-      for (const defaultItem of defaultOrder) {
-        if (!seenKeys.has(defaultItem.value)) {
-          orderedItems.push(defaultItem);
+const EditOptionModal: React.FC<EditOptionModalProps> = ({ isOpen, onClose, onSave, itemToEdit, itemType }) => {
+    const [label, setLabel] = useState('');
+    const [capacity, setCapacity] = useState<string>('');
+    const modalRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (isOpen) {
+            setLabel(itemToEdit?.label || '');
+            // For now, capacity editing is only for cooking methods. This could be expanded.
+            setCapacity(''); 
+            setTimeout(() => inputRef.current?.focus(), 100);
         }
-      }
-      return orderedItems;
-    }
-  } catch (e) {
-    console.error(`Failed to load or parse order from localStorage for key "${key}":`, e);
-    // On failure, remove the corrupted key to prevent future errors.
-    localStorage.removeItem(key);
-  }
-  // Return a mutable copy of the default order if nothing is saved or if loading fails.
-  return [...defaultOrder];
+    }, [isOpen, itemToEdit]);
+
+    if (!isOpen) return null;
+
+    const handleSave = () => {
+        const finalCapacity = itemType === 'cookingMethod' && capacity ? parseInt(capacity, 10) : null;
+        if (label.trim()) {
+            onSave(label.trim(), isNaN(finalCapacity!) ? null : finalCapacity);
+        }
+    };
+    
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in" role="dialog" aria-modal="true" onClick={onClose}>
+            <div ref={modalRef} className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+                <h2 className="text-xl font-bold text-gray-800 mb-4">{itemToEdit ? 'Szerkesztés' : 'Új hozzáadása'}</h2>
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="option-label" className="block text-sm font-medium text-gray-700">Megnevezés</label>
+                        <input ref={inputRef} id="option-label" type="text" value={label} onChange={(e) => setLabel(e.target.value)} className="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm"/>
+                    </div>
+                    {itemType === 'cookingMethod' && (
+                        <div>
+                            <label htmlFor="option-capacity" className="block text-sm font-medium text-gray-700">Kapacitás (személy, nem kötelező)</label>
+                            <input id="option-capacity" type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} placeholder="Pl. 8" className="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm"/>
+                        </div>
+                    )}
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                    <button onClick={onClose} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Mégse</button>
+                    <button onClick={handleSave} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-primary-700">Mentés</button>
+                </div>
+            </div>
+        </div>
+    );
 };
+
+
+const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
+    try {
+        const storedValue = localStorage.getItem(key);
+        if (storedValue) {
+            return JSON.parse(storedValue) as T;
+        }
+    } catch (error) {
+        console.error(`Error loading from localStorage key "${key}":`, error);
+        localStorage.removeItem(key); // Remove corrupted data
+    }
+    return defaultValue;
+};
+
 
 const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, initialFormData, onFormPopulated, suggestions, users }) => {
   const [mode, setMode] = useState<'standard' | 'leftover'>('standard');
@@ -83,12 +116,38 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const [hasSavedIngredients, setHasSavedIngredients] = useState(false);
   const [isAdviceExpanded, setIsAdviceExpanded] = useState(false);
 
-  const [orderedCookingMethods, setOrderedCookingMethods] = useState(() => loadAndOrder(COOKING_METHODS_ORDER_KEY, COOKING_METHODS));
+  // Editable options state
+  const [mealTypes, setMealTypes] = useState<OptionItem[]>(() => loadFromLocalStorage(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES));
+  const [cuisineOptions, setCuisineOptions] = useState<OptionItem[]>(() => loadFromLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, CUISINE_OPTIONS));
+  const [cookingMethodsList, setCookingMethodsList] = useState<OptionItem[]>(() => loadFromLocalStorage(COOKING_METHODS_STORAGE_KEY, COOKING_METHODS));
+  const [cookingMethodCapacities, setCookingMethodCapacities] = useState<Record<string, number | null>>(() => loadFromLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, COOKING_METHOD_CAPACITIES));
+  
+  const [isMealTypesEditing, setIsMealTypesEditing] = useState(false);
+  const [isCuisineEditing, setIsCuisineEditing] = useState(false);
+  const [isCookingMethodsEditing, setIsCookingMethodsEditing] = useState(false);
+  const [modalState, setModalState] = useState<{ isOpen: boolean; itemToEdit: OptionItem | null; itemType: OptionType | null }>({ isOpen: false, itemToEdit: null, itemType: null });
+
+
+  const [orderedCookingMethods, setOrderedCookingMethods] = useState(() => {
+      const savedOrder = loadFromLocalStorage<string[] | null>(COOKING_METHODS_ORDER_KEY, null);
+      if (savedOrder) {
+        const listMap = new Map(cookingMethodsList.map(item => [item.value, item]));
+        return savedOrder.map(value => listMap.get(value)).filter((i): i is OptionItem => !!i);
+      }
+      return cookingMethodsList;
+  });
   const dragItemIndex = useRef<number | null>(null);
   const dragOverItemIndex = useRef<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   
-  const [orderedCuisineOptions, setOrderedCuisineOptions] = useState(() => loadAndOrder(CUISINE_OPTIONS_ORDER_KEY, CUISINE_OPTIONS));
+  const [orderedCuisineOptions, setOrderedCuisineOptions] = useState(() => {
+      const savedOrder = loadFromLocalStorage<string[] | null>(CUISINE_OPTIONS_ORDER_KEY, null);
+      if (savedOrder) {
+        const listMap = new Map(cuisineOptions.map(item => [item.value, item]));
+        return savedOrder.map(value => listMap.get(value)).filter((i): i is OptionItem => !!i);
+      }
+      return cuisineOptions;
+  });
   const cuisineDragItemIndex = useRef<number | null>(null);
   const cuisineDragOverItemIndex = useRef<number | null>(null);
   const [isCuisineDragging, setIsCuisineDragging] = useState(false);
@@ -114,10 +173,10 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     suggestionTimeoutRef.current = window.setTimeout(async () => {
       isSuggestingMealTypeRef.current = true; // Set flag
       try {
-        const suggested = await suggestMealType(ingredientsString, specialRequest);
+        const suggested = await suggestMealType(ingredientsString, specialRequest, mealTypes);
         if (suggested && suggested !== mealType) { // Check against current mealType
-          setMealType(suggested);
-          const mealTypeLabel = MEAL_TYPES.find(m => m.value === suggested)?.label;
+          setMealType(suggested as MealType);
+          const mealTypeLabel = mealTypes.find(m => m.value === suggested)?.label;
           if (mealTypeLabel) {
             showNotification(`Javaslat: Az étkezés típusa beállítva erre: '${mealTypeLabel}'`, 'info');
           }
@@ -134,7 +193,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
             clearTimeout(suggestionTimeoutRef.current);
         }
     };
-}, [ingredients, specialRequest, mealType, showNotification]);
+}, [ingredients, specialRequest, mealType, showNotification, mealTypes]);
 
   useEffect(() => {
     if (initialFormData && onFormPopulated) {
@@ -281,7 +340,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         if (generateKeywords.some(keyword => lowerTranscript.includes(keyword))) {
             command = { action: 'generate_recipe', payload: null };
         } else {
-            command = await interpretFormCommand(transcript);
+            command = await interpretFormCommand(transcript, mealTypes, cookingMethodsList, DIET_OPTIONS);
         }
         
         switch(command.action) {
@@ -366,7 +425,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         isProcessingRef.current = false;
         setIsProcessing(false);
     }
-  }, [showNotification]);
+  }, [showNotification, mealTypes, cookingMethodsList]);
 
   const {
     isListening,
@@ -434,16 +493,16 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     
     const orderedSelectedMethods = orderedCookingMethods
         .map(m => m.value)
-        .filter(value => cookingMethods.includes(value));
+        .filter(value => cookingMethods.includes(value as CookingMethod));
 
     onSubmit({
         ingredients: ingredients.join(', '),
         excludedIngredients: finalExcludedIngredients,
         diet,
         mealType,
-        cuisine,
+        cuisine: cuisine as CuisineOption,
         recipePace,
-        cookingMethods: orderedSelectedMethods,
+        cookingMethods: orderedSelectedMethods as CookingMethod[],
         specialRequest: finalSpecialRequest,
         withCost,
         withImage,
@@ -469,14 +528,14 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
     }
   };
 
-  const handleCookingMethodChange = (method: CookingMethod) => {
+  const handleCookingMethodChange = (method: string) => {
     setCookingMethods(prev => {
-        const isPresent = prev.includes(method);
+        const isPresent = prev.includes(method as CookingMethod);
         let newState: CookingMethod[];
         if (isPresent) {
             newState = prev.filter(m => m !== method);
         } else {
-            newState = [...prev, method];
+            newState = [...prev, method as CookingMethod];
         }
 
         // Exclusive logic for 'Traditional'
@@ -504,6 +563,102 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
         ? prev.filter(id => id !== userId)
         : [...prev, userId]
     );
+  };
+    
+    // --- Option Editing Handlers ---
+  const handleOpenModal = (itemType: OptionType, itemToEdit: OptionItem | null) => {
+    setModalState({ isOpen: true, itemType, itemToEdit });
+  };
+    
+  const handleSaveOption = (label: string, capacity: number | null) => {
+        const { itemType, itemToEdit } = modalState;
+        if (!itemType) return;
+
+        const generateValue = (label: string) => `custom_${label.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}`;
+
+        const updateStateAndStorage = (
+            key: string, 
+            setter: React.Dispatch<React.SetStateAction<OptionItem[]>>,
+            capacitiesKey?: string,
+            capacitiesSetter?: React.Dispatch<React.SetStateAction<Record<string, number | null>>>
+        ) => {
+            setter(prev => {
+                let newList;
+                let newValue = '';
+                if (itemToEdit) { // Editing existing
+                    newValue = itemToEdit.value;
+                    newList = prev.map(item => item.value === itemToEdit.value ? { ...item, label } : item);
+                } else { // Adding new
+                    newValue = generateValue(label);
+                    newList = [...prev, { value: newValue, label }];
+                }
+                
+                if (capacitiesKey && capacitiesSetter) {
+                    capacitiesSetter(prevCaps => {
+                        const newCaps = { ...prevCaps, [newValue]: capacity };
+                        safeSetLocalStorage(capacitiesKey, newCaps);
+                        return newCaps;
+                    });
+                }
+
+                safeSetLocalStorage(key, newList);
+                return newList;
+            });
+        };
+
+        switch (itemType) {
+            case 'mealType':
+                updateStateAndStorage(MEAL_TYPES_STORAGE_KEY, setMealTypes);
+                break;
+            case 'cuisine':
+                updateStateAndStorage(CUISINE_OPTIONS_STORAGE_KEY, setCuisineOptions);
+                break;
+            case 'cookingMethod':
+                updateStateAndStorage(COOKING_METHODS_STORAGE_KEY, setCookingMethodsList, COOKING_METHOD_CAPACITIES_STORAGE_KEY, setCookingMethodCapacities);
+                break;
+        }
+        setModalState({ isOpen: false, itemToEdit: null, itemType: null });
+  };
+
+  const handleDeleteOption = (itemType: OptionType, valueToDelete: string) => {
+    if (!window.confirm("Biztosan törli ezt az elemet? Ez a művelet nem vonható vissza.")) return;
+    
+    const updateStateAndStorage = (
+        key: string, 
+        setter: React.Dispatch<React.SetStateAction<OptionItem[]>>,
+        capacitiesKey?: string,
+        capacitiesSetter?: React.Dispatch<React.SetStateAction<Record<string, number | null>>>
+    ) => {
+        setter(prev => {
+            const newList = prev.filter(item => item.value !== valueToDelete);
+            safeSetLocalStorage(key, newList);
+            return newList;
+        });
+
+        if (capacitiesKey && capacitiesSetter) {
+            capacitiesSetter(prevCaps => {
+                const newCaps = { ...prevCaps };
+                delete newCaps[valueToDelete];
+                safeSetLocalStorage(capacitiesKey, newCaps);
+                return newCaps;
+            });
+        }
+    };
+    
+    switch (itemType) {
+        case 'mealType':
+            updateStateAndStorage(MEAL_TYPES_STORAGE_KEY, setMealTypes);
+            if (mealType === valueToDelete) setMealType(mealTypes.find(mt => mt.value !== valueToDelete)?.value as MealType || MealType.LUNCH);
+            break;
+        case 'cuisine':
+            updateStateAndStorage(CUISINE_OPTIONS_STORAGE_KEY, setCuisineOptions);
+            if (cuisine === valueToDelete) setCuisine(CuisineOption.NONE);
+            break;
+        case 'cookingMethod':
+            updateStateAndStorage(COOKING_METHODS_STORAGE_KEY, setCookingMethodsList, COOKING_METHOD_CAPACITIES_STORAGE_KEY, setCookingMethodCapacities);
+            setCookingMethods(prev => prev.filter(cm => cm !== valueToDelete));
+            break;
+    }
   };
 
   const handleDragStart = (e: React.DragEvent<HTMLLabelElement>, index: number) => {
@@ -575,8 +730,8 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
   const machineMethods = cookingMethods.filter(cm => cm !== CookingMethod.TRADITIONAL);
   const capacityInfo = machineMethods
     .map(cm => ({
-        method: COOKING_METHODS.find(m => m.value === cm),
-        capacity: COOKING_METHOD_CAPACITIES[cm]
+        method: cookingMethodsList.find(m => m.value === cm),
+        capacity: cookingMethodCapacities[cm]
     }))
     .filter((item): item is { method: { value: CookingMethod; label: string; }; capacity: number; } => 
         item.method != null && item.capacity != null
@@ -608,6 +763,13 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+       <EditOptionModal 
+            isOpen={modalState.isOpen}
+            onClose={() => setModalState({ isOpen: false, itemToEdit: null, itemType: null })}
+            onSave={handleSaveOption}
+            itemToEdit={modalState.itemToEdit}
+            itemType={modalState.itemType!}
+        />
        {suggestions && (
         <div ref={suggestionsRef} className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg animate-fade-in space-y-4 max-h-60 overflow-y-auto">
           <h3 className="text-lg font-bold text-yellow-800">Javaslatok a recept finomításához</h3>
@@ -929,95 +1091,94 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({ onSubmit, isLoading, 
           )}
         </div>
         <div>
-          <label htmlFor="mealType" className="block text-lg font-semibold text-gray-700 mb-2">
-            Étkezés
-          </label>
-           <div className="flex items-center gap-2">
-              <select
-                id="mealType"
-                value={mealType}
-                onChange={(e) => setMealType(e.target.value as MealType)}
-                className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
-              >
-                {MEAL_TYPES.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
+            <div className="flex justify-between items-center mb-2">
+                <label className="block text-lg font-semibold text-gray-700">Étkezés</label>
+                <button type="button" onClick={() => setIsMealTypesEditing(!isMealTypesEditing)} className="text-sm font-semibold text-primary-600 hover:text-primary-800">{isMealTypesEditing ? 'Kész' : 'Szerkesztés'}</button>
+            </div>
+            <div className="space-y-2">
+                {mealTypes.map(option => (
+                    <div key={option.value} className="flex items-center">
+                        <label htmlFor={`meal-type-${option.value}`} className="flex-grow flex items-center p-3 border rounded-lg bg-white cursor-pointer hover:bg-gray-50 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400">
+                            <input type="radio" id={`meal-type-${option.value}`} name="meal-type" value={option.value} checked={mealType === option.value} onChange={(e) => setMealType(e.target.value as MealType)} className="h-5 w-5 border-gray-300 text-primary-600 focus:ring-primary-500" />
+                            <span className="ml-3 text-gray-700 font-medium">{option.label}</span>
+                        </label>
+                        {isMealTypesEditing && (
+                            <div className="flex items-center ml-2">
+                                <button type="button" onClick={() => handleOpenModal('mealType', option)} className="p-2 text-gray-500 hover:text-blue-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
+                                <button type="button" onClick={() => handleDeleteOption('mealType', option.value)} className="p-2 text-gray-500 hover:text-red-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></button>
+                            </div>
+                        )}
+                    </div>
                 ))}
-              </select>
-           </div>
+            </div>
+            {isMealTypesEditing && <button type="button" onClick={() => handleOpenModal('mealType', null)} className="mt-2 text-sm font-semibold text-primary-600 hover:text-primary-800 w-full text-left p-2 rounded hover:bg-primary-50">+ Új hozzáadása</button>}
         </div>
       </div>
 
       <div>
-        <label className="block text-lg font-semibold text-gray-700 mb-2">
-          Nemzetközi konyha (nem kötelező)
-        </label>
+        <div className="flex justify-between items-center mb-2">
+            <label className="block text-lg font-semibold text-gray-700">Nemzetközi konyha (nem kötelező)</label>
+            <button type="button" onClick={() => setIsCuisineEditing(!isCuisineEditing)} className="text-sm font-semibold text-primary-600 hover:text-primary-800">{isCuisineEditing ? 'Kész' : 'Szerkesztés'}</button>
+        </div>
         <div className="space-y-2">
             {orderedCuisineOptions.map((option, index) => (
-                <label 
-                    key={option.value} 
-                    htmlFor={`cuisine-option-${option.value}`} 
-                    className={`flex items-center p-3 border rounded-lg bg-white cursor-grab hover:bg-gray-50 transition-all duration-200 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500 ${
-                        isCuisineDragging && cuisineDragItemIndex.current === index ? 'opacity-40 scale-105 shadow-xl' : 'opacity-100'
-                    }`}
-                    draggable
-                    onDragStart={(e) => handleCuisineDragStart(e, index)}
-                    onDragEnter={(e) => handleCuisineDragEnter(e, index)}
-                    onDragEnd={handleCuisineDragEnd}
-                    onDragOver={(e) => e.preventDefault()}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                    </svg>
-                    <input
-                        type="radio"
-                        id={`cuisine-option-${option.value}`}
-                        name="cuisine-option"
-                        value={option.value}
-                        checked={cuisine === option.value}
-                        onChange={() => setCuisine(option.value as CuisineOption)}
-                        className="h-5 w-5 rounded-full border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
-                    />
-                    <span className="ml-3 text-gray-700 font-medium flex-grow">{option.label}</span>
-                </label>
+                <div key={option.value} className="flex items-center">
+                    <label 
+                        htmlFor={`cuisine-option-${option.value}`} 
+                        className={`flex-grow flex items-center p-3 border rounded-lg bg-white ${isCuisineEditing ? '' : 'cursor-grab'} hover:bg-gray-50 transition-all duration-200 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500 ${isCuisineDragging && cuisineDragItemIndex.current === index ? 'opacity-40 scale-105 shadow-xl' : 'opacity-100'}`}
+                        draggable={!isCuisineEditing}
+                        onDragStart={(e) => handleCuisineDragStart(e, index)}
+                        onDragEnter={(e) => handleCuisineDragEnter(e, index)}
+                        onDragEnd={handleCuisineDragEnd}
+                        onDragOver={(e) => e.preventDefault()}
+                    >
+                        {!isCuisineEditing && <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>}
+                        <input type="radio" id={`cuisine-option-${option.value}`} name="cuisine-option" value={option.value} checked={cuisine === option.value} onChange={() => setCuisine(option.value as CuisineOption)} className="h-5 w-5 rounded-full border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer" />
+                        <span className="ml-3 text-gray-700 font-medium flex-grow">{option.label}</span>
+                    </label>
+                    {isCuisineEditing && (
+                        <div className="flex items-center ml-2">
+                            <button type="button" onClick={() => handleOpenModal('cuisine', option)} className="p-2 text-gray-500 hover:text-blue-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
+                            {option.value !== CuisineOption.NONE && <button type="button" onClick={() => handleDeleteOption('cuisine', option.value)} className="p-2 text-gray-500 hover:text-red-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></button>}
+                        </div>
+                    )}
+                </div>
             ))}
         </div>
+        {isCuisineEditing && <button type="button" onClick={() => handleOpenModal('cuisine', null)} className="mt-2 text-sm font-semibold text-primary-600 hover:text-primary-800 w-full text-left p-2 rounded hover:bg-primary-50">+ Új hozzáadása</button>}
       </div>
 
       <div className="mt-6">
-        <label className="block text-lg font-semibold text-gray-700 mb-2">
-          Elkészítés módja
-        </label>
+        <div className="flex justify-between items-center mb-2">
+            <label className="block text-lg font-semibold text-gray-700">Elkészítés módja</label>
+            <button type="button" onClick={() => setIsCookingMethodsEditing(!isCookingMethodsEditing)} className="text-sm font-semibold text-primary-600 hover:text-primary-800">{isCookingMethodsEditing ? 'Kész' : 'Szerkesztés'}</button>
+        </div>
         <div className="space-y-2">
             {orderedCookingMethods.map((option, index) => (
-                <label 
-                    key={option.value} 
-                    htmlFor={`cooking-method-${option.value}`} 
-                    className={`flex items-center p-3 border rounded-lg bg-white cursor-grab hover:bg-gray-50 transition-all duration-200 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500 ${
-                        isDragging && dragItemIndex.current === index ? 'opacity-40 scale-105 shadow-xl' : 'opacity-100'
-                    }`}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragEnter={(e) => handleDragEnter(e, index)}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={(e) => e.preventDefault()}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                    </svg>
-                    <input
-                        type="checkbox"
-                        id={`cooking-method-${option.value}`}
-                        value={option.value}
-                        checked={cookingMethods.includes(option.value)}
-                        onChange={() => handleCookingMethodChange(option.value)}
-                        className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
-                    />
-                    <span className="ml-3 text-gray-700 font-medium flex-grow">{option.label}</span>
-                </label>
+                <div key={option.value} className="flex items-center">
+                    <label 
+                        htmlFor={`cooking-method-${option.value}`} 
+                        className={`flex-grow flex items-center p-3 border rounded-lg bg-white ${isCookingMethodsEditing ? '' : 'cursor-grab'} hover:bg-gray-50 transition-all duration-200 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500 ${isDragging && dragItemIndex.current === index ? 'opacity-40 scale-105 shadow-xl' : 'opacity-100'}`}
+                        draggable={!isCookingMethodsEditing}
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragEnter={(e) => handleDragEnter(e, index)}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={(e) => e.preventDefault()}
+                    >
+                        {!isCookingMethodsEditing && <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>}
+                        <input type="checkbox" id={`cooking-method-${option.value}`} value={option.value} checked={cookingMethods.includes(option.value as CookingMethod)} onChange={() => handleCookingMethodChange(option.value)} className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer" />
+                        <span className="ml-3 text-gray-700 font-medium flex-grow">{option.label}</span>
+                    </label>
+                    {isCookingMethodsEditing && (
+                        <div className="flex items-center ml-2">
+                            <button type="button" onClick={() => handleOpenModal('cookingMethod', option)} className="p-2 text-gray-500 hover:text-blue-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
+                            {option.value !== CookingMethod.TRADITIONAL && <button type="button" onClick={() => handleDeleteOption('cookingMethod', option.value)} className="p-2 text-gray-500 hover:text-red-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></button>}
+                        </div>
+                    )}
+                </div>
             ))}
         </div>
+        {isCookingMethodsEditing && <button type="button" onClick={() => handleOpenModal('cookingMethod', null)} className="mt-2 text-sm font-semibold text-primary-600 hover:text-primary-800 w-full text-left p-2 rounded hover:bg-primary-50">+ Új hozzáadása</button>}
          <p className="text-sm text-gray-500 mt-2">A kiválasztott elkészítési módok sorrendje befolyásolhatja a receptet.</p>
       </div>
 

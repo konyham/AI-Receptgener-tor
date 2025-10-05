@@ -1,7 +1,7 @@
 // FIX: This file was created to implement the missing Gemini API service logic.
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import { GoogleGenAI, Type, Operation, GenerateVideosResponse } from '@google/genai';
-import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, COOKING_METHOD_CAPACITIES, CUISINE_OPTIONS } from '../constants';
+import { DIET_OPTIONS, MEAL_TYPES as defaultMealTypes, COOKING_METHODS as defaultCookingMethods, CUISINE_OPTIONS as defaultCuisineOptions, COOKING_METHOD_CAPACITIES as defaultCookingMethodCapacities } from '../constants';
 import {
   DietOption,
   FormAction,
@@ -96,10 +96,10 @@ export const generateRecipe = async (
 ): Promise<Recipe> => {
   const dietLabel = DIET_OPTIONS.find((d) => d.value === diet)?.label || '';
   const mealTypeLabel =
-    MEAL_TYPES.find((m) => m.value === mealType)?.label || '';
-  const cuisineLabel = CUISINE_OPTIONS.find((c) => c.value === cuisine)?.label || '';
+    defaultMealTypes.find((m) => m.value === mealType)?.label || mealType;
+  const cuisineLabel = defaultCuisineOptions.find((c) => c.value === cuisine)?.label || cuisine;
   const cookingMethodLabels = cookingMethods
-    .map(cm => COOKING_METHODS.find(c => c.value === cm)?.label)
+    .map(cm => defaultCookingMethods.find(c => c.value === cm)?.label || cm)
     .filter((l): l is string => !!l);
 
   let prompt: string;
@@ -144,7 +144,7 @@ export const generateRecipe = async (
     const machineMethods = cookingMethods.filter(cm => cm !== CookingMethod.TRADITIONAL);
     if (machineMethods.length > 0) {
         const capacities = machineMethods
-            .map(cm => ({ name: COOKING_METHODS.find(c => c.value === cm)?.label, capacity: COOKING_METHOD_CAPACITIES[cm] }))
+            .map(cm => ({ name: defaultCookingMethods.find(c => c.value === cm)?.label || cm, capacity: (defaultCookingMethodCapacities as any)[cm] }))
             .filter(c => c.capacity !== null && c.capacity !== undefined);
 
         if (capacities.length > 0) {
@@ -571,13 +571,14 @@ export const calculateRecipeCost = async (recipe: Recipe): Promise<string> => {
 
 export const suggestMealType = async (
   ingredients: string,
-  specialRequest: string
+  specialRequest: string,
+  mealTypes: { value: string; label: string }[]
 ): Promise<MealType | null> => {
   if (!ingredients.trim() && !specialRequest.trim()) {
     return null;
   }
 
-  const mealTypeOptionsString = MEAL_TYPES.map(
+  const mealTypeOptionsString = mealTypes.map(
     (o) => `'${o.label}' (${o.value})`
   ).join(', ');
 
@@ -597,7 +598,7 @@ export const suggestMealType = async (
     properties: {
       mealType: {
         oneOf: [
-            { type: Type.STRING, enum: Object.values(MealType) },
+            { type: Type.STRING }, // Let AI return the value string
             { type: Type.NULL }
         ],
         description: "A javasolt étkezés típusa vagy null.",
@@ -668,15 +669,18 @@ const formCommandSchema = {
 };
 
 export const interpretFormCommand = async (
-  transcript: string
+  transcript: string,
+  mealTypeOptions: { value: string; label: string }[],
+  cookingMethodOptions: { value: string; label: string }[],
+  dietOptions: { value: DietOption; label: string; description: string }[]
 ): Promise<FormCommand> => {
-  const dietOptionsString = DIET_OPTIONS.map(
+  const dietOptionsString = dietOptions.map(
     (o) => `'${o.label}' (${o.value})`
   ).join(', ');
-  const mealTypeOptionsString = MEAL_TYPES.map(
+  const mealTypeOptionsString = mealTypeOptions.map(
     (o) => `'${o.label}' (${o.value})`
   ).join(', ');
-  const cookingMethodOptionsString = COOKING_METHODS.map(
+  const cookingMethodOptionsString = cookingMethodOptions.map(
     (o) => `'${o.label}' (${o.value})`
   ).join(', ');
 

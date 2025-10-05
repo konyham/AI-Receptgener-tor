@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Operation, GenerateVideosResponse } from '@google/genai';
 import { Recipe, VoiceCommand, Favorites, CookingMethod } from '../types';
 import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage, calculateRecipeCost, simplifyRecipe, downloadVideo, generateInstructionImage } from '../services/geminiService';
@@ -11,7 +11,7 @@ import VideoPlayerModal from './VideoPlayerModal';
 import ImageDisplayModal from './ImageDisplayModal';
 import ErrorMessage from './ErrorMessage';
 import InstructionCarousel from './InstructionCarousel';
-import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, CUISINE_OPTIONS } from '../constants';
+import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, CUISINE_OPTIONS, MEAL_TYPES_STORAGE_KEY, CUISINE_OPTIONS_STORAGE_KEY, COOKING_METHODS_STORAGE_KEY } from '../constants';
 import ShareFallbackModal from './ShareFallbackModal';
 import { konyhaMikiLogo as konyhaMikiLogoBase64 } from '../assets';
 import StarRating from './StarRating';
@@ -29,6 +29,22 @@ interface RecipeDisplayProps {
   onRecipeUpdate: (updatedRecipe: Recipe) => void;
   shouldGenerateImageInitially: boolean;
 }
+
+const loadOptions = (key: string, defaultValue: readonly any[]) => {
+    try {
+        const stored = localStorage.getItem(key);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed;
+            }
+        }
+    } catch (e) {
+        console.error(`Failed to load options from localStorage for key "${key}":`, e);
+    }
+    return [...defaultValue];
+};
+
 
 type VoiceMode = 'idle' | 'intro' | 'ingredients' | 'cooking';
 
@@ -115,10 +131,13 @@ const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
             // --- Top Text Preparation ---
             const { calories, carbohydrates, protein, fat } = recipe;
             const dietLabel = DIET_OPTIONS.find(d => d.value === recipe.diet)?.label;
-            const mealTypeLabel = MEAL_TYPES.find(m => m.value === recipe.mealType)?.label;
             
+            const customMealTypes = loadOptions(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES);
+            const mealTypeLabel = customMealTypes.find(m => m.value === recipe.mealType)?.label;
+
+            const customCookingMethods = loadOptions(COOKING_METHODS_STORAGE_KEY, COOKING_METHODS);
             const cookingMethodNames = recipe.cookingMethods
-                ?.map(cm => COOKING_METHODS.find(c => c.value === cm)?.label)
+                ?.map(cm => customCookingMethods.find(c => c.value === cm)?.label)
                 .filter((v): v is string => !!v);
             
             const topLeftInfo: string[] = [];
@@ -334,6 +353,9 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const isInterpretingRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const { showNotification } = useNotification();
+
+  const customMealTypes = useMemo(() => loadOptions(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES), []);
+  const customCuisineOptions = useMemo(() => loadOptions(CUISINE_OPTIONS_STORAGE_KEY, CUISINE_OPTIONS), []);
 
   const parseTimeFromInstruction = (text: string): { hours: number; minutes: number; seconds: number } | null => {
     const timeRegex = /(\d+)\s+(óra|perc|másodperc)/gi;
@@ -649,7 +671,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
       ? `<div style="text-align: center; margin: 1.5rem 0; break-inside: avoid;"><img src="${recipe.imageUrl}" alt="Fotó a receptről: ${recipe.recipeName}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: cover; display: inline-block;"></div>`
       : '';
     
-    const cuisineLabel = CUISINE_OPTIONS.find(c => c.value === recipe.cuisine)?.label;
+    const cuisineLabel = customCuisineOptions.find(c => c.value === recipe.cuisine)?.label;
     const dietLabel = DIET_OPTIONS.find(d => d.value === recipe.diet)?.label;
 
     const printHtml = `
@@ -910,7 +932,7 @@ Recept generálva Konyha Miki segítségével!
   };
 
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
-  const suggestedCategory = MEAL_TYPES.find(m => m.value === recipe.mealType)?.label;
+  const suggestedCategory = customMealTypes.find(m => m.value === recipe.mealType)?.label;
 
   return (
     <>

@@ -1,7 +1,13 @@
 
 
 
+
 import { DietOption, MealType, CookingMethod, CuisineOption, RecipePace } from './types';
+
+export const MEAL_TYPES_STORAGE_KEY = 'ai-recipe-generator-meal-types';
+export const CUISINE_OPTIONS_STORAGE_KEY = 'ai-recipe-generator-cuisine-options';
+export const COOKING_METHODS_STORAGE_KEY = 'ai-recipe-generator-cooking-methods';
+export const COOKING_METHOD_CAPACITIES_STORAGE_KEY = 'ai-recipe-generator-cooking-method-capacities';
 
 export const DIET_OPTIONS: { value: DietOption; label: string; description: string }[] = [
   { value: DietOption.NONE, label: 'Nincs megadva', description: 'Nem követ semmilyen speciális étrendet.' },
