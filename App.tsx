@@ -459,6 +459,10 @@ const App: React.FC = () => {
         return;
     }
     
+    // Clear the current recipe and suggestions to show the form
+    setRecipe(null);
+    setRecipeSuggestions(null);
+
     // Set initial form data for the RecipeInputForm
     setInitialFormData({
         ingredients: ingredientsFromPantry,
@@ -467,17 +471,50 @@ const App: React.FC = () => {
         mealType: MealType.LUNCH,
         cuisine: CuisineOption.NONE,
         cookingMethods: [CookingMethod.TRADITIONAL],
-        specialRequest: 'Készíts egy finom ételt a megadott maradékokból.',
+        specialRequest: 'Készíts egy finom ételt a kamrában legrégebben tárolt alapanyagokból.',
         withCost: false,
         withImage: false,
         numberOfServings: 2,
         recipePace: RecipePace.NORMAL,
-        mode: 'leftover' as const,
+        mode: 'standard',
         useSeasonalIngredients: true,
     });
 
     setView('generator');
-    showNotification(`A kamra alapanyagai betöltve. Módosítsa a feltételeket és generáljon receptet!`, 'success');
+    showNotification(`A legrégebbi kamra alapanyagok betöltve. Módosítsa a feltételeket és generáljon receptet!`, 'success');
+  };
+
+  const handleGenerateFromSelectedPantryItemsRequest = (items: string[]) => {
+    if (items.length === 0) {
+        showNotification('Nincsenek kijelölt alapanyagok!', 'info');
+        return;
+    }
+    
+    const ingredientsString = items.join(', ');
+
+    // Clear the current recipe to show the form
+    setRecipe(null);
+    setRecipeSuggestions(null);
+
+    // Set initial form data
+    setInitialFormData({
+        ingredients: ingredientsString,
+        excludedIngredients: '',
+        diet: DietOption.DIABETIC,
+        mealType: MealType.LUNCH,
+        cuisine: CuisineOption.NONE,
+        cookingMethods: [CookingMethod.TRADITIONAL],
+        specialRequest: 'Készíts egy finom ételt a kamrából kiválasztott alapanyagokból.',
+        withCost: false,
+        withImage: false,
+        numberOfServings: 2,
+        recipePace: RecipePace.NORMAL,
+        mode: 'standard', // Use standard mode
+        useSeasonalIngredients: true,
+    });
+
+    setView('generator');
+    showNotification(`Kijelölt alapanyagok betöltve. Finomítsa a keresést és generáljon receptet!`, 'success');
   };
   
   const handleMovePantryItems = (indices: number[], sourceLocation: PantryLocation, destinationLocation: PantryLocation) => {
@@ -721,6 +758,7 @@ const App: React.FC = () => {
               onClearAll={handleClearPantry}
               onMoveCheckedToPantryRequest={handleMoveCheckedToPantryRequest}
               onGenerateFromPantryRequest={handleGenerateFromPantryRequest}
+              onGenerateFromSelectedPantryItemsRequest={handleGenerateFromSelectedPantryItemsRequest}
               onImportData={handleImportData}
               shoppingListItems={shoppingList}
               onMoveItems={handleMovePantryItems}
@@ -850,8 +888,8 @@ const App: React.FC = () => {
         isOpen={isLocationPromptOpen}
         onClose={() => setIsLocationPromptOpen(false)}
         onSelect={(location) => {
-          locationCallback(location);
-          setIsLocationPromptOpen(false);
+            locationCallback(location);
+            setIsLocationPromptOpen(false);
         }}
       />
     </div>

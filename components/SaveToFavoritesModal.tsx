@@ -16,10 +16,6 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
 
   useEffect(() => {
     if (isOpen) {
-      // Alaphelyzetbe állítás, a logikát innen építjük fel
-      setIsCreatingNew(false);
-      setNewCategory('');
-
       const suggestedInExisting = suggestedCategory 
         ? existingCategories.find(cat => cat.toLowerCase() === suggestedCategory.toLowerCase()) 
         : undefined;
@@ -27,6 +23,8 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
       if (suggestedInExisting) {
         // A javasolt kategória létezik, válasszuk ki a listából.
         setSelectedCategory(suggestedInExisting);
+        setIsCreatingNew(false);
+        setNewCategory('');
       } else if (suggestedCategory) {
         // A javasolt kategória új, váltsunk "új létrehozása" módra és töltsük ki.
         setIsCreatingNew(true);
@@ -35,10 +33,13 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
       } else if (existingCategories.length > 0) {
         // Nincs javaslat, de vannak kategóriák, válasszuk az elsőt.
         setSelectedCategory(existingCategories[0]);
+        setIsCreatingNew(false);
+        setNewCategory('');
       } else {
         // Nincs javaslat és nincsenek kategóriák, kényszerítsük az új létrehozását.
         setIsCreatingNew(true);
         setSelectedCategory('');
+        setNewCategory('');
       }
     }
   }, [isOpen, suggestedCategory, existingCategories]);
