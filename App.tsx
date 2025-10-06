@@ -292,9 +292,14 @@ const App: React.FC = () => {
   
   // Favorites handlers
   const handleSaveToFavorites = (recipeToSave: Recipe, category: string) => {
-    const updatedFavorites = favoritesService.addRecipeToFavorites(recipeToSave, category);
-    setFavorites(updatedFavorites);
-    showNotification(`'${recipeToSave.recipeName}' elmentve a(z) '${category}' kategóriába!`, 'success');
+    try {
+      const updatedFavorites = favoritesService.addRecipeToFavorites(recipeToSave, category);
+      setFavorites(updatedFavorites);
+      showNotification(`'${recipeToSave.recipeName}' elmentve a(z) '${category}' kategóriába!`, 'success');
+    } catch (e: any) {
+      console.error("Failed to save to favorites:", e);
+      showNotification(e.message || 'Hiba történt a kedvencek mentése közben.', 'info');
+    }
   };
   
   const handleViewFavorite = (recipeToView: Recipe) => {

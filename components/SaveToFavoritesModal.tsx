@@ -16,21 +16,30 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
 
   useEffect(() => {
     if (isOpen) {
-      const suggestedCategoryExists = suggestedCategory && existingCategories.some(cat => cat.toLowerCase() === suggestedCategory.toLowerCase());
+      // Alaphelyzetbe állítás, a logikát innen építjük fel
+      setIsCreatingNew(false);
+      setNewCategory('');
 
-      if (suggestedCategoryExists) {
-        // Find the exact casing from the existing categories
-        const matchingCategory = existingCategories.find(cat => cat.toLowerCase() === suggestedCategory!.toLowerCase());
-        setSelectedCategory(matchingCategory!);
-        setIsCreatingNew(false);
-      } else if (existingCategories.length > 0) {
-        setSelectedCategory(existingCategories[0]);
-        setIsCreatingNew(false);
-      } else {
-        setSelectedCategory('');
+      const suggestedInExisting = suggestedCategory 
+        ? existingCategories.find(cat => cat.toLowerCase() === suggestedCategory.toLowerCase()) 
+        : undefined;
+
+      if (suggestedInExisting) {
+        // A javasolt kategória létezik, válasszuk ki a listából.
+        setSelectedCategory(suggestedInExisting);
+      } else if (suggestedCategory) {
+        // A javasolt kategória új, váltsunk "új létrehozása" módra és töltsük ki.
         setIsCreatingNew(true);
+        setNewCategory(suggestedCategory);
+        setSelectedCategory(''); // Nincs kiválasztás a legördülőből.
+      } else if (existingCategories.length > 0) {
+        // Nincs javaslat, de vannak kategóriák, válasszuk az elsőt.
+        setSelectedCategory(existingCategories[0]);
+      } else {
+        // Nincs javaslat és nincsenek kategóriák, kényszerítsük az új létrehozását.
+        setIsCreatingNew(true);
+        setSelectedCategory('');
       }
-      setNewCategory(''); // Always reset new category input
     }
   }, [isOpen, suggestedCategory, existingCategories]);
 

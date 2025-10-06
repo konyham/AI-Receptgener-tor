@@ -129,7 +129,7 @@ export const mergeFavorites = (currentFavorites: Favorites, importedFavorites: F
 
 /**
  * Adds a recipe to a specific category in favorites or updates it if it already exists.
- * Saves the full recipe object, including any generated images.
+ * This function strips image data to prevent localStorage quota errors.
  * @param recipe The recipe to add or update.
  * @param category The category to add the recipe to.
  * @returns The updated favorites object.
@@ -140,19 +140,29 @@ export const addRecipeToFavorites = (recipe: Recipe, category: string): Favorite
     favorites[category] = [];
   }
   
-  // Add or update the recipe with a timestamp. If it's a new save, add a timestamp.
-  // If it's an update (e.g., re-saving from favorites view with a new rating),
-  // preserve the original dateAdded.
+  // Create a copy of the recipe, but without image data to avoid filling up localStorage.
+  // The user can regenerate images at any time when viewing the recipe.
+  const recipeDataToSave = { ...recipe };
+  delete recipeDataToSave.imageUrl;
+  if (recipeDataToSave.instructions) {
+    recipeDataToSave.instructions = recipeDataToSave.instructions.map(step => ({ text: step.text }));
+  }
+
   const recipeToSave: Recipe = {
-    ...recipe,
+    ...recipeDataToSave,
     dateAdded: recipe.dateAdded || new Date().toISOString(),
   };
 
   const existingRecipeIndex = favorites[category].findIndex(r => r.recipeName === recipeToSave.recipeName);
 
   if (existingRecipeIndex !== -1) {
-    // Recipe exists, so update it in place.
-    favorites[category][existingRecipeIndex] = recipeToSave;
+    // Recipe exists, so update it in place. The incoming `recipeToSave` already
+    // has all the updated data (like rating), and we've already stripped the images.
+    // Preserve the original dateAdded upon update.
+    favorites[category][existingRecipeIndex] = {
+        ...recipeToSave,
+        dateAdded: favorites[category][existingRecipeIndex].dateAdded
+    };
   } else {
     // Recipe is new, add it to the category.
     favorites[category].push(recipeToSave);
