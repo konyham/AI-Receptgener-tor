@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
-import * as userService from '../services/userService';
+import * as imageStore from '../services/imageStore';
 import ShoppingListItemActionModal from './ShoppingListItemActionModal';
 
 interface ShoppingListViewProps {
@@ -102,11 +102,31 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   
    const handleExport = async () => {
     try {
+      const allImages = await imageStore.getAllImages();
+      const favoritesWithImages = JSON.parse(JSON.stringify(favorites));
+
+      for (const category in favoritesWithImages) {
+        for (const recipe of favoritesWithImages[category]) {
+          if (recipe.imageUrl && recipe.imageUrl.startsWith('indexeddb:')) {
+            const imageId = recipe.imageUrl.substring(10);
+            if (allImages[imageId]) recipe.imageUrl = allImages[imageId];
+          }
+          if (recipe.instructions) {
+            for (const instruction of recipe.instructions) {
+              if (instruction.imageUrl && instruction.imageUrl.startsWith('indexeddb:')) {
+                const imageId = instruction.imageUrl.substring(10);
+                if (allImages[imageId]) instruction.imageUrl = allImages[imageId];
+              }
+            }
+          }
+        }
+      }
+
       const dataToSave: BackupData = {
-        favorites,
+        favorites: favoritesWithImages,
         shoppingList: list,
         pantry,
-        users: users,
+        users,
         mealTypes,
         cuisineOptions,
         cookingMethods: cookingMethodsList,
@@ -139,14 +159,12 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
           await writable.close();
           showNotification('Adatok sikeresen mentve!', 'success');
         } catch (err: any) {
-          // AbortError is thrown when the user cancels the save dialog, which is not a real error.
           if (err.name !== 'AbortError') {
             console.error("Hiba a mentés során (File Picker):", err);
             showNotification('Hiba történt az adatok mentése közben.', 'info');
           }
         }
       } else {
-        // Fallback for older browsers or when in an iframe
         if (!isPickerSupported) {
            showNotification('A böngészője nem támogatja a "Mentés másként" funkciót, ezért a fájl közvetlenül letöltésre kerül.', 'info');
         } else if (!isTopFrame) {

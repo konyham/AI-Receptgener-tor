@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Operation, GenerateVideosResponse } from '@google/genai';
-import { Recipe, VoiceCommand, Favorites, CookingMethod } from '../types';
+import { Recipe, VoiceCommand, Favorites, CookingMethod, InstructionStep } from '../types';
 import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage, calculateRecipeCost, simplifyRecipe, downloadVideo, generateInstructionImage } from '../services/geminiService';
+import * as imageStore from '../services/imageStore';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 import KitchenTimer from './KitchenTimer';
@@ -357,6 +358,10 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const [generatingImageForStep, setGeneratingImageForStep] = useState<number | null>(null);
   const [stepImageError, setStepImageError] = useState<string | null>(null);
 
+  const [resolvedImageUrl, setResolvedImageUrl] = useState<string | undefined | null>(null);
+  const [resolvedInstructions, setResolvedInstructions] = useState<InstructionStep[]>([]);
+  const [areImagesResolving, setAreImagesResolving] = useState(false);
+
 
   const isInterpretingRef = useRef(false);
   const isSpeakingRef = useRef(false);
@@ -365,6 +370,53 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
 
   const customMealTypes = useMemo(() => loadOptions(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES), []);
   const customCuisineOptions = useMemo(() => loadOptions(CUISINE_OPTIONS_STORAGE_KEY, CUISINE_OPTIONS), []);
+
+  useEffect(() => {
+    let isMounted = true;
+    setAreImagesResolving(true);
+
+    const resolveImages = async () => {
+        // Resolve main image
+        let mainImageUrl: string | undefined | null = recipe.imageUrl;
+        if (recipe.imageUrl && recipe.imageUrl.startsWith('indexeddb:')) {
+            const imageId = recipe.imageUrl.substring(10);
+            try {
+                const dataUrl = await imageStore.getImage(imageId);
+                mainImageUrl = dataUrl;
+            } catch (error) {
+                console.error(`Failed to load main image ${imageId} from IndexedDB`, error);
+                mainImageUrl = undefined; // Mark as failed
+            }
+        }
+
+        // Resolve instruction images
+        const newInstructions = await Promise.all(
+            (recipe.instructions || []).map(async (inst) => {
+                if (inst.imageUrl && inst.imageUrl.startsWith('indexeddb:')) {
+                    const imageId = inst.imageUrl.substring(10);
+                    try {
+                        const dataUrl = await imageStore.getImage(imageId);
+                        return { ...inst, imageUrl: dataUrl };
+                    } catch (error) {
+                        console.error(`Failed to load instruction image ${imageId} from IndexedDB`, error);
+                        return { ...inst, imageUrl: undefined }; // Mark as failed
+                    }
+                }
+                return inst;
+            })
+        );
+        
+        if (isMounted) {
+            setResolvedImageUrl(mainImageUrl);
+            setResolvedInstructions(newInstructions);
+            setAreImagesResolving(false);
+        }
+    };
+
+    resolveImages();
+
+    return () => { isMounted = false; };
+  }, [recipe]);
 
   const parseTimeFromInstruction = (text: string): { hours: number; minutes: number; seconds: number } | null => {
     const timeRegex = /(\d+)\s+(óra|perc|másodperc)/gi;
@@ -734,8 +786,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     // Sanitize the recipe name to create a filesystem-friendly filename.
     const safeFilename = recipe.recipeName.replace(/[^a-z0-9\u00C0-\u017F_-\s]/gi, '').trim() || 'recept';
     
-    const imageHtml = recipe.imageUrl
-      ? `<div style="text-align: center; margin: 1.5rem 0; break-inside: avoid;"><img src="${recipe.imageUrl}" alt="Fotó a receptről: ${recipe.recipeName}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: cover; display: inline-block;"></div>`
+    const imageHtml = resolvedImageUrl
+      ? `<div style="text-align: center; margin: 1.5rem 0; break-inside: avoid;"><img src="${resolvedImageUrl}" alt="Fotó a receptről: ${recipe.recipeName}" style="max-width: 100%; max-height: 400px; border-radius: 8px; object-fit: cover; display: inline-block;"></div>`
       : '';
     
     const cuisineLabel = customCuisineOptions.find(c => c.value === recipe.cuisine)?.label;
@@ -825,7 +877,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
           </ul>
           <h2>Elkészítés</h2>
           <ol>
-            ${recipe.instructions.map(inst => `<li>${inst.text}${inst.imageUrl ? `<br><img src="${inst.imageUrl}">` : ''}</li>`).join('')}
+            ${resolvedInstructions.map(inst => `<li>${inst.text}${inst.imageUrl ? `<br><img src="${inst.imageUrl}">` : ''}</li>`).join('')}
           </ol>
         </body>
       </html>
@@ -1025,22 +1077,22 @@ Recept generálva Konyha Miki segítségével!
           <p className="text-gray-600 italic mb-6">{recipe.description}</p>
           
            <div className="my-6">
-            {isImageLoading && (
+            {(isImageLoading || areImagesResolving) && (
                 <div className="aspect-[4/3] w-full bg-gray-200 rounded-lg animate-pulse flex items-center justify-center text-gray-500">
                     <svg className="animate-spin h-8 w-8 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    Feldolgozás...
+                    Kép betöltése...
                 </div>
             )}
             {imageError && !isImageLoading && <ErrorMessage message={imageError} />}
             
-            {recipe.imageUrl && !isImageLoading && (
+            {resolvedImageUrl && !isImageLoading && !areImagesResolving && (
                 <div className="relative group">
                     <button 
                         onClick={() => setIsImageModalOpen(true)} 
                         className="w-full block rounded-lg overflow-hidden shadow-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-all duration-300"
                         aria-label="Ételfotó megtekintése nagyban"
                     >
-                        <img src={recipe.imageUrl} alt={`Fotó a receptről: ${recipe.recipeName}`} className="w-full h-full object-cover" />
+                        <img src={resolvedImageUrl} alt={`Fotó a receptről: ${recipe.recipeName}`} className="w-full h-full object-cover" />
                     </button>
                     <div className="absolute bottom-2 right-2 flex flex-col sm:flex-row gap-2">
                         <button onClick={handleGenerateImage} disabled={isImageLoading} className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 bg-white/80 backdrop-blur-sm text-gray-800 rounded-full hover:bg-white shadow transition-colors disabled:opacity-50">
@@ -1055,7 +1107,7 @@ Recept generálva Konyha Miki segítségével!
                 </div>
             )}
 
-            {!recipe.imageUrl && !isImageLoading && (
+            {!resolvedImageUrl && !isImageLoading && !areImagesResolving && (
                 <div className="w-full aspect-[4/3] bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 flex flex-col items-center justify-center gap-4 p-4">
                     <div className="flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
@@ -1217,7 +1269,7 @@ Recept generálva Konyha Miki segítségével!
               <div className="space-y-4">
                 <h3 className="text-2xl font-semibold text-primary-700 border-b-2 border-primary-200 pb-2">Elkészítés</h3>
                 <InstructionCarousel
-                  instructions={recipe.instructions}
+                  instructions={resolvedInstructions}
                   currentStep={currentStepIndex}
                   onStepChange={setCurrentStepIndex}
                   voiceModeActive={voiceMode === 'cooking'}
@@ -1295,7 +1347,7 @@ Recept generálva Konyha Miki segítségével!
       />
       {isGeneratingVideo && <VideoGenerationModal progressMessage={videoGenerationProgress} />}
       {generatedVideoUrl && <VideoPlayerModal videoUrl={generatedVideoUrl} recipeName={recipe.recipeName} onClose={() => setGeneratedVideoUrl(null)} />}
-      {isImageModalOpen && recipe.imageUrl && <ImageDisplayModal imageUrl={recipe.imageUrl} recipeName={recipe.recipeName} onClose={() => setIsImageModalOpen(false)} />}
+      {isImageModalOpen && resolvedImageUrl && <ImageDisplayModal imageUrl={resolvedImageUrl} recipeName={recipe.recipeName} onClose={() => setIsImageModalOpen(false)} />}
       {instructionImageInModal && <ImageDisplayModal imageUrl={instructionImageInModal.url} recipeName={instructionImageInModal.title} onClose={() => setInstructionImageInModal(null)} />}
       <ShareFallbackModal 
         isOpen={isShareFallbackModalOpen}

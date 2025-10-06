@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
@@ -229,7 +230,7 @@ const App: React.FC = () => {
     }
   };
   
-  const handleRecipeUpdate = (updatedRecipe: Recipe) => {
+  const handleRecipeUpdate = async (updatedRecipe: Recipe) => {
     setRecipe(updatedRecipe);
     // If viewing a favorite, update it in the state and storage as well
     if (isFromFavorites) {
@@ -242,7 +243,7 @@ const App: React.FC = () => {
             }
         }
         if (originalCategory) {
-            const updatedFavorites = favoritesService.addRecipeToFavorites(updatedRecipe, originalCategory);
+            const updatedFavorites = await favoritesService.addRecipeToFavorites(updatedRecipe, originalCategory);
             setFavorites(updatedFavorites);
         }
     }
@@ -291,9 +292,9 @@ const App: React.FC = () => {
   };
   
   // Favorites handlers
-  const handleSaveToFavorites = (recipeToSave: Recipe, category: string) => {
+  const handleSaveToFavorites = async (recipeToSave: Recipe, category: string) => {
     try {
-      const updatedFavorites = favoritesService.addRecipeToFavorites(recipeToSave, category);
+      const updatedFavorites = await favoritesService.addRecipeToFavorites(recipeToSave, category);
       setFavorites(updatedFavorites);
       showNotification(`'${recipeToSave.recipeName}' elmentve a(z) '${category}' kategóriába!`, 'success');
     } catch (e: any) {
@@ -308,13 +309,14 @@ const App: React.FC = () => {
     setView('generator');
   };
 
-  const handleDeleteFavorite = (recipeName: string, category: string) => {
-    setFavorites(favoritesService.removeRecipeFromFavorites(recipeName, category));
+  const handleDeleteFavorite = async (recipeName: string, category: string) => {
+    const updatedFavorites = await favoritesService.removeRecipeFromFavorites(recipeName, category);
+    setFavorites(updatedFavorites);
     showNotification(`'${recipeName}' törölve a kedvencek közül.`, 'success');
   };
 
-  const handleDeleteCategory = (category: string) => {
-    const updatedFavorites = favoritesService.removeCategory(category);
+  const handleDeleteCategory = async (category: string) => {
+    const updatedFavorites = await favoritesService.removeCategory(category);
     setFavorites(updatedFavorites);
     // Also remove the category from the expanded state tracker to prevent stale state
     setExpandedCategories(prev => {
@@ -524,11 +526,19 @@ const App: React.FC = () => {
   };
 
   // User handlers
-    const handleSaveUser = (user: UserProfile) => {
-        const isNew = !users.some(u => u.id === user.id);
-        const updatedUsers = isNew ? userService.addUser(users, user) : userService.updateUser(users, user);
-        setUsers(updatedUsers);
-        showNotification(`'${user.name}' ${isNew ? 'hozzáadva' : 'adatok mentve'}.`, 'success');
+    // FIX: Update handleSaveUser to correctly handle adding new users (without an ID) and updating existing ones.
+    const handleSaveUser = (user: UserProfile | Omit<UserProfile, 'id'>) => {
+        if (!('id' in user)) {
+            // This is a new user
+            const updatedUsers = userService.addUser(users, user);
+            setUsers(updatedUsers);
+            showNotification(`'${user.name}' hozzáadva.`, 'success');
+        } else {
+            // This is an update
+            const updatedUsers = userService.updateUser(users, user as UserProfile);
+            setUsers(updatedUsers);
+            showNotification(`'${user.name}' adatok mentve.`, 'success');
+        }
     };
 
     const handleDeleteUser = (userId: string) => {

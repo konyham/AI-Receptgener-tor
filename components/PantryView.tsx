@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
-import * as userService from '../services/userService';
+import * as imageStore from '../services/imageStore';
 import MoveItemsModal from './MoveItemsModal';
 
 // Modal for editing a pantry item
@@ -278,11 +278,31 @@ const PantryView: React.FC<PantryViewProps> = ({
   
   const handleExport = async () => {
     try {
+      const allImages = await imageStore.getAllImages();
+      const favoritesWithImages = JSON.parse(JSON.stringify(favorites));
+
+      for (const category in favoritesWithImages) {
+        for (const recipe of favoritesWithImages[category]) {
+          if (recipe.imageUrl && recipe.imageUrl.startsWith('indexeddb:')) {
+            const imageId = recipe.imageUrl.substring(10);
+            if (allImages[imageId]) recipe.imageUrl = allImages[imageId];
+          }
+          if (recipe.instructions) {
+            for (const instruction of recipe.instructions) {
+              if (instruction.imageUrl && instruction.imageUrl.startsWith('indexeddb:')) {
+                const imageId = instruction.imageUrl.substring(10);
+                if (allImages[imageId]) instruction.imageUrl = allImages[imageId];
+              }
+            }
+          }
+        }
+      }
+
       const dataToSave: BackupData = {
-        favorites,
+        favorites: favoritesWithImages,
         shoppingList,
         pantry,
-        users: users,
+        users,
         mealTypes,
         cuisineOptions,
         cookingMethods: cookingMethodsList,

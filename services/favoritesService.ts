@@ -1,5 +1,6 @@
 import type { Recipe, Favorites } from '../types';
 import { safeSetLocalStorage } from '../utils/storage';
+import * as imageStore from './imageStore';
 
 const FAVORITES_KEY = 'ai-recipe-generator-favorites';
 
@@ -129,35 +130,65 @@ export const mergeFavorites = (currentFavorites: Favorites, importedFavorites: F
 
 /**
  * Adds a recipe to a specific category in favorites or updates it if it already exists.
- * This function saves the entire recipe object, including images, to preserve user uploads.
+ * This function moves image data to IndexedDB to avoid filling up localStorage.
  * @param recipe The recipe to add or update.
  * @param category The category to add the recipe to.
  * @returns The updated favorites object.
  */
-export const addRecipeToFavorites = (recipe: Recipe, category: string): Favorites => {
+export const addRecipeToFavorites = async (recipe: Recipe, category: string): Promise<Favorites> => {
   const { favorites } = getFavorites();
   if (!favorites[category]) {
     favorites[category] = [];
   }
-  
-  // Per user request, the entire recipe object is saved, including any generated or uploaded images.
-  // NOTE: This increases localStorage usage but allows user-uploaded images to be persisted.
-  const recipeToSave: Recipe = {
-    ...recipe,
-    dateAdded: recipe.dateAdded || new Date().toISOString(),
-  };
+
+  const recipeToSave = JSON.parse(JSON.stringify(recipe)); // Deep copy to prevent prop mutation
+  recipeToSave.dateAdded = recipe.dateAdded || new Date().toISOString();
+
+  // Handle main image
+  if (recipeToSave.imageUrl && recipeToSave.imageUrl.startsWith('data:image')) {
+    const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    await imageStore.saveImage(imageId, recipeToSave.imageUrl);
+    recipeToSave.imageUrl = `indexeddb:${imageId}`;
+  }
+
+  // Handle instruction images
+  if (recipeToSave.instructions) {
+    recipeToSave.instructions = await Promise.all(
+      recipeToSave.instructions.map(async (instruction: any, i: number) => {
+        if (instruction.imageUrl && instruction.imageUrl.startsWith('data:image')) {
+          const imageId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${i}`;
+          await imageStore.saveImage(imageId, instruction.imageUrl);
+          return { ...instruction, imageUrl: `indexeddb:${imageId}` };
+        }
+        return instruction;
+      })
+    );
+  }
 
   const existingRecipeIndex = favorites[category].findIndex(r => r.recipeName === recipeToSave.recipeName);
 
   if (existingRecipeIndex !== -1) {
-    // Recipe exists, so update it in place.
-    // Preserve the original dateAdded upon update.
+    // Recipe exists, update it. First, clean up old images if they are being replaced.
+    const originalRecipe = favorites[category][existingRecipeIndex];
+    if (originalRecipe.imageUrl && originalRecipe.imageUrl.startsWith('indexeddb:') && originalRecipe.imageUrl !== recipeToSave.imageUrl) {
+        await imageStore.deleteImage(originalRecipe.imageUrl.substring(10));
+    }
+    if (originalRecipe.instructions) {
+        for (let i = 0; i < originalRecipe.instructions.length; i++) {
+            const oldInst = originalRecipe.instructions[i];
+            const newInst = recipeToSave.instructions ? recipeToSave.instructions[i] : undefined;
+            if (oldInst.imageUrl && oldInst.imageUrl.startsWith('indexeddb:') && (!newInst || oldInst.imageUrl !== newInst.imageUrl)) {
+                await imageStore.deleteImage(oldInst.imageUrl.substring(10));
+            }
+        }
+    }
+    
     favorites[category][existingRecipeIndex] = {
-        ...recipeToSave,
-        dateAdded: favorites[category][existingRecipeIndex].dateAdded
+      ...recipeToSave,
+      dateAdded: originalRecipe.dateAdded, // Preserve original dateAdded
     };
   } else {
-    // Recipe is new, add it to the category.
+    // Recipe is new, add it.
     favorites[category].push(recipeToSave);
   }
 
@@ -166,16 +197,30 @@ export const addRecipeToFavorites = (recipe: Recipe, category: string): Favorite
 };
 
 /**
- * Removes a specific recipe from a category and updates localStorage.
+ * Removes a specific recipe from a category and its associated images from IndexedDB.
  * @param recipeName The name of the recipe to remove.
  * @param category The category from which to remove the recipe.
  * @returns The updated favorites object.
  */
-export const removeRecipeFromFavorites = (recipeName: string, category: string): Favorites => {
+export const removeRecipeFromFavorites = async (recipeName: string, category: string): Promise<Favorites> => {
   const { favorites } = getFavorites();
   if (favorites[category]) {
+    const recipeToRemove = favorites[category].find(r => r.recipeName === recipeName);
+
+    if (recipeToRemove) {
+      if (recipeToRemove.imageUrl && recipeToRemove.imageUrl.startsWith('indexeddb:')) {
+        await imageStore.deleteImage(recipeToRemove.imageUrl.substring(10));
+      }
+      if (recipeToRemove.instructions) {
+        for (const instruction of recipeToRemove.instructions) {
+          if (instruction.imageUrl && instruction.imageUrl.startsWith('indexeddb:')) {
+            await imageStore.deleteImage(instruction.imageUrl.substring(10));
+          }
+        }
+      }
+    }
+
     favorites[category] = favorites[category].filter(r => r.recipeName !== recipeName);
-    // If the category becomes empty after removal, delete the category itself.
     if (favorites[category].length === 0) {
       delete favorites[category];
     }
@@ -183,6 +228,7 @@ export const removeRecipeFromFavorites = (recipeName: string, category: string):
   }
   return favorites;
 };
+
 
 /**
  * Moves a recipe from one category to another.
@@ -234,13 +280,26 @@ export const moveRecipe = (recipeToMove: Recipe, fromCategory: string, toCategor
 
 
 /**
- * Removes an entire category and all recipes within it, updating localStorage.
+ * Removes an entire category and all recipes and their associated images within it.
  * @param category The category to remove.
  * @returns The updated favorites object.
  */
-export const removeCategory = (category: string): Favorites => {
+export const removeCategory = async (category: string): Promise<Favorites> => {
   const { favorites } = getFavorites();
   if (favorites[category]) {
+    const recipesToRemove = favorites[category];
+    for (const recipe of recipesToRemove) {
+      if (recipe.imageUrl && recipe.imageUrl.startsWith('indexeddb:')) {
+        await imageStore.deleteImage(recipe.imageUrl.substring(10));
+      }
+      if (recipe.instructions) {
+        for (const instruction of recipe.instructions) {
+          if (instruction.imageUrl && instruction.imageUrl.startsWith('indexeddb:')) {
+            await imageStore.deleteImage(instruction.imageUrl.substring(10));
+          }
+        }
+      }
+    }
     delete favorites[category];
     saveFavorites(favorites);
   }
