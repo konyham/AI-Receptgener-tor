@@ -12,6 +12,21 @@ interface InstructionCarouselProps {
 }
 
 const InstructionCarousel: React.FC<InstructionCarouselProps> = ({ instructions, currentStep, onStepChange, voiceModeActive, onGenerateImage, generatingImageForStep, onImageClick }) => {
+
+  if (!instructions || instructions.length === 0) {
+    return (
+      <div 
+        className={`p-4 rounded-lg border border-gray-200 bg-primary-50`}
+        role="region"
+        aria-label="Recept elkészítési lépések"
+      >
+        <div className="relative min-h-[150px] text-gray-800 flex flex-col items-center justify-center p-4 bg-white rounded-md shadow-inner">
+          <p className="text-center text-gray-500">Nincsenek elkészítési lépések ehhez a recepthez.</p>
+        </div>
+      </div>
+    );
+  }
+
   const totalSteps = instructions.length;
   const currentInstruction = instructions[currentStep];
 
@@ -36,6 +51,8 @@ const InstructionCarousel: React.FC<InstructionCarouselProps> = ({ instructions,
     }
   };
 
+  const progressPercentage = totalSteps > 0 ? ((currentStep + 1) / totalSteps) * 100 : 0;
+
   return (
     <div 
         className={`p-4 rounded-lg border transition-all duration-300 ${voiceModeActive ? 'border-primary-400 ring-2 ring-primary-200 shadow-lg' : 'border-gray-200'} bg-primary-50`}
@@ -47,7 +64,7 @@ const InstructionCarousel: React.FC<InstructionCarouselProps> = ({ instructions,
       <div className="w-full bg-gray-200 rounded-full h-1.5 mb-4" aria-label={`Elkészítési folyamat: ${currentStep + 1} / ${totalSteps}`}>
         <div 
           className="bg-primary-500 h-1.5 rounded-full transition-all duration-500 ease-in-out" 
-          style={{ width: `${((currentStep + 1) / totalSteps) * 100}%` }}
+          style={{ width: `${progressPercentage}%` }}
           role="progressbar"
           aria-valuenow={currentStep + 1}
           aria-valuemin={1}
