@@ -270,7 +270,15 @@ const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
             reject(new Error('A logó betöltése a vízjelezéshez sikertelen.'));
         };
         
-        recipeImg.src = `data:image/jpeg;base64,${base64Image}`;
+        // A FileReader `readAsDataURL` egy teljes Data URL-t ad vissza, ami már tartalmazza a `data:image/...` prefixet.
+        // A generált kép viszont csak a base64 string. Az `Image.src` mindkettőt elfogadja.
+        // Annak biztosítására, hogy mindkét eset működjön, ellenőrizzük a prefixet.
+        if (base64Image.startsWith('data:image')) {
+            recipeImg.src = base64Image;
+        } else {
+            // Itt feltételezzük, hogy a generált kép mindig jpeg lesz.
+            recipeImg.src = `data:image/jpeg;base64,${base64Image}`;
+        }
         logoImg.src = konyhaMikiLogoBase64;
     });
 };
@@ -352,6 +360,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
 
   const isInterpretingRef = useRef(false);
   const isSpeakingRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
 
   const customMealTypes = useMemo(() => loadOptions(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES), []);
@@ -426,6 +435,64 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         setIsImageLoading(false);
     }
   }, [recipe, onRecipeUpdate, showNotification, isImageLoading]);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    const currentTarget = event.currentTarget; // Capture target for async use
+
+    if (!file) {
+      if (currentTarget) currentTarget.value = '';
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      showNotification('Kérjük, csak képfájlt töltsön fel (pl. JPG, PNG).', 'info');
+      currentTarget.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      showNotification('A kép mérete túl nagy (maximum 5MB).', 'info');
+      currentTarget.value = '';
+      return;
+    }
+
+    setIsImageLoading(true);
+    setImageError(null);
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const dataUrl = e.target?.result as string;
+        if (!dataUrl) {
+          throw new Error('A képfájl beolvasása sikertelen volt.');
+        }
+
+        const watermarkedImage = await addWatermark(dataUrl, recipe);
+        onRecipeUpdate({ ...recipe, imageUrl: watermarkedImage });
+        showNotification('Kép sikeresen feltöltve és vízjelezve!', 'success');
+      } catch (err: any) {
+        const errorMsg = err.message || 'Hiba történt a kép feldolgozása közben.';
+        setImageError(errorMsg);
+        showNotification(errorMsg, 'info');
+      } finally {
+        setIsImageLoading(false);
+      }
+    };
+
+    reader.onerror = () => {
+      setImageError('Hiba történt a fájl olvasása közben.');
+      showNotification('Hiba történt a fájl olvasása közben.', 'info');
+      setIsImageLoading(false);
+    };
+
+    reader.readAsDataURL(file);
+    currentTarget.value = '';
+  };
   
   const handleGenerateInstructionImage = useCallback(async (stepIndex: number) => {
     if (generatingImageForStep !== null) return;
@@ -936,6 +1003,14 @@ Recept generálva Konyha Miki segítségével!
 
   return (
     <>
+      <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept="image/png, image/jpeg, image/webp"
+          className="hidden"
+          aria-hidden="true"
+      />
       <div id="recipe-to-print" className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden animate-fade-in">
         <div className="p-6 md:p-8">
           <div className="flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-4 mb-2">
@@ -953,7 +1028,7 @@ Recept generálva Konyha Miki segítségével!
             {isImageLoading && (
                 <div className="aspect-[4/3] w-full bg-gray-200 rounded-lg animate-pulse flex items-center justify-center text-gray-500">
                     <svg className="animate-spin h-8 w-8 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    Generálás...
+                    Feldolgozás...
                 </div>
             )}
             {imageError && !isImageLoading && <ErrorMessage message={imageError} />}
@@ -967,20 +1042,36 @@ Recept generálva Konyha Miki segítségével!
                     >
                         <img src={recipe.imageUrl} alt={`Fotó a receptről: ${recipe.recipeName}`} className="w-full h-full object-cover" />
                     </button>
-                    <div className="absolute bottom-2 right-2">
+                    <div className="absolute bottom-2 right-2 flex flex-col sm:flex-row gap-2">
                         <button onClick={handleGenerateImage} disabled={isImageLoading} className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 bg-white/80 backdrop-blur-sm text-gray-800 rounded-full hover:bg-white shadow transition-colors disabled:opacity-50">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
                             Újragenerálás
+                        </button>
+                        <button onClick={handleUploadClick} disabled={isImageLoading} className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 bg-white/80 backdrop-blur-sm text-gray-800 rounded-full hover:bg-white shadow transition-colors disabled:opacity-50">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
+                            Új kép feltöltése
                         </button>
                     </div>
                 </div>
             )}
 
             {!recipe.imageUrl && !isImageLoading && (
-                <button onClick={handleGenerateImage} disabled={isImageLoading} className="w-full flex flex-col items-center justify-center gap-2 aspect-[4/3] bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:bg-gray-200 hover:border-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
-                    <span className="font-semibold">Kattintson ide ételfotó generálásához</span>
-                </button>
+                <div className="w-full aspect-[4/3] bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 flex flex-col items-center justify-center gap-4 p-4">
+                    <div className="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
+                        <span className="font-semibold text-lg">Ételfotó</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <button onClick={handleGenerateImage} disabled={isImageLoading} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                            Generálás AI-val
+                        </button>
+                        <button onClick={handleUploadClick} disabled={isImageLoading} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
+                            Saját kép feltöltése
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
           
