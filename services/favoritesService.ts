@@ -129,7 +129,7 @@ export const mergeFavorites = (currentFavorites: Favorites, importedFavorites: F
 
 /**
  * Adds a recipe to a specific category in favorites or updates it if it already exists.
- * This function strips image data to prevent localStorage quota errors.
+ * This function saves the entire recipe object, including images, to preserve user uploads.
  * @param recipe The recipe to add or update.
  * @param category The category to add the recipe to.
  * @returns The updated favorites object.
@@ -140,24 +140,17 @@ export const addRecipeToFavorites = (recipe: Recipe, category: string): Favorite
     favorites[category] = [];
   }
   
-  // Create a copy of the recipe, but without image data to avoid filling up localStorage.
-  // The user can regenerate images at any time when viewing the recipe.
-  const recipeDataToSave = { ...recipe };
-  delete recipeDataToSave.imageUrl;
-  if (recipeDataToSave.instructions) {
-    recipeDataToSave.instructions = recipeDataToSave.instructions.map(step => ({ text: step.text }));
-  }
-
+  // Per user request, the entire recipe object is saved, including any generated or uploaded images.
+  // NOTE: This increases localStorage usage but allows user-uploaded images to be persisted.
   const recipeToSave: Recipe = {
-    ...recipeDataToSave,
+    ...recipe,
     dateAdded: recipe.dateAdded || new Date().toISOString(),
   };
 
   const existingRecipeIndex = favorites[category].findIndex(r => r.recipeName === recipeToSave.recipeName);
 
   if (existingRecipeIndex !== -1) {
-    // Recipe exists, so update it in place. The incoming `recipeToSave` already
-    // has all the updated data (like rating), and we've already stripped the images.
+    // Recipe exists, so update it in place.
     // Preserve the original dateAdded upon update.
     favorites[category][existingRecipeIndex] = {
         ...recipeToSave,
