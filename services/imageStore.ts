@@ -55,17 +55,16 @@ export const saveImage = async (id: string, imageDataUrl: string): Promise<void>
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readwrite');
-    transaction.onabort = () => {
-        console.error('Transaction aborted while saving image:', transaction.error);
-        reject(new Error('A kép mentése közben a tranzakció megszakadt.'));
-    };
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.put({ id, data: imageDataUrl });
+    store.put({ id, data: imageDataUrl });
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => {
-      console.error('Error saving image to IndexedDB:', request.error);
-      reject(new Error('Hiba a kép mentése közben.'));
+    transaction.oncomplete = () => {
+      resolve();
+    };
+
+    transaction.onerror = () => {
+      console.error('Transaction error while saving image:', transaction.error);
+      reject(new Error('A kép mentése közben tranzakciós hiba történt.'));
     };
   });
 };
@@ -74,23 +73,21 @@ export const getImage = async (id: string): Promise<string | undefined> => {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readonly');
-    transaction.onabort = () => {
-        console.error('Transaction aborted while getting image:', transaction.error);
-        reject(new Error('A kép betöltése közben a tranzakció megszakadt.'));
-    };
     const store = transaction.objectStore(STORE_NAME);
     const request = store.get(id);
 
     request.onsuccess = () => {
-      if (request.result) {
-        resolve(request.result.data);
-      } else {
-        resolve(undefined);
-      }
+      resolve(request.result?.data);
     };
+
     request.onerror = () => {
       console.error('Error getting image from IndexedDB:', request.error);
       reject(new Error('Hiba a kép betöltése közben.'));
+    };
+
+    transaction.onerror = (event) => {
+      console.error('Transaction error while getting image:', transaction.error);
+      reject(new Error('A kép betöltése közben tranzakciós hiba történt.'));
     };
   });
 };
@@ -99,42 +96,48 @@ export const deleteImage = async (id: string): Promise<void> => {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readwrite');
-    transaction.onabort = () => {
-        console.error('Transaction aborted while deleting image:', transaction.error);
-        reject(new Error('A kép törlése közben a tranzakció megszakadt.'));
-    };
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(id);
+    store.delete(id);
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => {
-      console.error('Error deleting image from IndexedDB:', request.error);
-      reject(new Error('Hiba a kép törlése közben.'));
+    transaction.oncomplete = () => {
+      resolve();
+    };
+
+    transaction.onerror = () => {
+      console.error('Transaction error while deleting image:', transaction.error);
+      reject(new Error('A kép törlése közben tranzakciós hiba történt.'));
     };
   });
 };
 
+// FIX: A function whose declared type is neither 'undefined', 'void', nor 'any' must return a value.
 export const getAllImages = async (): Promise<Record<string, string>> => {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readonly');
-        transaction.onabort = () => {
-            console.error('Transaction aborted while getting all images:', transaction.error);
-            reject(new Error('Az összes kép betöltése közben a tranzakció megszakadt.'));
-        };
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.getAll();
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAll();
 
-        request.onsuccess = () => {
-            const imageMap: Record<string, string> = {};
-            request.result.forEach(item => {
-                imageMap[item.id] = item.data;
-            });
-            resolve(imageMap);
-        };
-        request.onerror = () => {
-            console.error('Error getting all images from IndexedDB:', request.error);
-            reject(new Error('Hiba az összes kép betöltése közben.'));
-        };
-    });
+    request.onsuccess = () => {
+      const images: Record<string, string> = {};
+      if (request.result && Array.isArray(request.result)) {
+          request.result.forEach(item => {
+              if (item.id && item.data) {
+                  images[item.id] = item.data;
+              }
+          });
+      }
+      resolve(images);
+    };
+
+    request.onerror = () => {
+      console.error('Error getting all images from IndexedDB:', request.error);
+      reject(new Error('Hiba történt az összes kép betöltése közben.'));
+    };
+
+    transaction.onerror = () => {
+      console.error('Transaction error while getting all images:', transaction.error);
+      reject(new Error('Az összes kép betöltése közben tranzakciós hiba történt.'));
+    };
+  });
 };
