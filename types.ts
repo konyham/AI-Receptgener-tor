@@ -283,6 +283,7 @@ export interface BackupData {
     shoppingList: ShoppingListItem[];
     pantry: Record<PantryLocation, PantryItem[]>;
     users: UserProfile[];
+    images?: Record<string, string>;
     mealTypes?: OptionItem[];
     cuisineOptions?: OptionItem[];
     cookingMethods?: OptionItem[];

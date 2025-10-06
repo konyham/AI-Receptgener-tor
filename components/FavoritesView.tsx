@@ -77,35 +77,40 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
 
   const handleExport = async () => {
     try {
-      const allImages = await imageStore.getAllImages();
-      const favoritesWithImages = JSON.parse(JSON.stringify(favorites));
-
-      for (const category in favoritesWithImages) {
-        for (const recipe of favoritesWithImages[category]) {
+      // 1. Collect all image IDs from recipes
+      const imageIds = new Set<string>();
+      for (const category in favorites) {
+        for (const recipe of favorites[category]) {
           if (recipe.imageUrl && recipe.imageUrl.startsWith('indexeddb:')) {
-            const imageId = recipe.imageUrl.substring(10);
-            if (allImages[imageId]) {
-              recipe.imageUrl = allImages[imageId];
-            }
+            imageIds.add(recipe.imageUrl.substring(10));
           }
           if (recipe.instructions) {
             for (const instruction of recipe.instructions) {
               if (instruction.imageUrl && instruction.imageUrl.startsWith('indexeddb:')) {
-                const imageId = instruction.imageUrl.substring(10);
-                if (allImages[imageId]) {
-                  instruction.imageUrl = allImages[imageId];
-                }
+                imageIds.add(instruction.imageUrl.substring(10));
               }
             }
           }
         }
       }
 
+      // 2. Fetch image data for those IDs
+      const images: Record<string, string> = {};
+      const imagePromises = Array.from(imageIds).map(async (id) => {
+        const data = await imageStore.getImage(id);
+        if (data) {
+          images[id] = data;
+        }
+      });
+      await Promise.all(imagePromises);
+
+      // 3. Construct backup data with separated images map
       const dataToSave: BackupData = {
-        favorites: favoritesWithImages,
+        favorites,
         shoppingList,
         pantry,
         users,
+        images,
         mealTypes,
         cuisineOptions,
         cookingMethods: cookingMethodsList,
@@ -114,6 +119,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
         cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
       };
+
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const now = new Date();

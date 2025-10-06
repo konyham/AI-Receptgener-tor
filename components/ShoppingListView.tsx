@@ -102,31 +102,37 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   
    const handleExport = async () => {
     try {
-      const allImages = await imageStore.getAllImages();
-      const favoritesWithImages = JSON.parse(JSON.stringify(favorites));
-
-      for (const category in favoritesWithImages) {
-        for (const recipe of favoritesWithImages[category]) {
+      const imageIds = new Set<string>();
+      for (const category in favorites) {
+        for (const recipe of favorites[category]) {
           if (recipe.imageUrl && recipe.imageUrl.startsWith('indexeddb:')) {
-            const imageId = recipe.imageUrl.substring(10);
-            if (allImages[imageId]) recipe.imageUrl = allImages[imageId];
+            imageIds.add(recipe.imageUrl.substring(10));
           }
           if (recipe.instructions) {
             for (const instruction of recipe.instructions) {
               if (instruction.imageUrl && instruction.imageUrl.startsWith('indexeddb:')) {
-                const imageId = instruction.imageUrl.substring(10);
-                if (allImages[imageId]) instruction.imageUrl = allImages[imageId];
+                imageIds.add(instruction.imageUrl.substring(10));
               }
             }
           }
         }
       }
 
+      const images: Record<string, string> = {};
+      const imagePromises = Array.from(imageIds).map(async (id) => {
+        const data = await imageStore.getImage(id);
+        if (data) {
+          images[id] = data;
+        }
+      });
+      await Promise.all(imagePromises);
+
       const dataToSave: BackupData = {
-        favorites: favoritesWithImages,
+        favorites,
         shoppingList: list,
         pantry,
         users,
+        images,
         mealTypes,
         cuisineOptions,
         cookingMethods: cookingMethodsList,
@@ -135,6 +141,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
         cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
       };
+
       const jsonString = JSON.stringify(dataToSave, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const now = new Date();

@@ -53,6 +53,7 @@ import {
 } from './constants';
 import { safeSetLocalStorage } from './utils/storage';
 import { konyhaMikiLogo } from './assets';
+import * as imageStore from './services/imageStore';
 
 const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
     try {
@@ -552,44 +553,62 @@ const App: React.FC = () => {
 
 
   // Import/Export
-  const handleImportData = (data: Partial<BackupData>) => {
+  const handleImportData = async (data: Partial<BackupData>) => {
     try {
       let message = 'Adatok importálva.';
       let newCount = 0;
-      let tempFavorites = favorites;
-      let tempShoppingList = shoppingList;
-      let tempPantry = pantry;
-      let tempUsers = users;
-      
-      if(data.favorites) {
+      let tempFavorites = { ...favorites };
+      let tempShoppingList = [...shoppingList];
+      let tempPantry = { ...pantry };
+      let tempUsers = [...users];
+
+      // 1. Import images into IndexedDB first
+      if (data.images && typeof data.images === 'object') {
+        const imageEntries = Object.entries(data.images);
+        if (imageEntries.length > 0) {
+          const imagePromises = imageEntries.map(([id, imageData]) =>
+            imageStore.saveImage(id, imageData as string)
+          );
+          await Promise.all(imagePromises);
+        }
+      }
+
+      // 2. Merge favorites
+      if (data.favorites) {
         const { favorites: validatedFavorites, recoveryNotification } = favoritesService.validateAndRecover(data.favorites);
         if (recoveryNotification) showNotification(recoveryNotification, 'info');
         const { mergedFavorites, newRecipesCount } = favoritesService.mergeFavorites(tempFavorites, validatedFavorites);
         tempFavorites = mergedFavorites;
         newCount += newRecipesCount;
       }
-      if(data.shoppingList) {
+
+      // 3. Merge other data structures
+      if (data.shoppingList) {
         const { list: validatedList, recoveryNotification } = shoppingListService.validateAndRecover(data.shoppingList);
         if (recoveryNotification) showNotification(recoveryNotification, 'info');
         const { mergedList, newItemsCount } = shoppingListService.mergeShoppingLists(tempShoppingList, validatedList);
         tempShoppingList = mergedList;
         newCount += newItemsCount;
       }
-      if(data.pantry) {
+      if (data.pantry) {
         const { pantry: validatedPantry, recoveryNotification } = pantryService.validateAndRecover(data.pantry);
         if (recoveryNotification) showNotification(recoveryNotification, 'info');
         const { mergedPantry, newItemsCount } = pantryService.mergePantries(tempPantry, validatedPantry);
         tempPantry = mergedPantry;
         newCount += newItemsCount;
       }
-       if(data.users) {
+      if (data.users) {
         const { users: validatedUsers, recoveryNotification } = userService.validateAndRecover(data.users);
         if (recoveryNotification) showNotification(recoveryNotification, 'info');
         const { mergedUsers, newItemsCount: newUsersCount } = userService.mergeUsers(tempUsers, validatedUsers);
         tempUsers = mergedUsers;
         newCount += newUsersCount;
       }
+
+      // 4. Process the final merged favorites to move any Data URLs (from old backups) to IndexedDB
+      tempFavorites = await favoritesService.processFavoritesForStorage(tempFavorites);
       
+      // 5. Update state and save everything to localStorage
       setFavorites(tempFavorites);
       setShoppingList(tempShoppingList);
       setPantry(tempPantry);
@@ -646,6 +665,7 @@ const App: React.FC = () => {
         showNotification(`Hiba az importálás során: ${e.message}`, 'info');
     }
   };
+
 
   const handleAppVoiceResult = async (transcript: string) => {
     if (isProcessingVoiceCommandRef.current) return;

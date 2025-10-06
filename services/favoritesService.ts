@@ -305,3 +305,36 @@ export const removeCategory = async (category: string): Promise<Favorites> => {
   }
   return favorites;
 };
+
+/**
+ * Processes a Favorites object to move any Data URL images to IndexedDB.
+ * This is useful after importing old backup files.
+ * @param favorites The favorites object to process.
+ * @returns A new Favorites object with images stored as references.
+ */
+export const processFavoritesForStorage = async (favorites: Favorites): Promise<Favorites> => {
+  const processedFavorites = JSON.parse(JSON.stringify(favorites)); // Deep copy
+
+  for (const category in processedFavorites) {
+    for (const recipe of processedFavorites[category]) {
+      // Handle main image
+      if (recipe.imageUrl && recipe.imageUrl.startsWith('data:image')) {
+        const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        await imageStore.saveImage(imageId, recipe.imageUrl);
+        recipe.imageUrl = `indexeddb:${imageId}`;
+      }
+      // Handle instruction images
+      if (recipe.instructions) {
+        for (let i = 0; i < recipe.instructions.length; i++) {
+          const instruction = recipe.instructions[i];
+          if (instruction.imageUrl && instruction.imageUrl.startsWith('data:image')) {
+            const imageId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${i}`;
+            await imageStore.saveImage(imageId, instruction.imageUrl);
+            instruction.imageUrl = `indexeddb:${imageId}`;
+          }
+        }
+      }
+    }
+  }
+  return processedFavorites;
+};
