@@ -478,7 +478,11 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     try {
         const base64Image = await generateRecipeImage(recipe);
         const watermarkedImage = await addWatermark(base64Image, recipe);
-        onRecipeUpdate({ ...recipe, imageUrl: watermarkedImage });
+        const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        await imageStore.saveImage(imageId, watermarkedImage);
+
+        onRecipeUpdate({ ...recipe, imageUrl: `indexeddb:${imageId}` });
+        setResolvedImageUrl(watermarkedImage); // Optimistically update UI
     } catch (err: any) {
         const errorMsg = err.message || 'Ismeretlen hiba történt az ételfotó generálása közben.';
         setImageError(errorMsg);
@@ -525,7 +529,12 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         }
 
         const watermarkedImage = await addWatermark(dataUrl, recipe);
-        onRecipeUpdate({ ...recipe, imageUrl: watermarkedImage });
+        const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        await imageStore.saveImage(imageId, watermarkedImage);
+        
+        onRecipeUpdate({ ...recipe, imageUrl: `indexeddb:${imageId}` });
+        setResolvedImageUrl(watermarkedImage); // Optimistically update UI
+        
         showNotification('Kép sikeresen feltöltve és vízjelezve!', 'success');
       } catch (err: any) {
         const errorMsg = err.message || 'Hiba történt a kép feldolgozása közben.';
@@ -555,13 +564,24 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         const base64Image = await generateInstructionImage(recipe.recipeName, instructionText);
         const watermarkedImage = await addWatermarkToStepImage(base64Image);
         
+        const imageId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${stepIndex}`;
+        await imageStore.saveImage(imageId, watermarkedImage);
+
+        // Optimistically update local resolved state for immediate feedback
+        setResolvedInstructions(prev => {
+            const newResolved = [...prev];
+            newResolved[stepIndex] = { ...newResolved[stepIndex], imageUrl: watermarkedImage };
+            return newResolved;
+        });
+
+        // Update parent state with the reference for persistence
         const newInstructions = [...recipe.instructions];
-        newInstructions[stepIndex] = { ...newInstructions[stepIndex], imageUrl: watermarkedImage };
+        newInstructions[stepIndex] = { ...newInstructions[stepIndex], imageUrl: `indexeddb:${imageId}` };
         onRecipeUpdate({ ...recipe, instructions: newInstructions });
 
     } catch (err: any) {
         const errorMsg = err.message || 'Hiba történt a kép generálása közben.';
-        setStepImageError(errorMsg); // You might want a dedicated state for this error
+        setStepImageError(errorMsg);
         showNotification(errorMsg, 'info');
     } finally {
         setGeneratingImageForStep(null);

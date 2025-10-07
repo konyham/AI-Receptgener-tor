@@ -95,7 +95,7 @@ export const saveFavorites = (favorites: Favorites): void => {
 };
 
 /**
- * Merges imported favorites into the current ones, avoiding duplicates.
+ * Merges imported favorites into the current ones, updating existing recipes and adding new ones.
  * @param currentFavorites The existing favorites object.
  * @param importedFavorites The favorites object from the imported file.
  * @returns An object with the merged favorites and the count of new recipes added.
@@ -112,16 +112,20 @@ export const mergeFavorites = (currentFavorites: Favorites, importedFavorites: F
         newFavorites[category] = [];
       }
       
-      // Create a Set of existing recipe names in the category for efficient lookup.
-      const existingRecipeNames = new Set(newFavorites[category].map(r => r.recipeName));
+      // Use a Map for efficient lookup and update of recipes within the category.
+      const recipeMap = new Map<string, Recipe>(newFavorites[category].map(r => [r.recipeName, r]));
       
-      importedFavorites[category].forEach(recipe => {
-        // If the recipe is not already in the category, add it.
-        if (!existingRecipeNames.has(recipe.recipeName)) {
-          newFavorites[category].push(recipe);
+      importedFavorites[category].forEach(importedRecipe => {
+        // If the recipe is not already in the category, it's new.
+        if (!recipeMap.has(importedRecipe.recipeName)) {
           newRecipesCount++;
         }
+        // Always update/add the imported recipe. This ensures existing ones are overwritten.
+        recipeMap.set(importedRecipe.recipeName, importedRecipe);
       });
+
+      // Reconstruct the category array from the map.
+      newFavorites[category] = Array.from(recipeMap.values());
     }
   }
 
