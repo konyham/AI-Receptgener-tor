@@ -100,7 +100,7 @@ const DiabeticAdvice: React.FC<{ advice: string | undefined }> = ({ advice }) =>
     );
 };
 
-const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
+const addWatermark = (base64Image: string, recipe: Recipe, source: 'ai' | 'user'): Promise<string> => {
     return new Promise((resolve, reject) => {
         const recipeImg = new Image();
         const logoImg = new Image();
@@ -141,6 +141,8 @@ const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
                 ?.map(cm => customCookingMethods.find(c => c.value === cm)?.label)
                 .filter((v): v is string => !!v);
             
+            const sourceText = source === 'ai' ? 'AI fotó' : 'Saját fotó';
+
             const topLeftInfo: string[] = [];
             if (cookingMethodNames && cookingMethodNames.length > 0) {
                 topLeftInfo.push('Elkészítés:');
@@ -155,6 +157,7 @@ const addWatermark = (base64Image: string, recipe: Recipe): Promise<string> => {
             if (dietLabel) {
                 topLeftInfo.push(`Diéta: ${dietLabel}`);
             }
+            topLeftInfo.push(sourceText);
             topLeftInfo.push("AI-val készítette Konyha Miki");
 
             const topRightInfo = [
@@ -477,7 +480,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     setImageError(null);
     try {
         const base64Image = await generateRecipeImage(recipe);
-        const watermarkedImage = await addWatermark(base64Image, recipe);
+        const watermarkedImage = await addWatermark(base64Image, recipe, 'ai');
         const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
         await imageStore.saveImage(imageId, watermarkedImage);
 
@@ -528,7 +531,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
           throw new Error('A képfájl beolvasása sikertelen volt.');
         }
 
-        const watermarkedImage = await addWatermark(dataUrl, recipe);
+        const watermarkedImage = await addWatermark(dataUrl, recipe, 'user');
         const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
         await imageStore.saveImage(imageId, watermarkedImage);
         

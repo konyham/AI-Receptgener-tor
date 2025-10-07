@@ -1,0 +1,23 @@
+{
+  "short_name": "Konyha Miki",
+  "name": "AI recept generátor - Konyha Miki módra",
+  "description": "Készítsen finom és egészséges recepteket a megadott összetevőkből és diétás igényeknek megfelelően.",
+  "icons": [
+    {
+      "src": "icon-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#854d24",
+  "background_color": "#fefcf9",
+  "scope": "/"
+}
