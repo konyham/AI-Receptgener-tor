@@ -4,6 +4,9 @@ const CACHE_NAME = 'konyha-miki-cache-v1';
 const urlsToCache = [
   '/',
   '/index.html',
+  '/manifest.json',
+  '/icon-192x192.png',
+  '/icon-512x512.png',
   // A build process során generált JS és CSS fájlokra mutató útvonalak
   // A jelenlegi setupban a JS dinamikusan van betöltve, így a gyökér ('/') cache-elése a legfontosabb.
   // A CDN-ről érkező scriptek is cache-elődnek a 'fetch' eseménykezelőben.

@@ -1,6 +1,8 @@
+
 // FIX: This file was created to implement the missing Gemini API service logic.
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
-import { GoogleGenAI, Type, Operation, GenerateVideosResponse } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
+import type { Operation, GenerateVideosResponse } from '@google/genai';
 import { DIET_OPTIONS, MEAL_TYPES as defaultMealTypes, COOKING_METHODS as defaultCookingMethods, CUISINE_OPTIONS as defaultCuisineOptions, COOKING_METHOD_CAPACITIES as defaultCookingMethodCapacities } from '../constants';
 import {
   DietOption,
