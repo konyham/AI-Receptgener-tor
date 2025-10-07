@@ -5,123 +5,105 @@ const DB_VERSION = 1;
 const STORE_NAME = 'images';
 
 /**
- * A robust way to get a database instance.
- * It memoizes the promise to avoid multiple open requests concurrently.
- */
-let dbPromise: Promise<IDBDatabase> | null = null;
-const getDB = (): Promise<IDBDatabase> => {
-    if (!dbPromise) {
-        dbPromise = new Promise((resolve, reject) => {
-            const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-            request.onerror = () => {
-                console.error('IndexedDB error:', request.error);
-                dbPromise = null; // Reset on error
-                reject(new Error('Hiba az adatbázis megnyitása közben.'));
-            };
-
-            request.onsuccess = () => {
-                const db = request.result;
-                // Handle unexpected closing
-                db.onclose = () => {
-                    console.warn('IndexedDB connection closed unexpectedly. It will be reopened on next request.');
-                    dbPromise = null;
-                };
-                resolve(db);
-            };
-
-            request.onupgradeneeded = (event) => {
-                const dbInstance = (event.target as IDBOpenDBRequest).result;
-                if (!dbInstance.objectStoreNames.contains(STORE_NAME)) {
-                    dbInstance.createObjectStore(STORE_NAME, { keyPath: 'id' });
-                }
-            };
-        });
-    }
-    return dbPromise;
-};
-
-/**
- * Executes a database transaction.
+ * A robust wrapper that handles opening, transaction, and closing for a single operation.
+ * It is slower than a singleton connection but more resilient to unexpected connection closures
+ * that can occur in some browser environments.
  * @param mode The transaction mode ('readonly' or 'readwrite').
- * @param callback The function to execute within the transaction. It receives the object store.
- * @returns A promise that resolves when the transaction is complete.
+ * @param callback A function that receives the object store and should return an IDBRequest.
+ * @returns A promise that resolves with the result of the IDBRequest.
  */
-const executeTransaction = <T>(
-    mode: IDBTransactionMode,
-    callback: (store: IDBObjectStore) => IDBRequest<T> | void
-): Promise<T | void> => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const db = await getDB();
+function dbRequest<T>(mode: IDBTransactionMode, callback: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const openRequest = indexedDB.open(DB_NAME, DB_VERSION);
+
+        openRequest.onupgradeneeded = event => {
+            const db = (event.target as IDBOpenDBRequest).result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            }
+        };
+
+        openRequest.onerror = () => {
+            console.error("DB Open Error:", openRequest.error);
+            reject(new Error(`Hiba az adatbázis megnyitása közben: ${openRequest.error?.message}`));
+        };
+
+        openRequest.onsuccess = () => {
+            const db = openRequest.result;
+            
+            // This event can fire if another tab deletes the DB.
+            db.onversionchange = () => {
+                db.close();
+            };
+
             const transaction = db.transaction(STORE_NAME, mode);
             const store = transaction.objectStore(STORE_NAME);
+            const request = callback(store);
+            
+            // This variable will hold the result from the successful request.
+            let result: T;
 
-            let request: IDBRequest | undefined;
-            const result = callback(store);
-            if (result instanceof IDBRequest) {
-                request = result;
-            }
+            request.onsuccess = () => {
+                result = request.result;
+            };
+
+            request.onerror = () => {
+                // The transaction's onerror handler will catch this and reject the promise.
+            };
 
             transaction.oncomplete = () => {
-                if (request) {
-                    resolve(request.result);
-                } else {
-                    resolve();
-                }
+                db.close();
+                resolve(result);
             };
 
             transaction.onerror = () => {
-                console.error('Transaction error:', transaction.error);
-                reject(transaction.error);
+                console.error("Transaction Error:", transaction.error);
+                db.close();
+                reject(new Error(`Adatbázis tranzakciós hiba: ${transaction.error?.message}`));
             };
-        } catch (error) {
-            console.error('Failed to start transaction:', error);
-            reject(error);
-        }
+        };
     });
-};
+}
 
 
 /**
  * Saves or updates an image in the database.
  */
 export const saveImage = (id: string, imageDataUrl: string): Promise<void> => {
-    return executeTransaction('readwrite', (store) => {
-        store.put({ id, data: imageDataUrl });
-    }) as Promise<void>;
+    return dbRequest('readwrite', store => {
+        return store.put({ id, data: imageDataUrl });
+    }).then(() => {}); // Discard the result (the key) to match Promise<void>
 };
 
 /**
  * Retrieves an image from the database.
  */
 export const getImage = async (id: string): Promise<string | undefined> => {
-    const result = await executeTransaction('readonly', (store) => {
+    const result = await dbRequest<{id: string, data: string} | undefined>('readonly', store => {
         return store.get(id);
     });
-    // The result of a `get` transaction is the record itself.
-    return (result as { id: string, data: string } | undefined)?.data;
+    return result?.data;
 };
 
 /**
  * Deletes an image from the database.
  */
 export const deleteImage = (id: string): Promise<void> => {
-    return executeTransaction('readwrite', (store) => {
-        store.delete(id);
-    }) as Promise<void>;
+    return dbRequest('readwrite', store => {
+        return store.delete(id);
+    }).then(() => {});
 };
 
 /**
  * Retrieves all images from the database, for backup/export purposes.
  */
 export const getAllImages = async (): Promise<Record<string, string>> => {
-    const results = (await executeTransaction('readonly', (store) => {
+    const results = await dbRequest<{ id: string, data: string }[]>('readonly', store => {
         return store.getAll();
-    })) as { id: string, data: string }[];
-
+    });
+    
     const images: Record<string, string> = {};
-    if (results && Array.isArray(results)) {
+    if (Array.isArray(results)) {
         results.forEach(item => {
             if (item.id && item.data) {
                 images[item.id] = item.data;
