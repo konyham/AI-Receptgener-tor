@@ -1,85 +1,87 @@
-// service-worker.js
-// v5
-
-const CACHE_NAME = 'konyha-miki-cache-v5';
+const CACHE_NAME = 'konyha-miki-cache-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/manifest.json?v=1.2',
-  '/icon-192x192.png',
-  '/icon-512x512.png',
-  // Az alkalmazás saját indító szkriptje
   '/index.tsx',
-  // Az alkalmazás futtatásához szükséges alapvető JS csomagok
-  'https://aistudiocdn.com/react@^19.1.1',
-  'https://aistudiocdn.com/react-dom@^19.1.1/client',
-  'https://aistudiocdn.com/@google/genai@^1.16.0'
+  '/manifest.json',
+  // CDNs from importmap
+  'https://cdn.tailwindcss.com',
+  'https://aistudiocdn.com/react@^19.2.0',
+  'https://aistudiocdn.com/react-dom@^19.2.0/client.mjs',
+  'https://aistudiocdn.com/@google/genai@^1.22.0',
+  // Icons from manifest
+  'https://storage.googleapis.com/genai-assets/konyha-miki-icons/icon-192x192.png',
+  'https://storage.googleapis.com/genai-assets/konyha-miki-icons/icon-512x512.png',
+  'https://storage.googleapis.com/genai-assets/konyha-miki-icons/apple-touch-icon.png'
 ];
 
-// 1. Telepítés: A Service Worker telepítésekor megnyitjuk a cache-t és hozzáadjuk az alapvető fájlokat.
-self.addEventListener('install', (event) => {
+// Install event: open cache and add all core assets.
+self.addEventListener('install', event => {
+  console.log('Service Worker: Installing...');
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache and caching essential assets');
+      .then(cache => {
+        console.log('Service Worker: Caching core assets');
         return cache.addAll(urlsToCache);
       })
+      .catch(error => {
+        console.error('Service Worker: Failed to cache core assets:', error);
+      })
   );
+  self.skipWaiting();
 });
 
-// 2. Aktiválás: Régi, felesleges cache-ek törlése.
-self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
+// Activate event: clean up old caches.
+self.addEventListener('activate', event => {
+  console.log('Service Worker: Activating...');
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
+    caches.keys().then(cacheNames => {
       return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            console.log('Deleting old cache:', cacheName);
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('Service Worker: Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     })
   );
+  return self.clients.claim();
 });
 
-// 3. Fetch: Hálózati kérések elfogása.
-// A "Cache-first, then network" stratégiát használjuk.
-self.addEventListener('fetch', (event) => {
-  // Nem cache-eljük a Gemini API kéréseket
-  if (event.request.url.includes('generativelanguage.googleapis.com')) {
+// Fetch event: serve from cache first, then network.
+self.addEventListener('fetch', event => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Don't cache Gemini API calls.
+  if (url.hostname === 'generativelanguage.googleapis.com') {
     return;
   }
-    
+
+  // Use a "Cache falling back to Network" strategy for all other requests.
   event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Ha a válasz a cache-ben van, azonnal visszatérünk vele.
-        if (response) {
-          return response;
+    caches.match(request)
+      .then(cachedResponse => {
+        // If we have a cached response, return it.
+        if (cachedResponse) {
+          return cachedResponse;
         }
 
-        // Ha nincs a cache-ben, akkor lekérjük a hálózatról.
-        return fetch(event.request).then(
-          (response) => {
-            // A 'basic' és 'cors' típusú válaszokat cache-eljük.
-            // A 'cors' szükséges a CDN-ről érkező erőforrásokhoz.
-            if (!response || response.status !== 200 || (response.type !== 'basic' && response.type !== 'cors')) {
-              return response;
-            }
-
-            // Készítünk egy másolatot a válaszról, mert a response stream csak egyszer olvasható.
-            const responseToCache = response.clone();
-
+        // Otherwise, fetch from the network.
+        return fetch(request).then(networkResponse => {
+          // If the fetch is successful, clone the response and cache it.
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
+              .then(cache => {
+                cache.put(request, responseToCache);
               });
-
-            return response;
           }
-        );
+          return networkResponse;
+        });
+      }).catch(error => {
+        console.log('Service Worker: Fetch failed; user is likely offline.', error);
       })
   );
 });

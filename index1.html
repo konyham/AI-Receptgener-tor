@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light only">
     <title>AI recept generátor - Konyha Miki módra</title>
-    <link rel="manifest" href="/manifest.json">
-    <link rel="apple-touch-icon" href="https://storage.googleapis.com/genai-assets/konyha-miki-icons/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.json?v=1.2">
     <meta name="theme-color" content="#854d24">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -60,18 +59,17 @@
   <script type="importmap">
 {
   "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client.mjs",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.22.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/"
+    "react": "https://aistudiocdn.com/react@19.1.1/index.mjs",
+    "react-dom/client": "https://aistudiocdn.com/react-dom@19.1.1/client.mjs",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@1.16.0/index.mjs",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
   }
 }
 </script>
 </head>
   <body class="bg-primary-50">
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -84,6 +82,5 @@
             });
         });
       }
-    </script>
-  </body>
+    </script>  </body>
 </html>
