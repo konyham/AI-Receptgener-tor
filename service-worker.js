@@ -1,15 +1,19 @@
 // service-worker.js
+// v5
 
-const CACHE_NAME = 'konyha-miki-cache-v1';
+const CACHE_NAME = 'konyha-miki-cache-v5';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/manifest.json',
+  '/manifest.json?v=1.2',
   '/icon-192x192.png',
   '/icon-512x512.png',
-  // A build process során generált JS és CSS fájlokra mutató útvonalak
-  // A jelenlegi setupban a JS dinamikusan van betöltve, így a gyökér ('/') cache-elése a legfontosabb.
-  // A CDN-ről érkező scriptek is cache-elődnek a 'fetch' eseménykezelőben.
+  // Az alkalmazás saját indító szkriptje
+  '/index.tsx',
+  // Az alkalmazás futtatásához szükséges alapvető JS csomagok
+  'https://aistudiocdn.com/react@^19.1.1',
+  'https://aistudiocdn.com/react-dom@^19.1.1/client',
+  'https://aistudiocdn.com/@google/genai@^1.16.0'
 ];
 
 // 1. Telepítés: A Service Worker telepítésekor megnyitjuk a cache-t és hozzáadjuk az alapvető fájlokat.
@@ -17,7 +21,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Opened cache');
+        console.log('Opened cache and caching essential assets');
         return cache.addAll(urlsToCache);
       })
   );
@@ -59,8 +63,9 @@ self.addEventListener('fetch', (event) => {
         // Ha nincs a cache-ben, akkor lekérjük a hálózatról.
         return fetch(event.request).then(
           (response) => {
-            // Ha a válasz érvénytelen, nem tesszük be a cache-be.
-            if (!response || response.status !== 200 || response.type !== 'basic' && response.type !== 'cors') {
+            // A 'basic' és 'cors' típusú válaszokat cache-eljük.
+            // A 'cors' szükséges a CDN-ről érkező erőforrásokhoz.
+            if (!response || response.status !== 200 || (response.type !== 'basic' && response.type !== 'cors')) {
               return response;
             }
 
