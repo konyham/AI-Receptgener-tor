@@ -1,8 +1,8 @@
 
+
 // FIX: This file was created to implement the missing Gemini API service logic.
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import { GoogleGenAI, Type } from '@google/genai';
-import type { Operation, GenerateVideosResponse } from '@google/genai';
 import { DIET_OPTIONS, MEAL_TYPES as defaultMealTypes, COOKING_METHODS as defaultCookingMethods, CUISINE_OPTIONS as defaultCuisineOptions, COOKING_METHOD_CAPACITIES as defaultCookingMethodCapacities } from '../constants';
 import {
   DietOption,
@@ -24,8 +24,6 @@ import {
 
 // FIX: Initialize the GoogleGenAI client with API key from environment variables as per guidelines.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-// Capture the API key at module load time to ensure it's available for browser-side fetch calls.
-const API_KEY = process.env.API_KEY!;
 
 const recipeSchema = {
   type: Type.OBJECT,
@@ -451,86 +449,6 @@ export const generateInstructionImage = async (recipeName: string, instructionTe
             throw new Error('Elérte a képgenerálási kvótáját. Kérjük, próbálja újra később.');
         }
         throw new Error('Hiba történt a lépés fotójának generálása közben.');
-    }
-};
-
-
-// FIX: Added missing function to start recipe video generation.
-export const generateRecipeVideo = async (recipe: Recipe): Promise<Operation<GenerateVideosResponse>> => {
-    const prompt = `Készíts egy rövid, kb. 30 másodperces, pörgős videót, ami bemutatja a "${recipe.recipeName}" elkészítésének főbb lépéseit.
-    A videó legyen étvágygerjesztő és kövesse a recept leírását: "${recipe.description}".
-    Mutassa be a hozzávalókat, a főzési folyamat leglátványosabb részeit, és a végén a tálalt ételt.`;
-
-    try {
-        const operation = await ai.models.generateVideos({
-            model: 'veo-2.0-generate-001',
-            prompt: prompt,
-            config: {
-                numberOfVideos: 1,
-            },
-        });
-        return operation;
-    } catch (error: any) {
-        console.error('Error starting video generation:', error);
-        const errorString = JSON.stringify(error).toLowerCase();
-        if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
-            throw new Error('Elérte a videógenerálási kvótáját. Kérjük, próbálja újra később.');
-        }
-        throw new Error('Hiba történt a videó generálásának elindítása közben.');
-    }
-};
-
-// FIX: Added missing function to get the status of a video generation operation.
-export const getVideosOperationStatus = async (operation: Operation<GenerateVideosResponse>): Promise<Operation<GenerateVideosResponse>> => {
-    try {
-        const updatedOperation = await ai.operations.getVideosOperation({ operation: operation });
-        return updatedOperation;
-    } catch (error: any) {
-        console.error('Error getting video operation status:', error);
-        const errorString = JSON.stringify(error).toLowerCase();
-        if (errorString.includes('quota') || errorString.includes('resource_exhausted') || errorString.includes('429')) {
-            throw new Error('Túl sok kérés a videó állapotára. Kérjük, várjon egy kicsit.');
-        }
-        throw new Error('Hiba történt a videó állapotának lekérdezése közben.');
-    }
-};
-
-/**
- * Downloads a video from a generated URL by correctly appending the API key.
- * This function is moved here to ensure access to the process.env.API_KEY.
- * @param downloadLink The URI provided by the VEO API.
- * @returns A Blob containing the video data.
- */
-export const downloadVideo = async (downloadLink: string): Promise<Blob> => {
-    try {
-        const url = new URL(downloadLink);
-        // Use the captured API_KEY constant instead of trying to access process.env directly.
-        url.searchParams.append('key', API_KEY);
-
-        const response = await fetch(url.toString());
-
-        if (!response.ok) {
-            let errorBody = 'A szerver nem adott részletes hibaüzenetet.';
-            try {
-                // Try to get more specific error info from the response body
-                errorBody = await response.text();
-            } catch (e) {
-                console.warn('Nem sikerült kiolvasni a hibaüzenet törzsét.', e);
-            }
-            console.error(`Videó letöltési hiba: ${response.status} ${response.statusText}`, `"${errorBody}"`);
-            // Construct a more detailed error message for the user.
-            throw new Error(`Nem sikerült letölteni a generált videót (HTTP ${response.status}). A szerver válasza: ${errorBody}`);
-        }
-        const videoBlob = await response.blob();
-        return videoBlob;
-    } catch (error: any) {
-        console.error('Hiba a videó letöltése közben:', error);
-        if (error.message.startsWith('Nem sikerült letölteni')) {
-            throw error;
-        } else if (error instanceof TypeError && error.message.includes('Invalid URL')) {
-            throw new Error('A videó API érvénytelen letöltési linket adott vissza.');
-        }
-        throw new Error('Hálózati vagy egyéb hiba történt a videó letöltése közben.');
     }
 };
 

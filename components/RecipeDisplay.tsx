@@ -1,14 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import type { Operation, GenerateVideosResponse } from '@google/genai';
 import { Recipe, VoiceCommand, Favorites, CookingMethod, InstructionStep } from '../types';
-import { interpretUserCommand, generateRecipeVideo, getVideosOperationStatus, generateRecipeImage, calculateRecipeCost, simplifyRecipe, downloadVideo, generateInstructionImage } from '../services/geminiService';
+import { interpretUserCommand, generateRecipeImage, calculateRecipeCost, simplifyRecipe, generateInstructionImage } from '../services/geminiService';
 import * as imageStore from '../services/imageStore';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 import KitchenTimer from './KitchenTimer';
 import SaveToFavoritesModal from './SaveToFavoritesModal';
-import VideoGenerationModal from './VideoGenerationModal';
-import VideoPlayerModal from './VideoPlayerModal';
 import ImageDisplayModal from './ImageDisplayModal';
 import ErrorMessage from './ErrorMessage';
 import InstructionCarousel from './InstructionCarousel';
@@ -339,11 +336,6 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const [timerInitialValues, setTimerInitialValues] = useState<{ hours?: number; minutes?: number; seconds?: number } | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   
-  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
-  const [videoGenerationProgress, setVideoGenerationProgress] = useState('');
-  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
-  const [videoGenerationError, setVideoGenerationError] = useState<string | null>(null);
-
   const [isImageLoading, setIsImageLoading] = useState<boolean>(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState<boolean>(false);
@@ -603,14 +595,6 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         handleGenerateImage();
     }
   }, [shouldGenerateImageInitially, recipe.imageUrl, handleGenerateImage]);
-
-  useEffect(() => {
-    return () => {
-        if (generatedVideoUrl) {
-            URL.revokeObjectURL(generatedVideoUrl);
-        }
-    };
-  }, [generatedVideoUrl]);
 
   const handleSpeechError = useCallback((error: string) => {
     if (error === 'not-allowed') {
@@ -935,56 +919,6 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     setIsSaveModalOpen(false);
   };
 
-  const handleGenerateVideo = async () => {
-    setIsGeneratingVideo(true);
-    setVideoGenerationError(null);
-    setGeneratedVideoUrl(null);
-
-    const progressMessages = [
-        "A séf felveszi a kötényt...",
-        "Hozzávalók előkészítése a forgatáshoz...",
-        "Kamera indul, felvétel!",
-        "A legfontosabb lépések rögzítése...",
-        "Vágás és utómunka...",
-        "Zene és effektek hozzáadása...",
-        "A videó renderelése, mindjárt kész!",
-    ];
-    let messageIndex = 0;
-    setVideoGenerationProgress(progressMessages[messageIndex]);
-
-    const messageInterval = setInterval(() => {
-        messageIndex = (messageIndex + 1) % progressMessages.length;
-        setVideoGenerationProgress(progressMessages[messageIndex]);
-    }, 8000);
-
-    try {
-        // FIX: The `Operation` generic type takes only one argument.
-        let operation: Operation<GenerateVideosResponse> = await generateRecipeVideo(recipe);
-
-        while (!operation.done) {
-            await new Promise(resolve => setTimeout(resolve, 10000)); // Poll every 10 seconds
-            operation = await getVideosOperationStatus(operation);
-        }
-
-        clearInterval(messageInterval);
-
-        const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-        if (downloadLink) {
-            const videoBlob = await downloadVideo(downloadLink);
-            const videoUrl = URL.createObjectURL(videoBlob);
-            setGeneratedVideoUrl(videoUrl);
-        } else {
-            throw new Error('Nem található videó a generálási válaszban.');
-        }
-
-    } catch (err: any) {
-        setVideoGenerationError(err.message || 'Ismeretlen hiba történt a videó generálása közben.');
-    } finally {
-        setIsGeneratingVideo(false);
-        clearInterval(messageInterval);
-    }
-  };
-
   const handleCalculateCost = async () => {
     if (isCostLoading) return;
     setIsCostLoading(true);
@@ -1192,7 +1126,6 @@ Recept generálva Konyha Miki segítségével!
 
         <div className="p-6 md:p-8">
             {simplifyError && <div className="mb-4"><ErrorMessage message={simplifyError} /></div>}
-            {videoGenerationError && <div className="mb-4"><ErrorMessage message={videoGenerationError} /></div>}
             {stepImageError && <div className="mb-4"><ErrorMessage message={stepImageError} /></div>}
             <div className="my-6 p-3 bg-gray-50 border rounded-lg flex flex-wrap justify-center items-center gap-3 no-print">
                 <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-primary-100 text-primary-800 rounded-lg hover:bg-primary-200 transition-colors">
@@ -1214,10 +1147,6 @@ Recept generálva Konyha Miki segítségével!
                         <path d="M10 3.5a.75.75 0 01.75.75V6h1.75a.75.75 0 010 1.5H10.75V9.25a.75.75 0 01-1.5 0V7.5H7.5a.75.75 0 010-1.5H9.25V4.25A.75.75 0 0110 3.5zM3.5 10a.75.75 0 01.75-.75H6V7.5a.75.75 0 011.5 0v1.75H9.25a.75.75 0 010 1.5H7.5v1.75a.75.75 0 01-1.5 0V10.75H4.25a.75.75 0 01-.75-.75zM10 12.5a.75.75 0 01.75.75v1.75h1.75a.75.75 0 010 1.5H10.75V18a.75.75 0 01-1.5 0v-1.75H7.5a.75.75 0 010-1.5h1.75V13.25a.75.75 0 01.75-.75zM12.5 10a.75.75 0 01.75-.75h1.75v-1.75a.75.75 0 011.5 0V9.25h1.75a.75.75 0 010 1.5H16.25v1.75a.75.75 0 01-1.5 0V10.75H13.25a.75.75 0 01-.75-.75z" />
                     </svg>
                     {isSimplifying ? 'Egyszerűsítés...' : 'Recept egyszerűsítése'}
-                </button>
-                 <button onClick={handleGenerateVideo} disabled={isGeneratingVideo} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-purple-100 text-purple-800 rounded-lg hover:bg-purple-200 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
-                    {isGeneratingVideo ? 'Folyamatban...' : 'Videó generálása'}
                 </button>
                 <button onClick={() => setIsTimerOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
@@ -1368,8 +1297,6 @@ Recept generálva Konyha Miki segítségével!
         existingCategories={Object.keys(favorites)}
         suggestedCategory={suggestedCategory}
       />
-      {isGeneratingVideo && <VideoGenerationModal progressMessage={videoGenerationProgress} />}
-      {generatedVideoUrl && <VideoPlayerModal videoUrl={generatedVideoUrl} recipeName={recipe.recipeName} onClose={() => setGeneratedVideoUrl(null)} />}
       {isImageModalOpen && resolvedImageUrl && <ImageDisplayModal imageUrl={resolvedImageUrl} recipeName={recipe.recipeName} onClose={() => setIsImageModalOpen(false)} />}
       {instructionImageInModal && <ImageDisplayModal imageUrl={instructionImageInModal.url} recipeName={instructionImageInModal.title} onClose={() => setInstructionImageInModal(null)} />}
       <ShareFallbackModal 

@@ -1,4 +1,4 @@
-import type { Operation, GenerateVideosResponse } from '@google/genai';
+
 
 // For extending the Window object for browser APIs
 declare global {

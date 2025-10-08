@@ -48,6 +48,7 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ videoUrl, recipeNam
         >
             A böngészője nem támogatja a videó lejátszását.
         </video>
+        <p className="text-xs text-gray-400 mt-2">(Megjegyzés: A generált videó néma.)</p>
         <button 
             onClick={onClose} 
             className="absolute -top-3 -right-3 bg-white text-gray-800 rounded-full h-8 w-8 flex items-center justify-center shadow-lg hover:bg-gray-200"
