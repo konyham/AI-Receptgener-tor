@@ -1,12 +1,10 @@
-
-
 // For extending the Window object for browser APIs
 declare global {
   interface Window {
-    // FIX: 'SpeechRecognition' only refers to a type, but is being used as a value here. Removed `typeof`.
-    SpeechRecognition: SpeechRecognition;
-    // FIX: 'SpeechRecognition' only refers to a type, but is being used as a value here. Removed `typeof`.
-    webkitSpeechRecognition: SpeechRecognition;
+    // FIX: Correctly typed SpeechRecognition as a constructable type.
+    SpeechRecognition: { new (): SpeechRecognition };
+    // FIX: Correctly typed webkitSpeechRecognition as a constructable type.
+    webkitSpeechRecognition: { new (): SpeechRecognition };
     showSaveFilePicker: (options?: SaveFilePickerOptions) => Promise<FileSystemFileHandle>;
   }
 
@@ -57,35 +55,21 @@ export interface SpeechRecognition extends EventTarget {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
-  maxAlternatives: number;
-  
   start(): void;
   stop(): void;
   abort(): void;
-
-  onaudiostart: ((this: SpeechRecognition, ev: Event) => any) | null;
-  onsoundstart: ((this: SpeechRecognition, ev: Event) => any) | null;
-  onspeechstart: ((this: SpeechRecognition, ev: Event) => any) | null;
-  onspeechend: ((this: SpeechRecognition, ev: Event) => any) | null;
-  onsoundend: ((this: SpeechRecognition, ev: Event) => any) | null;
-  onaudioend: ((this: SpeechRecognition, ev: Event) => any) | null;
-  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
-  onnomatch: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
-  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
-  onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
-  onend: ((this: SpeechRecognition, ev: Event) => any) | null;
-
-  new(): SpeechRecognition;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: SpeechRecognitionEvent) => void;
+  onstart: () => void;
+  onend: () => void;
 }
 
-
-// Enums
 export enum DietOption {
   NONE = 'none',
   DIABETIC = 'diabetic',
   VEGETARIAN = 'vegetarian',
   VEGAN = 'vegan',
-  GLUTEN_FREE = 'gluten_free',
+  GLUTEN_FREE = 'gluten-free',
   KETOGENIC = 'ketogenic',
   PALEO = 'paleo',
   ZONE = 'zone',
@@ -97,12 +81,12 @@ export enum MealType {
   BREAKFAST = 'breakfast',
   ELEVENSES = 'elevenses',
   LUNCH = 'lunch',
-  AFTERNOON_SNACK = 'afternoon_snack',
+  AFTERNOON_SNACK = 'afternoon-snack',
   DINNER = 'dinner',
   SOUP = 'soup',
   DESSERT = 'dessert',
   SNACK = 'snack',
-  PASTA_MAKING = 'pasta_making',
+  PASTA_MAKING = 'pasta-making',
 }
 
 export enum CuisineOption {
@@ -126,69 +110,23 @@ export enum CuisineOption {
 
 export enum CookingMethod {
   TRADITIONAL = 'traditional',
-  SMART_COOKER = 'smart_cooker',
+  SMART_COOKER = 'smart-cooker',
   THERMOMIXER = 'thermomixer',
-  THERMOMIXER_PLUS = 'thermomixer_plus',
-  CUCKOO_RICE_COOKER = 'cuckoo_rice_cooker',
-  CROCK_POT_SLOW_COOKER = 'crock_pot_slow_cooker',
-  UNOLD_ICE_CREAM_MAKER = 'unold_ice_cream_maker',
-  REDMOND_SMART_COOKER = 'redmond_smart_cooker',
+  THERMOMIXER_PLUS = 'thermomixer-plus',
+  CUCKOO_RICE_COOKER = 'cuckoo-rice-cooker',
+  CROCK_POT_SLOW_COOKER = 'crock-pot-slow-cooker',
+  UNOLD_ICE_CREAM_MAKER = 'unold-ice-cream-maker',
+  REDMOND_SMART_COOKER = 'redmond-smart-cooker',
+  GARDEN_GRILL = 'garden-grill',
+  BOGRACS = 'bogracs',
 }
 
 export enum RecipePace {
-  NORMAL = 'normal',
-  QUICK = 'quick',
-  SIMPLE = 'simple',
+    NORMAL = 'normal',
+    QUICK = 'quick',
+    SIMPLE = 'simple',
 }
 
-export enum VoiceCommand {
-  NEXT = 'NEXT',
-  STOP = 'STOP',
-  READ_INTRO = 'READ_INTRO',
-  READ_INGREDIENTS = 'READ_INGREDIENTS',
-  START_COOKING = 'START_COOKING',
-  START_TIMER = 'START_TIMER',
-  UNKNOWN = 'UNKNOWN',
-}
-
-export type FormAction = 'add_ingredients' | 'set_diet' | 'set_meal_type' | 'set_cooking_method' | 'generate_recipe' | 'unknown';
-
-export type AppCommandAction =
-  | 'navigate'
-  | 'add_shopping_list_item'
-  | 'remove_shopping_list_item'
-  | 'check_shopping_list_item'
-  | 'uncheck_shopping_list_item'
-  | 'clear_checked_shopping_list'
-  | 'clear_all_shopping_list'
-  | 'add_pantry_item'
-  | 'remove_pantry_item'
-  | 'view_favorite_recipe'
-  | 'delete_favorite_recipe'
-  | 'filter_favorites'
-  | 'clear_favorites_filter'
-  | 'expand_category'
-  | 'collapse_category'
-  | 'unknown';
-
-export type AppView = 'generator' | 'favorites' | 'shopping-list' | 'pantry' | 'users';
-
-export enum SortOption {
-  DATE_DESC = 'date_desc',
-  DATE_ASC = 'date_asc',
-  NAME_ASC = 'name_asc',
-  NAME_DESC = 'name_desc',
-  RATING_DESC = 'rating_desc',
-  RATING_ASC = 'rating_asc',
-}
-
-export enum StorageType {
-  PANTRY = 'pantry',
-  REFRIGERATOR = 'refrigerator',
-  FREEZER = 'freezer',
-}
-
-// Interfaces
 export interface InstructionStep {
   text: string;
   imageUrl?: string;
@@ -209,20 +147,28 @@ export interface Recipe {
   glycemicIndex?: string;
   diabeticAdvice?: string;
   estimatedCost?: string;
+  imageUrl?: string;
+  dateAdded?: string;
+  rating?: number;
   cookingMethods: CookingMethod[];
   diet: DietOption;
   mealType: MealType;
   cuisine: CuisineOption;
   recipePace: RecipePace;
-  imageUrl?: string;
-  rating?: number;
-  dateAdded?: string;
 }
 
 export interface RecipeSuggestions {
   suggestedIngredients: string[];
   modificationIdeas: string[];
 }
+
+export type FormAction =
+  | 'add_ingredients'
+  | 'set_diet'
+  | 'set_meal_type'
+  | 'set_cooking_method'
+  | 'generate_recipe'
+  | 'unknown';
 
 export interface SelectionResult {
   key: string;
@@ -234,6 +180,16 @@ export interface FormCommand {
   payload: string[] | SelectionResult | null;
 }
 
+export enum VoiceCommand {
+  NEXT = 'NEXT',
+  STOP = 'STOP',
+  READ_INTRO = 'READ_INTRO',
+  READ_INGREDIENTS = 'READ_INGREDIENTS',
+  START_COOKING = 'START_COOKING',
+  START_TIMER = 'START_TIMER',
+  UNKNOWN = 'UNKNOWN',
+}
+
 export interface VoiceCommandResult {
   command: VoiceCommand;
   payload?: {
@@ -243,9 +199,40 @@ export interface VoiceCommandResult {
   } | null;
 }
 
+export type AppView = 'generator' | 'favorites' | 'shopping-list' | 'pantry' | 'users';
+
+export type AppCommandAction =
+    | 'navigate'
+    | 'add_shopping_list_item'
+    | 'remove_shopping_list_item'
+    | 'check_shopping_list_item'
+    | 'uncheck_shopping_list_item'
+    | 'clear_checked_shopping_list'
+    | 'clear_all_shopping_list'
+    | 'add_pantry_item'
+    | 'remove_pantry_item'
+    | 'view_favorite_recipe'
+    | 'delete_favorite_recipe'
+    | 'filter_favorites'
+    | 'clear_favorites_filter'
+    | 'expand_category'
+    | 'collapse_category'
+    | 'unknown';
+
 export interface AppCommand {
-  action: AppCommandAction;
-  payload?: any;
+    action: AppCommandAction;
+    payload?: any;
+}
+
+export type Favorites = Record<string, Recipe[]>;
+
+export enum SortOption {
+    DATE_DESC = 'date_desc',
+    DATE_ASC = 'date_asc',
+    NAME_ASC = 'name_asc',
+    NAME_DESC = 'name_desc',
+    RATING_DESC = 'rating_desc',
+    RATING_ASC = 'rating_asc',
 }
 
 export interface ShoppingListItem {
@@ -253,42 +240,46 @@ export interface ShoppingListItem {
   checked: boolean;
 }
 
-export interface PantryItem {
-    text: string;
-    quantity?: string;
-    dateAdded: string | null;
-    storageType: StorageType;
+export const PANTRY_LOCATIONS = ['Tiszadada', 'Vásárosnamény'] as const;
+export type PantryLocation = typeof PANTRY_LOCATIONS[number];
+
+export enum StorageType {
+    PANTRY = 'pantry',
+    REFRIGERATOR = 'refrigerator',
+    FREEZER = 'freezer',
 }
 
-export type PantryLocation = 'Tiszadada' | 'Vásárosnamény';
-export const PANTRY_LOCATIONS: PantryLocation[] = ['Tiszadada', 'Vásárosnamény'];
-
-export type Favorites = Record<string, Recipe[]>;
+export interface PantryItem {
+  text: string;
+  quantity?: string;
+  dateAdded: string | null;
+  storageType: StorageType;
+}
 
 export interface UserProfile {
-  id: string;
-  name: string;
-  likes: string; // Comma-separated
-  dislikes: string; // Comma-separated
-  allergies: string; // Comma-separated, for forbidden items
+    id: string;
+    name: string;
+    likes: string;
+    dislikes: string;
+    allergies: string;
 }
 
 export interface OptionItem {
-  value: string;
-  label: string;
+    value: string;
+    label: string;
 }
 
 export interface BackupData {
-    favorites: Favorites;
-    shoppingList: ShoppingListItem[];
-    pantry: Record<PantryLocation, PantryItem[]>;
-    users: UserProfile[];
-    images?: Record<string, string>;
-    mealTypes?: OptionItem[];
-    cuisineOptions?: OptionItem[];
-    cookingMethods?: OptionItem[];
-    cookingMethodCapacities?: Record<string, number | null>;
-    mealTypesOrder?: string[];
-    cuisineOptionsOrder?: string[];
-    cookingMethodsOrder?: string[];
+  favorites?: Favorites;
+  shoppingList?: ShoppingListItem[];
+  pantry?: Record<PantryLocation, PantryItem[]>;
+  users?: UserProfile[];
+  images?: Record<string, string>;
+  mealTypes?: OptionItem[];
+  cuisineOptions?: OptionItem[];
+  cookingMethods?: OptionItem[];
+  cookingMethodCapacities?: Record<string, number | null>;
+  mealTypesOrder?: string[];
+  cuisineOptionsOrder?: string[];
+  cookingMethodsOrder?: string[];
 }
