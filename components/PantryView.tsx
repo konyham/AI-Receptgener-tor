@@ -94,8 +94,8 @@ interface PantryViewProps {
   shoppingList: ShoppingListItem[];
   users: UserProfile[];
   onAddItems: (items: string[], location: PantryLocation, date: string | null, storageType: StorageType) => void;
-  onUpdateItem: (index: number, updatedItem: PantryItem, location: PantryLocation) => void;
-  onRemoveItem: (index: number, location: PantryLocation) => void;
+  onUpdateItem: (originalItem: PantryItem, updatedItem: PantryItem, location: PantryLocation) => void;
+  onRemoveItem: (item: PantryItem, location: PantryLocation) => void;
   onClearAll: (location: PantryLocation) => void;
   onMoveCheckedToPantryRequest: () => void;
   onGenerateFromPantryRequest: () => void;
@@ -139,7 +139,7 @@ const PantryView: React.FC<PantryViewProps> = ({
   const [newItemDate, setNewItemDate] = useState<string | null>(new Date().toISOString().split('T')[0]);
   const [newItemStorageType, setNewItemStorageType] = useState<StorageType>(StorageType.PANTRY);
   const [activeLocation, setActiveLocation] = useState<PantryLocation>(PANTRY_LOCATIONS[0]);
-  const [editingItem, setEditingItem] = useState<{ index: number; item: PantryItem } | null>(null);
+  const [editingItem, setEditingItem] = useState<{ item: PantryItem } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState<Record<PantryLocation, Set<number>>>({ Tiszadada: new Set(), Vásárosnamény: new Set() });
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
@@ -159,7 +159,7 @@ const PantryView: React.FC<PantryViewProps> = ({
 
   const handleEditSave = (updatedItem: PantryItem) => {
     if (editingItem) {
-      onUpdateItem(editingItem.index, updatedItem, activeLocation);
+      onUpdateItem(editingItem.item, updatedItem, activeLocation);
       setEditingItem(null);
     }
   };
@@ -531,7 +531,7 @@ const PantryView: React.FC<PantryViewProps> = ({
               const isSelected = selectedItems[activeLocation].has(index);
 
               return (
-                <li key={index} className={`flex items-center justify-between p-3 gap-2 transition-colors ${isSelected ? 'bg-primary-100' : ''}`}>
+                <li key={`${item.text}-${item.dateAdded}-${index}`} className={`flex items-center justify-between p-3 gap-2 transition-colors ${isSelected ? 'bg-primary-100' : ''}`}>
                   <div className="flex items-center gap-3 flex-grow min-w-0">
                     <input
                       type="checkbox"
@@ -552,10 +552,10 @@ const PantryView: React.FC<PantryViewProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                    <button onClick={() => setEditingItem({ index, item })} className="text-sm font-medium text-blue-600 hover:text-blue-800 p-1">
+                    <button onClick={() => setEditingItem({ item })} className="text-sm font-medium text-blue-600 hover:text-blue-800 p-1">
                       Szerkesztés
                     </button>
-                    <button onClick={() => onRemoveItem(index, activeLocation)} className="text-sm font-medium text-red-600 hover:text-red-800 p-1">
+                    <button onClick={() => onRemoveItem(item, activeLocation)} className="text-sm font-medium text-red-600 hover:text-red-800 p-1">
                       Törlés
                     </button>
                   </div>

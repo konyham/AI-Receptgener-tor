@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
@@ -373,28 +374,50 @@ const App: React.FC = () => {
       showNotification(`Tételek hozzáadva a(z) ${location} kamrához!`, 'success');
   };
   
-  const handleUpdatePantryItem = (index: number, updatedItem: PantryItem, location: PantryLocation) => {
-    setPantry(pantryService.updateItem(index, updatedItem, location));
+  const handleUpdatePantryItem = (originalItem: PantryItem, updatedItem: PantryItem, location: PantryLocation) => {
+    const originalIndex = pantry[location]?.findIndex(item => 
+        item.text === originalItem.text &&
+        item.dateAdded === originalItem.dateAdded &&
+        item.quantity === originalItem.quantity &&
+        item.storageType === originalItem.storageType
+    );
+
+    if (originalIndex === -1 || typeof originalIndex === 'undefined') {
+        console.error("Item to update not found in original pantry list.", originalItem);
+        showNotification("Hiba: A szerkesztendő elem nem található.", "info");
+        return;
+    }
+    
+    setPantry(pantryService.updateItem(originalIndex, updatedItem, location));
   };
   
-  const handleRemovePantryItem = (index: number, location: PantryLocation) => {
-    const itemToDelete = pantry[location]?.[index];
+  const handleRemovePantryItem = (itemToDelete: PantryItem, location: PantryLocation) => {
+    const originalIndex = pantry[location]?.findIndex(item => 
+        item.text === itemToDelete.text &&
+        item.dateAdded === itemToDelete.dateAdded &&
+        item.quantity === itemToDelete.quantity &&
+        item.storageType === itemToDelete.storageType
+    );
+
+    if (originalIndex === -1 || typeof originalIndex === 'undefined') {
+        console.error("Item to delete not found in original pantry list.", itemToDelete);
+        showNotification("Hiba: A törlendő elem nem található.", "info");
+        return;
+    }
 
     // First, remove the item from the pantry state
-    setPantry(pantryService.removeItem(index, location));
+    setPantry(pantryService.removeItem(originalIndex, location));
 
-    // Then, if the item was found, add it to the shopping list
-    if (itemToDelete) {
-        const currentShoppingList = shoppingListService.getShoppingList().list;
-        const isAlreadyOnList = currentShoppingList.some(li => li.text.toLowerCase() === itemToDelete.text.toLowerCase());
-        
-        setShoppingList(shoppingListService.addItems([itemToDelete.text]));
-        
-        if (!isAlreadyOnList) {
-            showNotification(`'${itemToDelete.text}' áthelyezve a bevásárlólistára.`, 'success');
-        } else {
-            showNotification(`'${itemToDelete.text}' törölve a kamrából (már szerepelt a bevásárlólistán).`, 'info');
-        }
+    // Then, add the item to the shopping list
+    const currentShoppingList = shoppingListService.getShoppingList().list;
+    const isAlreadyOnList = currentShoppingList.some(li => li.text.toLowerCase() === itemToDelete.text.toLowerCase());
+    
+    setShoppingList(shoppingListService.addItems([itemToDelete.text]));
+    
+    if (!isAlreadyOnList) {
+        showNotification(`'${itemToDelete.text}' áthelyezve a bevásárlólistára.`, 'success');
+    } else {
+        showNotification(`'${itemToDelete.text}' törölve a kamrából (már szerepelt a bevásárlólistán).`, 'info');
     }
   };
 
