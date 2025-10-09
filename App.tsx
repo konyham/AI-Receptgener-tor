@@ -37,6 +37,7 @@ import {
   StorageType,
   UserProfile,
   OptionItem,
+  AlternativeRecipeSuggestion,
 } from './types';
 import {
     MEAL_TYPES,
@@ -280,21 +281,24 @@ const App: React.FC = () => {
     }
   };
   
-  const handleRecipeUpdate = async (updatedRecipe: Recipe) => {
+  const handleRecipeUpdate = async (updatedRecipe: Recipe, originalRecipe?: Recipe) => {
     setRecipe(updatedRecipe);
-    // If viewing a favorite, update it in the state and storage as well
-    if (isFromFavorites) {
-        // Find the category of the original recipe
+    if (isFromFavorites && originalRecipe) {
         let originalCategory: string | undefined;
         for (const cat in favorites) {
-            if (favorites[cat].some(r => r.recipeName === updatedRecipe.recipeName)) {
+            if (favorites[cat].some(r => r.recipeName === originalRecipe.recipeName)) {
                 originalCategory = cat;
                 break;
             }
         }
         if (originalCategory) {
-            const updatedFavorites = await favoritesService.addRecipeToFavorites(updatedRecipe, originalCategory);
-            setFavorites(updatedFavorites);
+            // If name has changed, we must remove the old entry first.
+            if (originalRecipe.recipeName !== updatedRecipe.recipeName) {
+                 await favoritesService.removeRecipeFromFavorites(originalRecipe.recipeName, originalCategory);
+            }
+            const finalFavorites = await favoritesService.addRecipeToFavorites(updatedRecipe, originalCategory);
+            setFavorites(finalFavorites);
+            showNotification('Recept sikeresen frissítve!', 'success');
         }
     }
   };
@@ -337,6 +341,39 @@ const App: React.FC = () => {
     }
   };
 
+  const handleGenerateFromSuggestion = (suggestion: AlternativeRecipeSuggestion) => {
+    if (!recipe) return;
+
+    const baseParams = {
+        diet: recipe.diet,
+        mealType: recipe.mealType,
+        cuisine: recipe.cuisine,
+        numberOfServings: parseInt(recipe.servings, 10) || 4,
+        recipePace: recipe.recipePace,
+    };
+
+    const suggestedParams = suggestion.newParameters;
+
+    const finalParams = {
+        // Defaults for a new generation
+        excludedIngredients: '',
+        withCost: false, // Don't run expensive ops by default
+        withImage: true, // Show an image for the new idea
+        mode: 'standard' as const,
+        useSeasonalIngredients: true,
+        
+        // Carry-overs from original recipe
+        ...baseParams,
+        
+        // Overrides from suggestion
+        ingredients: suggestedParams.ingredients || recipe.ingredients.join(', '),
+        cookingMethods: suggestedParams.cookingMethods || recipe.cookingMethods,
+        specialRequest: suggestedParams.specialRequest || `Készíts egy változatot a(z) "${recipe.recipeName}" receptre, ami a következő leírásnak felel meg: ${suggestion.description}`,
+    };
+
+    handleRecipeSubmit(finalParams);
+  };
+
   const handleFormPopulated = () => {
     setInitialFormData(null);
   };
@@ -359,10 +396,17 @@ const App: React.FC = () => {
     setView('generator');
   };
 
-  const handleDeleteFavorite = async (recipeName: string, category: string) => {
-    const updatedFavorites = await favoritesService.removeRecipeFromFavorites(recipeName, category);
-    setFavorites(updatedFavorites);
-    showNotification(`'${recipeName}' törölve a mentettek közül.`, 'success');
+  const handleDeleteFavorite = async (recipeName: string, category: string): Promise<void> => {
+    try {
+        const updatedFavorites = await favoritesService.removeRecipeFromFavorites(recipeName, category);
+        setFavorites(updatedFavorites);
+        showNotification(`'${recipeName}' törölve a mentettek közül.`, 'success');
+    } catch (error: any) {
+        console.error("Failed to delete favorite:", error);
+        showNotification(`Hiba történt a törlés közben: ${error.message}`, 'info');
+        // Re-throw to allow caller to handle UI state
+        throw error;
+    }
   };
 
   const handleDeleteCategory = async (category: string) => {
@@ -957,6 +1001,8 @@ const App: React.FC = () => {
           users={users}
           onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
           shouldGenerateImageInitially={shouldGenerateImage}
+          onGenerateFromSuggestion={handleGenerateFromSuggestion}
+          cookingMethodsList={cookingMethodsList}
         />
       );
     }

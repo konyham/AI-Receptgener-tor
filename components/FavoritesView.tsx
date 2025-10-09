@@ -1,15 +1,17 @@
+
 import React, { useState, useMemo } from 'react';
 import { Favorites, Recipe, SortOption, UserProfile } from '../types';
 import StarRating from './StarRating';
 import MoveRecipeModal from './MoveRecipeModal';
 import FavoriteStatusModal from './FavoriteStatusModal';
 import FavoriteActionModal from './FavoriteActionModal';
+import ConfirmationModal from './ConfirmationModal';
 
 interface FavoritesViewProps {
   favorites: Favorites;
   users: UserProfile[];
   onViewRecipe: (recipe: Recipe) => void;
-  onDeleteRecipe: (recipeName: string, category: string) => void;
+  onDeleteRecipe: (recipeName: string, category: string) => Promise<void>;
   onDeleteCategory: (category: string) => void;
   expandedCategories: Record<string, boolean>;
   onToggleCategory: (category: string) => void;
@@ -50,6 +52,11 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   const [statusModalState, setStatusModalState] = useState<{ recipe: Recipe; category: string } | null>(null);
   const [actionMenuRecipe, setActionMenuRecipe] = useState<{ recipe: Recipe; category: string } | null>(null);
   const [favoriteFilter, setFavoriteFilter] = useState('all'); // 'all', 'any_favorite', 'user_id'
+  
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ recipeName: string; category: string } | null>(null);
+  const [isProcessingDelete, setIsProcessingDelete] = useState(false);
+
 
   const handleMoveRecipe = (toCategory: string) => {
     if (movingRecipe) {
@@ -58,6 +65,29 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
     }
   };
   
+  const handleDeleteRequest = () => {
+    if (!actionMenuRecipe) return;
+    setItemToDelete({ recipeName: actionMenuRecipe.recipe.recipeName, category: actionMenuRecipe.category });
+    setIsDeleteConfirmOpen(true);
+    setActionMenuRecipe(null); // Close action modal
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+
+    setIsProcessingDelete(true);
+    try {
+        await onDeleteRecipe(itemToDelete.recipeName, itemToDelete.category);
+    } catch (e) {
+        console.error("Delete failed in FavoritesView:", e);
+        // Error notification is handled in App.tsx
+    } finally {
+        setIsProcessingDelete(false);
+        setIsDeleteConfirmOpen(false);
+        setItemToDelete(null);
+    }
+  };
+
   const filteredCategories = useMemo(() => {
     if (filterCategory === 'all') {
         return categories;
@@ -196,7 +226,11 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                     </div>
                     <div className="flex items-center gap-2">
                         <button 
-                            onClick={(e) => { e.stopPropagation(); if (window.confirm(`Biztosan törli a "${category}" kategóriát és az összes benne lévő receptet?`)) onDeleteCategory(category); }} 
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setItemToDelete({ recipeName: '', category: category });
+                                setIsDeleteConfirmOpen(true);
+                            }} 
                             className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100"
                             aria-label={`'${category}' kategória törlése`}
                         >
@@ -288,14 +322,32 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                 setMovingRecipe({ recipe: actionMenuRecipe.recipe, fromCategory: actionMenuRecipe.category });
                 setActionMenuRecipe(null);
             }}
-            onDelete={() => {
-                if (window.confirm(`Biztosan törli a következő receptet: "${actionMenuRecipe.recipe.recipeName}"?`)) {
-                    onDeleteRecipe(actionMenuRecipe.recipe.recipeName, actionMenuRecipe.category);
-                }
-                setActionMenuRecipe(null);
-            }}
+            onDelete={handleDeleteRequest}
         />
       )}
+      <ConfirmationModal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => {
+            setIsDeleteConfirmOpen(false);
+            setItemToDelete(null);
+        }}
+        onConfirm={() => {
+            if (itemToDelete?.recipeName === '') { // This is a category delete request
+                onDeleteCategory(itemToDelete.category);
+                setIsDeleteConfirmOpen(false);
+                setItemToDelete(null);
+            } else {
+                handleConfirmDelete();
+            }
+        }}
+        title={itemToDelete?.recipeName === '' ? "Kategória törlése" : "Recept törlése"}
+        message={
+            itemToDelete?.recipeName === ''
+            ? `Biztosan törli a(z) "${itemToDelete?.category}" kategóriát és az összes benne lévő receptet? Ez a művelet nem vonható vissza.`
+            : `Biztosan törli a következő receptet: "${itemToDelete?.recipeName}"?`
+        }
+        isConfirming={isProcessingDelete}
+      />
     </div>
   );
 };

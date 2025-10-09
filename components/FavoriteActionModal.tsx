@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from 'react';
 import { Recipe } from '../types';
 
@@ -40,12 +41,12 @@ const FavoriteActionModal: React.FC<FavoriteActionModalProps> = ({
 
             if (event.shiftKey) { // Shift+Tab
                 if (document.activeElement === firstElement) {
-                    lastElement?.focus();
+                    if (lastElement instanceof HTMLElement) lastElement.focus();
                     event.preventDefault();
                 }
             } else { // Tab
                 if (document.activeElement === lastElement) {
-                    firstElement?.focus();
+                    if (firstElement instanceof HTMLElement) firstElement.focus();
                     event.preventDefault();
                 }
             }
@@ -54,7 +55,6 @@ const FavoriteActionModal: React.FC<FavoriteActionModalProps> = ({
     
     document.addEventListener('keydown', handleKeyDown);
     
-    // Focus first element on open
     if (modalElement) {
         const firstFocusable = modalElement.querySelector<HTMLElement>(
             'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'

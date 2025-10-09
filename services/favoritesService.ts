@@ -33,6 +33,11 @@ export const validateAndRecover = (data: unknown): { favorites: Favorites; recov
               recipe.instructions = recipe.instructions.map((text: string) => ({ text: text }));
             }
 
+            // FIX: Add data migration for recipes saved without cookingMethods.
+            if (!recipe.cookingMethods || !Array.isArray(recipe.cookingMethods)) {
+                recipe.cookingMethods = ['traditional'];
+            }
+
             validRecipes.push(recipe);
           } else {
             console.warn(`Skipping corrupted recipe during import at index ${index} in category "${category}".`, recipe);

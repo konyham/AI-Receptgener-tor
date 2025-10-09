@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Recipe, VoiceCommand, Favorites, UserProfile, InstructionStep } from '../types';
-import { interpretUserCommand, generateRecipeImage, calculateRecipeCost, simplifyRecipe, generateInstructionImage } from '../services/geminiService';
+import { Recipe, VoiceCommand, Favorites, UserProfile, InstructionStep, AlternativeRecipeSuggestion, OptionItem } from '../types';
+import { interpretUserCommand, generateRecipeImage, calculateRecipeCost, simplifyRecipe, generateInstructionImage, generateAlternativeRecipeSuggestions } from '../services/geminiService';
 import * as imageStore from '../services/imageStore';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
@@ -25,10 +25,12 @@ interface RecipeDisplayProps {
   onSave: (recipe: Recipe, category: string) => void;
   onAddItemsToShoppingList: (items: string[]) => void;
   isLoading: boolean;
-  onRecipeUpdate: (updatedRecipe: Recipe) => void;
+  onRecipeUpdate: (updatedRecipe: Recipe, originalRecipe: Recipe) => void;
   users: UserProfile[];
   onUpdateFavoriteStatus: (recipeName: string, category: string, favoritedByIds: string[]) => void;
   shouldGenerateImageInitially: boolean;
+  onGenerateFromSuggestion: (suggestion: AlternativeRecipeSuggestion) => void;
+  cookingMethodsList: OptionItem[];
 }
 
 const loadOptions = (key: string, defaultValue: readonly any[]) => {
@@ -49,14 +51,26 @@ const loadOptions = (key: string, defaultValue: readonly any[]) => {
 
 type VoiceMode = 'idle' | 'intro' | 'ingredients' | 'cooking';
 
-const NutritionalInfo: React.FC<{ recipe: Recipe }> = ({ recipe }) => {
-    const info = [
-        { label: 'Kalória', value: recipe.calories, icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM10 18a1 1 0 01.707.293l2.5 2.5a1 1 0 11-1.414 1.414l-2.5-2.5A1 1 0 0110 18zM10 4a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /><path d="M10 18a7.953 7.953 0 01-4.16-1.115l-1.558 1.558a1 1 0 11-1.414-1.414l1.558-1.558A8 8 0 1110 18zm0-2a6 6 0 100-12 6 6 0 000 12z" /></svg> },
-        { label: 'Szénhidrát', value: recipe.carbohydrates, icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path d="M17 5a2 2 0 10-4 0v.586a1 1 0 01-.293.707l-3.414 3.414a1 1 0 01-1.414 0l-1.414-1.414A1 1 0 017 8.586V7a2 2 0 10-4 0v1.586a1 1 0 01-.293.707l-3.414 3.414a1 1 0 01-1.414 0l-1.414-1.414a1 1 0 010-1.414l3.414-3.414A1 1 0 015 6.586V5a2 2 0 104 0v.586a1 1 0 01.293.707l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 019 10.414V12a2 2 0 104 0v-1.586a1 1 0 01.293-.707l3.414-3.414a1 1 0 011.414 0l1.414 1.414a1 1 0 010 1.414l-3.414 3.414A1 1 0 0115 13.414V15a2 2 0 104 0v-1.586a1 1 0 01-.293-.707l-3.414-3.414a1 1 0 010-1.414l1.414-1.414A1 1 0 0117 7.414V5z" /></svg> },
-        { label: 'Fehérje', value: recipe.protein, icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v1.999l4.873.001a1 1 0 01.999 1V16a1 1 0 01-1 1h-4.872l-.001 2.001a1 1 0 01-1.664.748l-6-6A1 1 0 012 12V5a1 1 0 011-1h4.872L7.873 2a1 1 0 01.748-1.664l2.678-.001zM11 4.414V8a1 1 0 001 1h2.586L12 6.414 11 5.414zM9 14.586V11a1 1 0 00-1-1H5.414L8 12.586 9 13.586z" clipRule="evenodd" /></svg> },
-        { label: 'Zsír', value: recipe.fat, icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 8a1 1 0 012 0v1.586l1.293-1.293a1 1 0 111.414 1.414L9.414 12l2.293 2.293a1 1 0 01-1.414 1.414L8 13.414V15a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg> },
-        { label: 'Glikémiás Index', value: recipe.glycemicIndex, icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm8-7a7 7 0 100 14 7 7 0 000-14zm-1 3a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1zm-1 4a1 1 0 112 0v4a1 1 0 11-2 0V9z" /></svg> },
-    ].filter(i => i.value);
+const NutritionalInfo: React.FC<{ recipe: Recipe, isEditing?: boolean, onChange?: (field: keyof Recipe, value: string) => void }> = ({ recipe, isEditing, onChange }) => {
+    const fields: (keyof Recipe)[] = ['calories', 'carbohydrates', 'protein', 'fat', 'glycemicIndex'];
+    const info = fields.map(field => ({
+        field,
+        label: {
+            calories: 'Kalória',
+            carbohydrates: 'Szénhidrát',
+            protein: 'Fehérje',
+            fat: 'Zsír',
+            glycemicIndex: 'Glikémiás Index',
+        }[field] || '',
+        value: recipe[field] as string,
+        icon: {
+            calories: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM10 18a1 1 0 01.707.293l2.5 2.5a1 1 0 11-1.414 1.414l-2.5-2.5A1 1 0 0110 18zM10 4a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /><path d="M10 18a7.953 7.953 0 01-4.16-1.115l-1.558 1.558a1 1 0 11-1.414-1.414l1.558-1.558A8 8 0 1110 18zm0-2a6 6 0 100-12 6 6 0 000 12z" /></svg>,
+            carbohydrates: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path d="M17 5a2 2 0 10-4 0v.586a1 1 0 01-.293.707l-3.414 3.414a1 1 0 01-1.414 0l-1.414-1.414A1 1 0 017 8.586V7a2 2 0 10-4 0v1.586a1 1 0 01-.293.707l-3.414 3.414a1 1 0 01-1.414 0l-1.414-1.414a1 1 0 010-1.414l3.414-3.414A1 1 0 015 6.586V5a2 2 0 104 0v.586a1 1 0 01.293.707l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 019 10.414V12a2 2 0 104 0v-1.586a1 1 0 01.293-.707l3.414-3.414a1 1 0 011.414 0l1.414 1.414a1 1 0 010 1.414l-3.414 3.414A1 1 0 0115 13.414V15a2 2 0 104 0v-1.586a1 1 0 01-.293-.707l-3.414-3.414a1 1 0 010-1.414l1.414-1.414A1 1 0 0117 7.414V5z" /></svg>,
+            protein: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v1.999l4.873.001a1 1 0 01.999 1V16a1 1 0 01-1 1h-4.872l-.001 2.001a1 1 0 01-1.664.748l-6-6A1 1 0 012 12V5a1 1 0 011-1h4.872L7.873 2a1 1 0 01.748-1.664l2.678-.001zM11 4.414V8a1 1 0 001 1h2.586L12 6.414 11 5.414zM9 14.586V11a1 1 0 00-1-1H5.414L8 12.586 9 13.586z" clipRule="evenodd" /></svg>,
+            fat: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 8a1 1 0 012 0v1.586l1.293-1.293a1 1 0 111.414 1.414L9.414 12l2.293 2.293a1 1 0 01-1.414 1.414L8 13.414V15a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>,
+            glycemicIndex: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm8-7a7 7 0 100 14 7 7 0 000-14zm-1 3a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1zm-1 4a1 1 0 112 0v4a1 1 0 11-2 0V9z" /></svg>,
+        }[field]
+    })).filter(i => i.value || isEditing);
 
     if (info.length === 0) return null;
 
@@ -66,11 +80,20 @@ const NutritionalInfo: React.FC<{ recipe: Recipe }> = ({ recipe }) => {
             <div className="px-6 md:px-8">
                 <h3 className="text-2xl font-semibold text-primary-700 mb-4 text-center">Tápérték adatok <span className="text-base font-normal text-gray-500">(becsült / 100g)</span></h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 text-center">
-                    {info.map(({ label, value, icon }) => (
+                    {info.map(({ field, label, value, icon }) => (
                         <div key={label} className="bg-primary-50 p-4 rounded-xl border border-primary-100 flex flex-col items-center justify-center">
-                            <div className="h-8 w-8 text-primary-600 mb-2">{icon}</div>
-                            <span className="text-lg font-bold text-primary-900">{value}</span>
-                            <span className="text-sm text-primary-700">{label}</span>
+                           {!isEditing && <div className="h-8 w-8 text-primary-600 mb-2">{icon}</div>}
+                            {isEditing ? (
+                                <input
+                                    type="text"
+                                    value={value || ''}
+                                    onChange={e => onChange!(field, e.target.value)}
+                                    className="w-full text-center text-lg font-bold text-primary-900 bg-white border border-primary-200 rounded-md"
+                                />
+                            ) : (
+                                <span className="text-lg font-bold text-primary-900">{value}</span>
+                            )}
+                            <span className="text-sm text-primary-700 mt-1">{label}</span>
                         </div>
                     ))}
                 </div>
@@ -79,8 +102,8 @@ const NutritionalInfo: React.FC<{ recipe: Recipe }> = ({ recipe }) => {
     );
 };
 
-const DiabeticAdvice: React.FC<{ advice: string | undefined }> = ({ advice }) => {
-    if (!advice) return null;
+const DiabeticAdvice: React.FC<{ advice: string | undefined, isEditing?: boolean, onChange?: (value: string) => void }> = ({ advice, isEditing, onChange }) => {
+    if (!advice && !isEditing) return null;
     return (
         <div className="px-6 md:px-8 mt-6">
             <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
@@ -90,9 +113,18 @@ const DiabeticAdvice: React.FC<{ advice: string | undefined }> = ({ advice }) =>
                             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                         </svg>
                     </div>
-                    <div className="ml-3">
+                    <div className="ml-3 w-full">
                         <h4 className="text-md font-bold text-blue-800">Tipp cukorbetegeknek</h4>
-                        <p className="text-sm text-blue-700 mt-1">{advice}</p>
+                        {isEditing ? (
+                            <textarea
+                                value={advice || ''}
+                                onChange={e => onChange!(e.target.value)}
+                                rows={2}
+                                className="mt-1 w-full text-sm text-blue-700 bg-blue-100 border border-blue-200 rounded-md p-2"
+                            />
+                        ) : (
+                            <p className="text-sm text-blue-700 mt-1">{advice}</p>
+                        )}
                     </div>
                 </div>
             </div>
@@ -330,7 +362,7 @@ const addWatermarkToStepImage = (base64Image: string): Promise<string> => {
 };
 
 
-const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave, onAddItemsToShoppingList, isLoading, onRecipeUpdate, users, onUpdateFavoriteStatus, shouldGenerateImageInitially }) => {
+const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave, onAddItemsToShoppingList, isLoading, onRecipeUpdate, users, onUpdateFavoriteStatus, shouldGenerateImageInitially, onGenerateFromSuggestion, cookingMethodsList }) => {
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isInterpreting, setIsInterpreting] = useState(false);
@@ -360,6 +392,14 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const [resolvedImageUrl, setResolvedImageUrl] = useState<string | undefined | null>(null);
   const [resolvedInstructions, setResolvedInstructions] = useState<InstructionStep[]>([]);
   const [areImagesResolving, setAreImagesResolving] = useState(false);
+  
+  const [isEditing, setIsEditing] = useState(false);
+  const [editableRecipe, setEditableRecipe] = useState<Recipe>(recipe);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  const [alternativeSuggestions, setAlternativeSuggestions] = useState<AlternativeRecipeSuggestion[] | null>(null);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
 
 
   const isInterpretingRef = useRef(false);
@@ -376,6 +416,10 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         ?.map(cm => customCookingMethods.find(c => c.value === cm)?.label)
         .filter((v): v is string => !!v) 
     || [], [recipe.cookingMethods, customCookingMethods]);
+    
+  useEffect(() => {
+    setEditableRecipe(recipe);
+  }, [recipe]);
 
   useEffect(() => {
     let isMounted = true;
@@ -487,7 +531,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
         await imageStore.saveImage(imageId, watermarkedImage);
 
-        onRecipeUpdate({ ...recipe, imageUrl: `indexeddb:${imageId}` });
+        onRecipeUpdate({ ...recipe, imageUrl: `indexeddb:${imageId}` }, recipe);
         setResolvedImageUrl(watermarkedImage); // Optimistically update UI
     } catch (err: any) {
         const errorMsg = err.message || 'Ismeretlen hiba történt az ételfotó generálása közben.';
@@ -538,7 +582,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
         await imageStore.saveImage(imageId, watermarkedImage);
         
-        onRecipeUpdate({ ...recipe, imageUrl: `indexeddb:${imageId}` });
+        onRecipeUpdate({ ...recipe, imageUrl: `indexeddb:${imageId}` }, recipe);
         setResolvedImageUrl(watermarkedImage); // Optimistically update UI
         
         showNotification('Kép sikeresen feltöltve és vízjelezve!', 'success');
@@ -583,7 +627,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         // Update parent state with the reference for persistence
         const newInstructions = [...recipe.instructions];
         newInstructions[stepIndex] = { ...newInstructions[stepIndex], imageUrl: `indexeddb:${imageId}` };
-        onRecipeUpdate({ ...recipe, instructions: newInstructions });
+        onRecipeUpdate({ ...recipe, instructions: newInstructions }, recipe);
 
     } catch (err: any) {
         const errorMsg = err.message || 'Hiba történt a kép generálása közben.';
@@ -959,7 +1003,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     setCostError(null);
     try {
         const cost = await calculateRecipeCost(recipe);
-        onRecipeUpdate({ ...recipe, estimatedCost: cost });
+        onRecipeUpdate({ ...recipe, estimatedCost: cost }, recipe);
         showNotification('Költségbecslés elkészült!', 'success');
     } catch (err: any) {
         const errorMsg = err.message || 'Nem sikerült a költségbecslés.';
@@ -1025,7 +1069,7 @@ Recept generálva Konyha Miki segítségével!
     setSimplifyError(null);
     try {
       const simplifiedRecipe = await simplifyRecipe(recipe);
-      onRecipeUpdate(simplifiedRecipe);
+      onRecipeUpdate(simplifiedRecipe, recipe);
       showNotification('A recept sikeresen egyszerűsítve!', 'success');
     } catch (err: any) {
       const errorMsg = err.message || 'Hiba történt a recept egyszerűsítése közben.';
@@ -1036,9 +1080,71 @@ Recept generálva Konyha Miki segítségével!
     }
   };
 
-  const handleRatingChange = (newRating: number) => {
-    const finalRating = newRating === recipe.rating ? undefined : newRating;
-    onRecipeUpdate({ ...recipe, rating: finalRating });
+  const handleRatingChange = (newRating: number | undefined) => {
+    onRecipeUpdate({ ...recipe, rating: newRating }, recipe);
+  };
+  
+  const handleFieldChange = (field: keyof Recipe, value: any) => {
+    setEditableRecipe(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleInstructionChange = (index: number, newText: string) => {
+      const newInstructions = [...editableRecipe.instructions];
+      newInstructions[index] = { ...newInstructions[index], text: newText };
+      handleFieldChange('instructions', newInstructions);
+  };
+
+  const addInstruction = () => {
+      handleFieldChange('instructions', [...editableRecipe.instructions, { text: '' }]);
+  };
+
+  const removeInstruction = (index: number) => {
+      handleFieldChange('instructions', editableRecipe.instructions.filter((_, i) => i !== index));
+  };
+
+  const handleCancelEdit = () => {
+      setEditableRecipe(recipe);
+      setIsEditing(false);
+      setNameError(null);
+  };
+
+  const handleSaveChanges = () => {
+      setNameError(null);
+      if (!editableRecipe.recipeName.trim()) {
+          setNameError('A recept neve nem lehet üres.');
+          return;
+      }
+
+      const category = findCategory(recipe.recipeName);
+      if (category && editableRecipe.recipeName !== recipe.recipeName) {
+          const nameExists = favorites[category].some(r => r.recipeName.toLowerCase() === editableRecipe.recipeName.toLowerCase());
+          if (nameExists) {
+              setNameError('Már létezik recept ezzel a névvel ebben a kategóriában.');
+              return;
+          }
+      }
+
+      onRecipeUpdate(editableRecipe, recipe);
+      setIsEditing(false);
+  };
+
+  const handleSuggestAlternatives = async () => {
+    if (isSuggesting) return;
+    setIsSuggesting(true);
+    setSuggestionError(null);
+    setAlternativeSuggestions(null); // Clear old suggestions
+    try {
+        const result = await generateAlternativeRecipeSuggestions(recipe, cookingMethodsList);
+        if (result.suggestions && result.suggestions.length > 0) {
+            setAlternativeSuggestions(result.suggestions);
+        } else {
+            throw new Error("Az AI nem tudott javaslatokat adni. Próbálja újra később.");
+        }
+    } catch (err: any) {
+        setSuggestionError(err.message);
+    } finally {
+        setIsSuggesting(false);
+    }
   };
 
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
@@ -1058,26 +1164,47 @@ Recept generálva Konyha Miki segítségével!
         <div className="p-6 md:p-8">
           <div className="flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-4 mb-2">
             <img src={konyhaMikiLogoBase64} alt="Konyha Miki logó" className="h-16 w-auto flex-shrink-0 order-2 md:order-1" />
-            <div className="flex-grow order-1 md:order-2">
+            <div className="flex-grow order-1 md:order-2 w-full">
               <div className="flex items-center justify-center md:justify-start gap-3">
-                <h2 className="text-2xl md:text-3xl font-bold text-primary-800 break-words">{recipe.recipeName}</h2>
-                <button 
-                  onClick={() => setIsStatusModalOpen(true)}
-                  className="text-3xl transition-transform hover:scale-110 focus:outline-none"
-                  aria-label="Kedvencnek jelölés"
-                >
-                  {(recipe.favoritedBy && recipe.favoritedBy.length > 0) ? 
-                      <span className="text-red-500">♥</span> : 
-                      <span className="text-gray-400">♡</span>
-                  }
-                </button>
+                 {isEditing ? (
+                    <input
+                        type="text"
+                        value={editableRecipe.recipeName}
+                        onChange={e => handleFieldChange('recipeName', e.target.value)}
+                        className="text-2xl md:text-3xl font-bold text-primary-800 bg-primary-50 border border-primary-300 rounded-md p-2 w-full"
+                    />
+                 ) : (
+                    <h2 className="text-2xl md:text-3xl font-bold text-primary-800 break-words">{recipe.recipeName}</h2>
+                 )}
+                {!isEditing && (
+                    <button 
+                      onClick={() => setIsStatusModalOpen(true)}
+                      className="text-3xl transition-transform hover:scale-110 focus:outline-none"
+                      aria-label="Kedvencnek jelölés"
+                    >
+                      {(recipe.favoritedBy && recipe.favoritedBy.length > 0) ? 
+                          <span className="text-red-500">♥</span> : 
+                          <span className="text-gray-400">♡</span>
+                      }
+                    </button>
+                )}
               </div>
+              {nameError && <p className="text-red-600 text-sm mt-1">{nameError}</p>}
               <div className="mt-1 flex justify-center md:justify-start">
-                <StarRating rating={recipe.rating || 0} onRatingChange={handleRatingChange} />
+                <StarRating rating={recipe.rating} onRatingChange={handleRatingChange} />
               </div>
             </div>
           </div>
-          <p className="text-gray-600 italic mb-6">{recipe.description}</p>
+           {isEditing ? (
+              <textarea
+                  value={editableRecipe.description}
+                  onChange={e => handleFieldChange('description', e.target.value)}
+                  className="w-full text-gray-600 italic bg-primary-50 border border-primary-300 rounded-md p-2 mb-6"
+                  rows={3}
+              />
+           ) : (
+            <p className="text-gray-600 italic mb-6">{recipe.description}</p>
+           )}
           
            <div className="my-6">
             {(isImageLoading || areImagesResolving) && (
@@ -1135,21 +1262,21 @@ Recept generálva Konyha Miki segítségével!
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   <div>
                       <span className="font-semibold block text-sm">Előkészítés</span>
-                      <span>{recipe.prepTime}</span>
+                      {isEditing ? <input type="text" value={editableRecipe.prepTime} onChange={e => handleFieldChange('prepTime', e.target.value)} className="w-24 bg-primary-50 border-b border-primary-300"/> : <span>{recipe.prepTime}</span>}
                   </div>
               </div>
               <div className="flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7.014A8.003 8.003 0 0122 12c0 3-1 6-6 6-1.088 0-2.133-.11-3.14-.323z" /></svg>
                   <div>
                       <span className="font-semibold block text-sm">Főzési idő</span>
-                      <span>{recipe.cookTime}</span>
+                      {isEditing ? <input type="text" value={editableRecipe.cookTime} onChange={e => handleFieldChange('cookTime', e.target.value)} className="w-24 bg-primary-50 border-b border-primary-300"/> : <span>{recipe.cookTime}</span>}
                   </div>
               </div>
               <div className="flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                   <div>
                       <span className="font-semibold block text-sm">Adag</span>
-                      <span>{recipe.servings}</span>
+                      {isEditing ? <input type="text" value={editableRecipe.servings} onChange={e => handleFieldChange('servings', e.target.value)} className="w-24 bg-primary-50 border-b border-primary-300"/> : <span>{recipe.servings}</span>}
                   </div>
               </div>
               {recipe.estimatedCost && (
@@ -1160,53 +1287,98 @@ Recept generálva Konyha Miki segítségével!
                     </svg>
                     <div>
                         <span className="font-semibold block text-sm">Becsült költség</span>
-                        <span>{recipe.estimatedCost}</span>
+                        {isEditing ? <input type="text" value={editableRecipe.estimatedCost || ''} onChange={e => handleFieldChange('estimatedCost', e.target.value)} className="w-24 bg-primary-50 border-b border-primary-300"/> : <span>{recipe.estimatedCost}</span>}
                     </div>
                 </div>
               )}
           </div>
         </div>
         
-        <NutritionalInfo recipe={recipe} />
-        <DiabeticAdvice advice={recipe.diabeticAdvice} />
+        <NutritionalInfo recipe={editableRecipe} isEditing={isEditing} onChange={handleFieldChange} />
+        <DiabeticAdvice advice={editableRecipe.diabeticAdvice} isEditing={isEditing} onChange={(value) => handleFieldChange('diabeticAdvice', value)} />
 
         <div className="p-6 md:p-8">
             {simplifyError && <div className="mb-4"><ErrorMessage message={simplifyError} /></div>}
             {stepImageError && <div className="mb-4"><ErrorMessage message={stepImageError} /></div>}
             <div className="my-6 p-3 bg-gray-50 border rounded-lg flex flex-wrap justify-center items-center gap-3 no-print">
-                <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-primary-100 text-primary-800 rounded-lg hover:bg-primary-200 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
-                    Recept mentése
-                </button>
-                <button onClick={handleShare} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
-                    Recept megosztása
-                </button>
-                {!recipe.estimatedCost && (
-                    <button onClick={handleCalculateCost} disabled={isCostLoading} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isCostLoading ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path d="M8.433 7.418c.158-.103.346-.196.567-.267v1.698a2.5 2.5 0 00-1.162-.328zM11.567 9.182c.158.103.346.196.567-.267V7.849a2.5 2.5 0 00-1.162.328v1.005z" /><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.5 4.5 0 00-1.879 3.197A1 1 0 108.25 10.5h.025a2.5 2.5 0 014.975 0h.025a1 1 0 101.879-1.217A4.5 4.5 0 0011 5.092V5zM10 13a1 1 0 011 1v.01a1 1 0 11-2 0V14a1 1 0 011-1z" clipRule="evenodd" /></svg>
-                        {isCostLoading ? 'Számítás...' : 'Költségbecslés'}
+               {isEditing ? (
+                  <>
+                    <button onClick={handleSaveChanges} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                        Módosítások mentése
                     </button>
-                )}
-                 <button onClick={handleSimplifyRecipe} disabled={isSimplifying} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-green-100 text-green-800 rounded-lg hover:bg-green-200 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M10 3.5a.75.75 0 01.75.75V6h1.75a.75.75 0 010 1.5H10.75V9.25a.75.75 0 01-1.5 0V7.5H7.5a.75.75 0 010-1.5H9.25V4.25A.75.75 0 0110 3.5zM3.5 10a.75.75 0 01.75-.75H6V7.5a.75.75 0 011.5 0v1.75H9.25a.75.75 0 010 1.5H7.5v1.75a.75.75 0 01-1.5 0V10.75H4.25a.75.75 0 01-.75-.75zM10 12.5a.75.75 0 01.75.75v1.75h1.75a.75.75 0 010 1.5H10.75V18a.75.75 0 01-1.5 0v-1.75H7.5a.75.75 0 010-1.5h1.75V13.25a.75.75 0 01.75-.75zM12.5 10a.75.75 0 01.75-.75h1.75v-1.75a.75.75 0 011.5 0V9.25h1.75a.75.75 0 010 1.5H16.25v1.75a.75.75 0 01-1.5 0V10.75H13.25a.75.75 0 01-.75-.75z" />
-                    </svg>
-                    {isSimplifying ? 'Egyszerűsítés...' : 'Recept egyszerűsítése'}
-                </button>
-                <button onClick={() => setIsTimerOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
-                    Konyhai időzítő
-                </button>
-                 <button onClick={handlePrint} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm3 0h4v3H8V4zm6 8H6v4h8v-4z" clipRule="evenodd" />
-                    </svg>
-                    Recept nyomtatása
-                </button>
+                    <button onClick={handleCancelEdit} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                        Mégse
+                    </button>
+                  </>
+               ) : (
+                <>
+                    {isFromFavorites && (
+                        <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
+                            Szerkesztés
+                        </button>
+                    )}
+                    <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-primary-100 text-primary-800 rounded-lg hover:bg-primary-200 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
+                        Recept mentése
+                    </button>
+                    <button onClick={handleShare} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
+                        Recept megosztása
+                    </button>
+                    {!recipe.estimatedCost && (
+                        <button onClick={handleCalculateCost} disabled={isCostLoading} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
+                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isCostLoading ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path d="M8.433 7.418c.158-.103.346-.196.567-.267v1.698a2.5 2.5 0 00-1.162-.328zM11.567 9.182c.158.103.346.196.567-.267V7.849a2.5 2.5 0 00-1.162.328v1.005z" /><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.5 4.5 0 00-1.879 3.197A1 1 0 108.25 10.5h.025a2.5 2.5 0 014.975 0h.025a1 1 0 101.879-1.217A4.5 4.5 0 0011 5.092V5zM10 13a1 1 0 011 1v.01a1 1 0 11-2 0V14a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                            {isCostLoading ? 'Számítás...' : 'Költségbecslés'}
+                        </button>
+                    )}
+                     <button onClick={handleSimplifyRecipe} disabled={isSimplifying} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-green-100 text-green-800 rounded-lg hover:bg-green-200 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10 3.5a.75.75 0 01.75.75V6h1.75a.75.75 0 010 1.5H10.75V9.25a.75.75 0 01-1.5 0V7.5H7.5a.75.75 0 010-1.5H9.25V4.25A.75.75 0 0110 3.5zM3.5 10a.75.75 0 01.75-.75H6V7.5a.75.75 0 011.5 0v1.75H9.25a.75.75 0 010 1.5H7.5v1.75a.75.75 0 01-1.5 0V10.75H4.25a.75.75 0 01-.75-.75zM10 12.5a.75.75 0 01.75.75v1.75h1.75a.75.75 0 010 1.5H10.75V18a.75.75 0 01-1.5 0v-1.75H7.5a.75.75 0 010-1.5h1.75V13.25a.75.75 0 01.75-.75zM12.5 10a.75.75 0 01.75-.75h1.75v-1.75a.75.75 0 011.5 0V9.25h1.75a.75.75 0 010 1.5H16.25v1.75a.75.75 0 01-1.5 0V10.75H13.25a.75.75 0 01-.75-.75z" />
+                        </svg>
+                        {isSimplifying ? 'Egyszerűsítés...' : 'Recept egyszerűsítése'}
+                    </button>
+                    <button onClick={() => setIsTimerOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
+                        Konyhai időzítő
+                    </button>
+                     <button onClick={handlePrint} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm3 0h4v3H8V4zm6 8H6v4h8v-4z" clipRule="evenodd" />
+                        </svg>
+                        Recept nyomtatása
+                    </button>
+                    <button onClick={handleSuggestAlternatives} disabled={isSuggesting} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-teal-100 text-teal-800 rounded-lg hover:bg-teal-200 transition-colors disabled:bg-gray-400 disabled:text-gray-500 disabled:cursor-not-allowed">
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isSuggesting ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" /><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clipRule="evenodd" /></svg>
+                        {isSuggesting ? 'Javaslatok kérése...' : 'Hasonló receptek'}
+                    </button>
+                </>
+               )}
             </div>
             {costError && <div className="mb-4"><ErrorMessage message={costError} /></div>}
-            {isSupported ? (
+            {suggestionError && <div className="mt-4"><ErrorMessage message={suggestionError} /></div>}
+            {alternativeSuggestions && (
+                <div className="mt-6 animate-fade-in">
+                    <h3 className="text-2xl font-semibold text-primary-700 mb-4 text-center">Hasonló receptek</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {alternativeSuggestions.map((suggestion, index) => (
+                            <div key={index} className="p-4 border border-gray-200 rounded-lg bg-white shadow-sm flex flex-col">
+                                <h4 className="font-bold text-lg text-primary-800">{suggestion.recipeName}</h4>
+                                <p className="text-sm text-gray-600 mt-1 flex-grow">{suggestion.description}</p>
+                                <button 
+                                    onClick={() => onGenerateFromSuggestion(suggestion)}
+                                    className="mt-4 w-full bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-primary-700 transition-colors"
+                                >
+                                    Recept generálása
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {isSupported && !isEditing && (
                 <div className="my-6 p-4 bg-primary-50 border border-primary-200 rounded-lg space-y-4 no-print">
                     <div className="flex items-center justify-center gap-2 text-primary-800">
                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${permissionState === 'denied' ? 'text-red-500' : (isListening ? 'text-red-500 animate-pulse' : 'text-primary-700')}`} viewBox="0 0 20 20" fill="currentColor">
@@ -1249,32 +1421,64 @@ Recept generálva Konyha Miki segítségével!
               <div className="space-y-4">
                 <div className="flex justify-between items-center border-b-2 border-primary-200 pb-2">
                     <h3 className="text-2xl font-semibold text-primary-700">Hozzávalók</h3>
-                    <button
-                        onClick={() => onAddItemsToShoppingList(recipe.ingredients)}
-                        className="flex items-center gap-1.5 text-sm bg-primary-100 text-primary-800 font-semibold px-3 py-1 rounded-full hover:bg-primary-200 transition-colors"
-                        aria-label="Összes hozzávaló a bevásárlólistára"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H4.72l-.21-1.257A1 1 0 003 1z" /><path d="M16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" /></svg>
-                        Bevásárló listára
-                    </button>
+                    {!isEditing && (
+                        <button
+                            onClick={() => onAddItemsToShoppingList(recipe.ingredients)}
+                            className="flex items-center gap-1.5 text-sm bg-primary-100 text-primary-800 font-semibold px-3 py-1 rounded-full hover:bg-primary-200 transition-colors"
+                            aria-label="Összes hozzávaló a bevásárlólistára"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H4.72l-.21-1.257A1 1 0 003 1z" /><path d="M16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" /></svg>
+                            Bevásárló listára
+                        </button>
+                    )}
                 </div>
-                <ul className="space-y-2 list-disc list-inside text-gray-700">
-                  {recipe.ingredients.map((ingredient, index) => (
-                    <li key={index} className={`py-1 px-2 rounded ${voiceMode === 'ingredients' && index === currentStepIndex ? 'bg-primary-100 font-semibold' : ''}`}>{ingredient}</li>
-                  ))}
-                </ul>
+                 {isEditing ? (
+                    <textarea
+                        value={editableRecipe.ingredients.join('\n')}
+                        onChange={e => handleFieldChange('ingredients', e.target.value.split('\n'))}
+                        className="w-full p-2 border rounded-md bg-primary-50 h-60 text-gray-700"
+                    />
+                 ) : (
+                    <ul className="space-y-2 list-disc list-inside text-gray-700">
+                      {recipe.ingredients.map((ingredient, index) => (
+                        <li key={index} className={`py-1 px-2 rounded ${voiceMode === 'ingredients' && index === currentStepIndex ? 'bg-primary-100 font-semibold' : ''}`}>{ingredient}</li>
+                      ))}
+                    </ul>
+                 )}
               </div>
               <div className="space-y-4">
                 <h3 className="text-2xl font-semibold text-primary-700 border-b-2 border-primary-200 pb-2">Elkészítés</h3>
-                <InstructionCarousel
-                  instructions={resolvedInstructions}
-                  currentStep={currentStepIndex}
-                  onStepChange={setCurrentStepIndex}
-                  voiceModeActive={voiceMode === 'cooking'}
-                  onGenerateImage={handleGenerateInstructionImage}
-                  generatingImageForStep={generatingImageForStep}
-                  onImageClick={handleOpenInstructionImageModal}
-                />
+                 {isEditing ? (
+                    <div className="space-y-3">
+                        {editableRecipe.instructions.map((step, index) => (
+                            <div key={index} className="flex items-start gap-2">
+                                <span className="font-bold text-gray-500 pt-2">{index + 1}.</span>
+                                <textarea
+                                value={step.text}
+                                onChange={e => handleInstructionChange(index, e.target.value)}
+                                className="w-full p-2 border rounded-md bg-primary-50"
+                                rows={3}
+                                />
+                                <button onClick={() => removeInstruction(index)} className="text-red-500 hover:text-red-700 p-2 mt-1 rounded-full hover:bg-red-100" aria-label={`Lépés törlése: ${index + 1}`}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                                </button>
+                            </div>
+                        ))}
+                        <button onClick={addInstruction} className="text-sm font-semibold text-primary-600 hover:text-primary-800 p-2 rounded hover:bg-primary-50 w-full text-left">
+                            + Új lépés hozzáadása
+                        </button>
+                    </div>
+                 ) : (
+                    <InstructionCarousel
+                      instructions={resolvedInstructions}
+                      currentStep={currentStepIndex}
+                      onStepChange={setCurrentStepIndex}
+                      voiceModeActive={voiceMode === 'cooking'}
+                      onGenerateImage={handleGenerateInstructionImage}
+                      generatingImageForStep={generatingImageForStep}
+                      onImageClick={handleOpenInstructionImageModal}
+                    />
+                 )}
                 {detectedTime && !isTimerOpen && (
                   <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-2 animate-fade-in transition-all">
                       <div className="flex items-center gap-2">
@@ -1344,6 +1548,7 @@ Recept generálva Konyha Miki segítségével!
         suggestedCategory={suggestedCategory}
       />
       {isImageModalOpen && resolvedImageUrl && <ImageDisplayModal imageUrl={resolvedImageUrl} recipeName={recipe.recipeName} onClose={() => setIsImageModalOpen(false)} />}
+      {/* FIX: Corrected typo `instructionImageIn-modal` to `instructionImageInModal`. */}
       {instructionImageInModal && <ImageDisplayModal imageUrl={instructionImageInModal.url} recipeName={instructionImageInModal.title} onClose={() => setInstructionImageInModal(null)} />}
       <ShareFallbackModal 
         isOpen={isShareFallbackModalOpen}

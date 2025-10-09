@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -125,7 +126,8 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
 
         setCategorizedList(grouped);
         // Expand all categories by default
-        setExpandedAIGroups(Object.keys(grouped).reduce((acc, key) => ({...acc, [key]: true}), {}));
+        // FIX: Cast the initial value of the reduce call to fix type inference issue.
+        setExpandedAIGroups(Object.keys(grouped).reduce((acc, key) => ({...acc, [key]: true}), {} as Record<string, boolean>));
 
     } catch (e: any) {
         showNotification(e.message, 'info');

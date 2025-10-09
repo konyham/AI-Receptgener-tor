@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -129,6 +130,7 @@ const PantryView: React.FC<PantryViewProps> = ({
   const [isCategorizing, setIsCategorizing] = useState(false);
   const [categorizedPantry, setCategorizedPantry] = useState<Record<string, PantryItemWithIndex[]> | null>(null);
   const [expandedAIGroups, setExpandedAIGroups] = useState<Record<string, boolean>>({});
+  const { showNotification } = useNotification();
 
   useEffect(() => {
     // Reset categorization when location changes
@@ -219,12 +221,11 @@ const PantryView: React.FC<PantryViewProps> = ({
         });
 
         setCategorizedPantry(grouped);
-        // FIX: Cast the initial value of the reduce call to fix type inference issue.
+        // FIX: Cast the initial value of the reduce call to fix type inference issue, which was likely causing cascading type errors.
         setExpandedAIGroups(Object.keys(grouped).reduce((acc, key) => ({...acc, [key]: true}), {} as Record<string, boolean>));
 
     } catch (e: any) {
-        // Assuming useNotification is available
-        // showNotification(e.message, 'info');
+        showNotification(e.message, 'info');
     } finally {
         setIsCategorizing(false);
     }

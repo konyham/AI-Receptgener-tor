@@ -20,6 +20,7 @@ import {
   RecipePace,
   OptionItem,
   CategorizedIngredient,
+  AlternativeRecipeSuggestion,
 } from '../types';
 
 // FIX: Initialize the GoogleGenAI client with API key from environment variables as per guidelines.
@@ -448,7 +449,19 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
 };
 
 export const generateRecipeImage = async (recipe: Recipe, cookingMethodLabels: string[]): Promise<string> => {
-  const prompt = `Egy fotórealisztikus, étvágygerjesztő ételfotó a következő ételről: ${recipe.recipeName}. Leírás: ${recipe.description}. A főzési módszer: ${cookingMethodLabels.join(', ')}. Stílus: modern, világos, letisztult. Ne legyenek feliratok a képen.`;
+  const prompt = `SUBJECT: A professional, ultra-realistic, and highly appetizing food photograph of a finished dish.
+STYLE: Modern food magazine style, bright lighting, clean and simple background, shallow depth of field, close-up shot.
+DISH NAME: "${recipe.recipeName}"
+DISH DESCRIPTION: ${recipe.description}
+KEY INGREDIENTS: ${recipe.ingredients.slice(0, 5).join(', ')}.
+PRESENTATION: The food must be beautifully arranged on a plate or in a bowl, ready to be eaten.
+
+ABSOLUTE MANDATORY RULES:
+1.  **THE IMAGE MUST BE OF FOOD ONLY.**
+2.  **DO NOT generate any buildings, houses, landscapes, people, or non-food objects.**
+3.  **DO NOT include any text, letters, watermarks, or logos of any kind.**
+4.  The final image must be extremely appetizing and look delicious.
+`;
   
   try {
     const response = await ai.models.generateImages({
@@ -505,8 +518,89 @@ export const simplifyRecipe = async (recipe: Recipe): Promise<Recipe> => {
   }
 };
 
+export const generateAlternativeRecipeSuggestions = async (
+  currentRecipe: Recipe,
+  availableCookingMethods: OptionItem[]
+): Promise<{ suggestions: AlternativeRecipeSuggestion[] }> => {
+  const cookingMethodLabels = currentRecipe.cookingMethods
+    .map(cm => availableCookingMethods.find(c => c.value === cm)?.label || cm)
+    .join(', ');
+    
+  const availableMethodsString = availableCookingMethods.map(m => `"${m.label}" (${m.value})`).join(', ');
+
+  const prompt = `A felhasználó a következő receptet nézi:
+- Név: ${currentRecipe.recipeName}
+- Leírás: ${currentRecipe.description}
+- Hozzávalók: ${currentRecipe.ingredients.join(', ')}
+- Elkészítési mód: ${cookingMethodLabels}
+
+Javasolj 3 további receptet, amelyek hasonlóak ehhez, de a következőkben térnek el:
+1. Használj más fő alapanyagot (pl. csirke helyett pulyka, sertés helyett marha, stb.).
+2. VAGY javasolj egy másik, logikusan illeszkedő elkészítési módot.
+3. A javaslatok legyenek fantáziadúsak és vonzóak.
+4. A 'newParameters' objektumban csak azokat a kulcsokat add meg, amik az eredeti recepthez képest változnak. Például, ha csak a hozzávalók változnak, a 'newParameters' csak egy 'ingredients' kulcsot tartalmazzon. Ha a főzési mód is, akkor mindkettőt.
+
+A válaszod egy JSON objektum legyen, ami egy "suggestions" kulcsot tartalmaz. Ennek értéke egy 3 elemű tömb legyen. Minden elem egy objektum a következő kulcsokkal:
+- "recipeName": Az új recept javasolt neve.
+- "description": Rövid, étvágygerjesztő leírás az új receptről.
+- "newParameters": Egy objektum, ami a módosított paramétereket tartalmazza a recept generálásához. Lehetséges kulcsok: "ingredients" (string), "cookingMethods" (egy string tömb a következők közül: ${availableMethodsString}), "specialRequest" (string).`;
+
+  const schema = {
+    type: Type.OBJECT,
+    properties: {
+      suggestions: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            recipeName: { type: Type.STRING, description: "Az új recept javasolt neve." },
+            description: { type: Type.STRING, description: "Rövid, étvágygerjesztő leírás az új receptről." },
+            newParameters: {
+              type: Type.OBJECT,
+              properties: {
+                ingredients: { type: Type.STRING, description: "Az új fő hozzávalók, vesszővel elválasztva." },
+                cookingMethods: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Az új elkészítési mód(ok) kulcsa(i)." },
+                specialRequest: { type: Type.STRING, description: "Különleges kérés, ami segít a generálásban." }
+              }
+            }
+          },
+          required: ['recipeName', 'description', 'newParameters']
+        }
+      }
+    },
+    required: ['suggestions']
+  };
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: schema,
+      },
+    });
+    const json = JSON.parse(response.text);
+    return json as { suggestions: AlternativeRecipeSuggestion[] };
+  } catch (e: any) {
+    console.error('Error generating alternative recipe suggestions:', e);
+    throw new Error('Hiba történt a receptjavaslatok generálása közben.');
+  }
+};
+
 export const generateInstructionImage = async (recipeName: string, instructionText: string, cookingMethodLabels: string[]): Promise<string> => {
-  const prompt = `Egy tiszta, egyszerű, fotórealisztikus kép, amely a(z) "${recipeName}" recept következő főzési lépését illusztrálja: "${instructionText}". A főzési módszer: ${cookingMethodLabels.join(', ')}. Stílus: felülnézetből, világos, letisztult. Ne legyenek feliratok a képen.`;
+  const prompt = `SUBJECT: A top-down (flat lay), photorealistic image illustrating a single step in a cooking process.
+STYLE: Clean, bright, minimalist. Focus on the ingredients and tools. No human hands.
+RECIPE: "${recipeName}"
+INSTRUCTION TO VISUALIZE: "${instructionText}"
+RELEVANT COOKING METHOD: ${cookingMethodLabels.join(', ')}
+
+ABSOLUTE MANDATORY RULES:
+1.  **The image must ONLY show the cooking step in progress.** Show ingredients being prepared, mixed in a bowl, or cooking in a pan/pot.
+2.  **DO NOT show a finished, plated dish.** This is about the process, not the result.
+3.  **DO NOT include any text, letters, watermarks, or logos.**
+4.  **DO NOT include people, hands, or buildings.**
+`;
   
   try {
     const response = await ai.models.generateImages({

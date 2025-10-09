@@ -163,6 +163,16 @@ export interface RecipeSuggestions {
   modificationIdeas: string[];
 }
 
+export interface AlternativeRecipeSuggestion {
+  recipeName: string;
+  description: string;
+  newParameters: {
+    ingredients?: string;
+    cookingMethods?: CookingMethod[];
+    specialRequest?: string;
+  };
+}
+
 export type FormAction =
   | 'add_ingredients'
   | 'set_diet'
