@@ -1064,7 +1064,7 @@ const App: React.FC = () => {
       default:
         return (
           <>
-            <h1 className="text-3xl font-bold text-center text-primary-800">Konyha Miki, a mesterséges intelligencia konyhamester</h1>
+            <h1 className="text-3xl font-bold text-center text-primary-800">Konyha Miki, az Ön mesterséges intelligencia konyhafőnöke</h1>
             <p className="text-center text-gray-600 mb-6">Mondja el, miből főzne, és én segítek!</p>
             {isLoading && <LoadingSpinner />}
             {error && <ErrorMessage message={error} />}
