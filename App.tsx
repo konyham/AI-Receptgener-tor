@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
@@ -220,7 +218,11 @@ const App: React.FC = () => {
         params.numberOfServings,
         params.recipePace,
         params.mode,
-        params.useSeasonalIngredients
+        params.useSeasonalIngredients,
+        mealTypes,
+        cuisineOptions,
+        cookingMethodsList,
+        cookingMethodCapacities
       );
       setRecipe(generatedRecipe);
       setShouldGenerateImage(params.withImage);
@@ -646,33 +648,56 @@ const App: React.FC = () => {
         message = `${newCount} új elem sikeresen importálva.`;
       }
       
-      // Handle custom options import
+      // Handle custom options import with MERGE logic
       let optionsMessage = '';
       if (data.mealTypes && Array.isArray(data.mealTypes)) {
-          setMealTypes(data.mealTypes);
-          safeSetLocalStorage(MEAL_TYPES_STORAGE_KEY, data.mealTypes);
+          const optionMap = new Map(mealTypes.map(opt => [opt.value, opt]));
+          data.mealTypes.forEach(opt => optionMap.set(opt.value, opt));
+          const mergedOptions = Array.from(optionMap.values());
+
+          setMealTypes(mergedOptions);
+          safeSetLocalStorage(MEAL_TYPES_STORAGE_KEY, mergedOptions);
           if (data.mealTypesOrder) {
-              safeSetLocalStorage(MEAL_TYPES_ORDER_KEY, data.mealTypesOrder);
+              const importedOrderSet = new Set(data.mealTypesOrder);
+              const newItems = mergedOptions.filter(opt => !importedOrderSet.has(opt.value)).map(opt => opt.value);
+              const finalOrder = [...data.mealTypesOrder, ...newItems];
+              safeSetLocalStorage(MEAL_TYPES_ORDER_KEY, finalOrder);
           }
           optionsMessage += ' Étkezés típusok,';
       }
       if (data.cuisineOptions && Array.isArray(data.cuisineOptions)) {
-          setCuisineOptions(data.cuisineOptions);
-          safeSetLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, data.cuisineOptions);
+          const optionMap = new Map(cuisineOptions.map(opt => [opt.value, opt]));
+          data.cuisineOptions.forEach(opt => optionMap.set(opt.value, opt));
+          const mergedOptions = Array.from(optionMap.values());
+
+          setCuisineOptions(mergedOptions);
+          safeSetLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, mergedOptions);
           if (data.cuisineOptionsOrder) {
-              safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, data.cuisineOptionsOrder);
+              const importedOrderSet = new Set(data.cuisineOptionsOrder);
+              const newItems = mergedOptions.filter(opt => !importedOrderSet.has(opt.value)).map(opt => opt.value);
+              const finalOrder = [...data.cuisineOptionsOrder, ...newItems];
+              safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, finalOrder);
           }
           optionsMessage += ' konyhák,';
       }
       if (data.cookingMethods && Array.isArray(data.cookingMethods)) {
-          setCookingMethodsList(data.cookingMethods);
-          safeSetLocalStorage(COOKING_METHODS_STORAGE_KEY, data.cookingMethods);
+          const optionMap = new Map(cookingMethodsList.map(opt => [opt.value, opt]));
+          data.cookingMethods.forEach(opt => optionMap.set(opt.value, opt));
+          const mergedOptions = Array.from(optionMap.values());
+          
+          setCookingMethodsList(mergedOptions);
+          safeSetLocalStorage(COOKING_METHODS_STORAGE_KEY, mergedOptions);
+
           if (data.cookingMethodCapacities) {
-              setCookingMethodCapacities(data.cookingMethodCapacities);
-              safeSetLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, data.cookingMethodCapacities);
+              const mergedCaps = { ...cookingMethodCapacities, ...data.cookingMethodCapacities };
+              setCookingMethodCapacities(mergedCaps);
+              safeSetLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, mergedCaps);
           }
           if (data.cookingMethodsOrder) {
-              safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, data.cookingMethodsOrder);
+              const importedOrderSet = new Set(data.cookingMethodsOrder);
+              const newItems = mergedOptions.filter(opt => !importedOrderSet.has(opt.value)).map(opt => opt.value);
+              const finalOrder = [...data.cookingMethodsOrder, ...newItems];
+              safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, finalOrder);
           }
           optionsMessage += ' elkészítési módok';
       }

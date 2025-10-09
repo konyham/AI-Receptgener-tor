@@ -365,6 +365,13 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
 
   const customMealTypes = useMemo(() => loadOptions(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES), []);
   const customCuisineOptions = useMemo(() => loadOptions(CUISINE_OPTIONS_STORAGE_KEY, CUISINE_OPTIONS), []);
+  const customCookingMethods = useMemo(() => loadOptions(COOKING_METHODS_STORAGE_KEY, COOKING_METHODS), []);
+  
+  const cookingMethodLabels = useMemo(() => 
+    recipe.cookingMethods
+        ?.map(cm => customCookingMethods.find(c => c.value === cm)?.label)
+        .filter((v): v is string => !!v) 
+    || [], [recipe.cookingMethods, customCookingMethods]);
 
   useEffect(() => {
     let isMounted = true;
@@ -471,7 +478,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     setIsImageLoading(true);
     setImageError(null);
     try {
-        const base64Image = await generateRecipeImage(recipe);
+        const base64Image = await generateRecipeImage(recipe, cookingMethodLabels);
         const watermarkedImage = await addWatermark(base64Image, recipe, 'ai');
         const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
         await imageStore.saveImage(imageId, watermarkedImage);
@@ -485,7 +492,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     } finally {
         setIsImageLoading(false);
     }
-  }, [recipe, onRecipeUpdate, showNotification, isImageLoading]);
+  }, [recipe, onRecipeUpdate, showNotification, isImageLoading, cookingMethodLabels]);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -556,7 +563,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     setStepImageError(null);
     try {
         const instructionText = recipe.instructions[stepIndex].text;
-        const base64Image = await generateInstructionImage(recipe.recipeName, instructionText);
+        const base64Image = await generateInstructionImage(recipe.recipeName, instructionText, cookingMethodLabels);
         const watermarkedImage = await addWatermarkToStepImage(base64Image);
         
         const imageId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${stepIndex}`;
@@ -581,7 +588,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
     } finally {
         setGeneratingImageForStep(null);
     }
-  }, [recipe, onRecipeUpdate, showNotification, generatingImageForStep]);
+  }, [recipe, onRecipeUpdate, showNotification, generatingImageForStep, cookingMethodLabels]);
 
   const handleOpenInstructionImageModal = (imageUrl: string, stepText: string) => {
     setInstructionImageInModal({

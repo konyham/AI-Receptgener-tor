@@ -1,9 +1,7 @@
-
-
 // FIX: This file was created to implement the missing Gemini API service logic.
 // FIX: The `GenerateVideosMetadata` type is not exported from `@google/genai`. It has been removed.
 import { GoogleGenAI, Type } from '@google/genai';
-import { DIET_OPTIONS, MEAL_TYPES as defaultMealTypes, COOKING_METHODS as defaultCookingMethods, CUISINE_OPTIONS as defaultCuisineOptions, COOKING_METHOD_CAPACITIES as defaultCookingMethodCapacities } from '../constants';
+import { DIET_OPTIONS } from '../constants';
 import {
   DietOption,
   FormAction,
@@ -20,6 +18,7 @@ import {
   AppCommandAction,
   CuisineOption,
   RecipePace,
+  OptionItem,
 } from '../types';
 
 // FIX: Initialize the GoogleGenAI client with API key from environment variables as per guidelines.
@@ -92,14 +91,18 @@ export const generateRecipe = async (
   numberOfServings: number,
   recipePace: RecipePace,
   mode: 'standard' | 'leftover',
-  useSeasonalIngredients: boolean
+  useSeasonalIngredients: boolean,
+  customMealTypes: OptionItem[],
+  customCuisineOptions: OptionItem[],
+  customCookingMethods: OptionItem[],
+  customCookingMethodCapacities: Record<string, number | null>
 ): Promise<Recipe> => {
   const dietLabel = DIET_OPTIONS.find((d) => d.value === diet)?.label || '';
   const mealTypeLabel =
-    defaultMealTypes.find((m) => m.value === mealType)?.label || mealType;
-  const cuisineLabel = defaultCuisineOptions.find((c) => c.value === cuisine)?.label || cuisine;
+    customMealTypes.find((m) => m.value === mealType)?.label || mealType;
+  const cuisineLabel = customCuisineOptions.find((c) => c.value === cuisine)?.label || cuisine;
   const cookingMethodLabels = cookingMethods
-    .map(cm => defaultCookingMethods.find(c => c.value === cm)?.label || cm)
+    .map(cm => customCookingMethods.find(c => c.value === cm)?.label || cm)
     .filter((l): l is string => !!l);
 
   let prompt: string;
@@ -144,7 +147,7 @@ export const generateRecipe = async (
     const machineMethods = cookingMethods.filter(cm => cm !== CookingMethod.TRADITIONAL);
     if (machineMethods.length > 0) {
         const capacities = machineMethods
-            .map(cm => ({ name: defaultCookingMethods.find(c => c.value === cm)?.label || cm, capacity: (defaultCookingMethodCapacities as any)[cm] }))
+            .map(cm => ({ name: customCookingMethods.find(c => c.value === cm)?.label || cm, capacity: customCookingMethodCapacities[cm] }))
             .filter(c => c.capacity !== null && c.capacity !== undefined);
 
         if (capacities.length > 0) {
@@ -346,33 +349,54 @@ export const getRecipeModificationSuggestions = async (
   }
 };
 
+const getCookingContextKeywords = (cookingMethodLabels: string[]): string => {
+    const keywords: string[] = [];
+    const lowerLabels = cookingMethodLabels.map(l => l.toLowerCase());
+
+    if (lowerLabels.some(l => l.includes('bogrács'))) {
+        keywords.push("outdoor setting", "cooking in a bogracs cauldron over a crackling open fire", "rustic", "no modern kitchen stove");
+    }
+    if (lowerLabels.some(l => l.includes('grill'))) {
+        keywords.push("outdoor grilling", "barbecue", "on a garden grill with charcoal", "char marks", "no indoor kitchen");
+    }
+    return keywords.join(', ');
+};
+
 // Generates a simple, visual, English description of a dish for the image model.
-const generateVisualPrompt = async (recipeName: string): Promise<string> => {
+const generateVisualPrompt = async (recipeName: string, cookingMethodLabels: string[]): Promise<string> => {
     try {
-        const prompt = `Adj egy rövid, de étvágygerjesztő és vizuálisan részletes leírást a következő ételről, amit egy ételfotó-generátor is megértene: "${recipeName}". A leírás ANGOLUL legyen. Fókuszálj a textúrákra, a színekre és a tálalásra. Csak a leírást add vissza. Például: "Magyaros babgulyás" -> "A rich, hearty Hungarian goulash soup with tender beef and beans, in a rustic bowl, garnished with fresh parsley". Vagy "Rakott krumpli" -> "Golden-brown layered potato casserole with slices of sausage and egg, bubbling cheese on top, served in a ceramic dish".`;
+        const contextKeywords = getCookingContextKeywords(cookingMethodLabels);
+        let prompt = `Adj egy rövid, de étvágygerjesztő és vizuálisan részletes leírást ANGOLUL a következő ételről, amit egy ételfotó-generátor is megértene: "${recipeName}".`;
+
+        if (contextKeywords) {
+            prompt += ` FONTOS: A leírásnak egyértelműen tükröznie kell a következő környezetet és módszert: ${contextKeywords}. A képen SOHA NE LEGYEN modern konyhai eszköz (pl. gáztűzhely, indukciós főzőlap), mivel a főzés szabadtéren, tűzön vagy grillen történik. Az étel tálalása is illeszkedjen a rusztikus, szabadtéri környezethez.`;
+        } else {
+            prompt += ` A leírás fókuszáljon a textúrákra, színekre és a tálalásra egy letisztult, modern konyhában.`;
+        }
+
+        prompt += ` Csak a kész, angol nyelvű leírást add vissza. Például: "Bográcsgulyás" -> "A rich, hearty Hungarian goulash soup in a large bogracs cauldron over a crackling open fire in a rustic outdoor setting, steam rising from the dish". Vagy "Grillezett csirkemell" -> "Perfectly grilled chicken breast with beautiful char marks, served on a wooden board next to a vibrant summer salad".`;
+        
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
-                thinkingConfig: { thinkingBudget: 0 }, // Faster response for simple task
+                thinkingConfig: { thinkingBudget: 0 },
             }
         });
+
         const description = response.text.trim();
-        if (description) {
-            return description;
-        }
-        // Fallback if the description is empty
-        return `A dish called ${recipeName}`;
+        const finalDescription = description ? `${description}, ${contextKeywords}` : `A dish called ${recipeName}, ${contextKeywords}`;
+        return finalDescription.replace(/, $/, '').trim();
     } catch (error) {
         console.error("Error generating visual prompt, falling back:", error);
-        // Fallback on API error
-        return `A dish called ${recipeName}`;
+        const contextKeywords = getCookingContextKeywords(cookingMethodLabels);
+        return `A dish called ${recipeName}, ${contextKeywords}`.replace(/, $/, '').trim();
     }
 }
 
 // FIX: Added missing function to generate a recipe image.
-export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
-    const visualDescription = await generateVisualPrompt(recipe.recipeName);
+export const generateRecipeImage = async (recipe: Recipe, cookingMethodLabels: string[]): Promise<string> => {
+    const visualDescription = await generateVisualPrompt(recipe.recipeName, cookingMethodLabels);
     
     const prompt = `Ultra-realistic, professional food photography of: ${visualDescription}. Shot with a DSLR camera, 8K resolution, sharp focus, high detail. The lighting should be bright and natural, creating soft shadows. The composition should be clean and aesthetically pleasing, possibly with a shallow depth of field to emphasize the main dish. Include fresh garnishes and a hint of steam if appropriate. The background should be a rustic wooden table or a clean, modern surface that complements the food.`;
 
@@ -403,9 +427,19 @@ export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
 };
 
 // Generates a simple, visual, English description for an instruction step.
-const generateVisualPromptForStep = async (recipeName: string, instructionText: string): Promise<string> => {
+const generateVisualPromptForStep = async (recipeName: string, instructionText: string, cookingMethodLabels: string[]): Promise<string> => {
     try {
-        const prompt = `Adj egy rövid, vizuálisan leíró, akciódús mondatot a következő főzési lépésről, amit egy képalkotó AI megértene. A recept neve: "${recipeName}". A lépés: "${instructionText}". A leírás ANGOLUL legyen. Csak magát a leíró mondatot add vissza. Például: "Hagymát kockára vágjuk" -> "Close-up of hands dicing a white onion on a wooden cutting board with a sharp knife". Vagy "A csirkét aranybarnára sütjük" -> "Sizzling chicken pieces frying to a perfect golden-brown in a hot pan".`;
+        const contextKeywords = getCookingContextKeywords(cookingMethodLabels);
+        let prompt = `Adj egy rövid, vizuálisan leíró, akciódús ANGOL mondatot a következő főzési lépésről, amit egy képalkotó AI megértene. A recept neve: "${recipeName}". A lépés: "${instructionText}".`;
+
+        if (contextKeywords) {
+            prompt += ` FONTOS: Az egész recept ebben a környezetben készül: ${contextKeywords}. A generált mondatnak ezt tükröznie kell. A képen SOHA NE LEGYEN modern konyhai tűzhely, serpenyő vagy beltéri konyhai környezet. A lépést a megfelelő szabadtéri eszközben (pl. bogrács, grillrács) kell ábrázolni.`;
+        } else {
+            prompt += ` A lépés egy modern, tiszta konyhában játszódik.`;
+        }
+
+        prompt += ` Csak magát a leíró mondatot add vissza. Például, ha a módszer bogrács és a lépés "Hozzáadjuk a hagymát": "Adding diced onions to a simmering bogracs cauldron over an open fire". Vagy ha a módszer grill és a lépés "A húst a rácsra tesszük": "Placing seasoned meat onto a hot barbecue grill grate over glowing charcoal".`;
+        
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
@@ -414,15 +448,17 @@ const generateVisualPromptForStep = async (recipeName: string, instructionText: 
             }
         });
         const description = response.text.trim();
-        return description || `A cooking step: ${instructionText}`;
+        const finalDescription = description ? `${description}, ${contextKeywords}` : `A cooking step: ${instructionText}, ${contextKeywords}`;
+        return finalDescription.replace(/, $/, '').trim();
     } catch (error) {
         console.error("Error generating visual prompt for step, falling back:", error);
-        return `A cooking step for recipe ${recipeName}: ${instructionText}`;
+        const contextKeywords = getCookingContextKeywords(cookingMethodLabels);
+        return `A cooking step for recipe ${recipeName}: ${instructionText}, ${contextKeywords}`.replace(/, $/, '').trim();
     }
 }
 
-export const generateInstructionImage = async (recipeName: string, instructionText: string): Promise<string> => {
-    const visualDescription = await generateVisualPromptForStep(recipeName, instructionText);
+export const generateInstructionImage = async (recipeName: string, instructionText: string, cookingMethodLabels: string[]): Promise<string> => {
+    const visualDescription = await generateVisualPromptForStep(recipeName, instructionText, cookingMethodLabels);
     
     const prompt = `Action shot, realistic photo from a cooking tutorial, showing this step: ${visualDescription}. The shot should be a close-up or a top-down view, focusing on the hands and the ingredients. Clean, modern kitchen environment with natural lighting. High detail and sharp focus to clearly illustrate the process.`;
 
