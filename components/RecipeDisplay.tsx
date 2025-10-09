@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Recipe, VoiceCommand, Favorites, CookingMethod, InstructionStep } from '../types';
+import { Recipe, VoiceCommand, Favorites, UserProfile, InstructionStep } from '../types';
 import { interpretUserCommand, generateRecipeImage, calculateRecipeCost, simplifyRecipe, generateInstructionImage } from '../services/geminiService';
 import * as imageStore from '../services/imageStore';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
 import KitchenTimer from './KitchenTimer';
-import SaveToFavoritesModal from './SaveToFavoritesModal';
+import SaveRecipeModal from './SaveToFavoritesModal';
 import ImageDisplayModal from './ImageDisplayModal';
 import ErrorMessage from './ErrorMessage';
 import InstructionCarousel from './InstructionCarousel';
@@ -13,6 +13,7 @@ import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, CUISINE_OPTIONS, MEAL_TYPES_
 import ShareFallbackModal from './ShareFallbackModal';
 import { konyhaMikiLogo as konyhaMikiLogoBase64 } from '../assets';
 import StarRating from './StarRating';
+import FavoriteStatusModal from './FavoriteStatusModal';
 
 
 interface RecipeDisplayProps {
@@ -25,6 +26,8 @@ interface RecipeDisplayProps {
   onAddItemsToShoppingList: (items: string[]) => void;
   isLoading: boolean;
   onRecipeUpdate: (updatedRecipe: Recipe) => void;
+  users: UserProfile[];
+  onUpdateFavoriteStatus: (recipeName: string, category: string, favoritedByIds: string[]) => void;
   shouldGenerateImageInitially: boolean;
 }
 
@@ -327,7 +330,7 @@ const addWatermarkToStepImage = (base64Image: string): Promise<string> => {
 };
 
 
-const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave, onAddItemsToShoppingList, isLoading, onRecipeUpdate, shouldGenerateImageInitially }) => {
+const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave, onAddItemsToShoppingList, isLoading, onRecipeUpdate, users, onUpdateFavoriteStatus, shouldGenerateImageInitially }) => {
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isInterpreting, setIsInterpreting] = useState(false);
@@ -335,6 +338,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
   const [isTimerOpen, setIsTimerOpen] = useState(false);
   const [timerInitialValues, setTimerInitialValues] = useState<{ hours?: number; minutes?: number; seconds?: number } | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   
   const [isImageLoading, setIsImageLoading] = useState<boolean>(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -608,6 +612,29 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine
         showNotification('A hangvezérléshez engedélyezze a mikrofon használatát a böngészőben.', 'info');
     }
   }, [showNotification]);
+
+  const findCategory = useCallback((recipeName: string): string | undefined => {
+    for (const cat in favorites) {
+        if (favorites[cat].some(r => r.recipeName === recipeName)) {
+            return cat;
+        }
+    }
+    return undefined;
+  }, [favorites]);
+
+  const handleStatusSave = (favoritedByIds: string[]) => {
+    const category = findCategory(recipe.recipeName);
+    if (category) {
+        onUpdateFavoriteStatus(recipe.recipeName, category, favoritedByIds);
+    } else if (isFromFavorites) {
+        // This case shouldn't happen if isFromFavorites is true, but as a fallback
+        showNotification('Hiba: A recept kategóriája nem található.', 'info');
+    } else {
+        // Not yet saved, but trying to mark favorite
+        showNotification('A receptet előbb el kell menteni, hogy kedvencnek jelölhesd.', 'info');
+    }
+    setIsStatusModalOpen(false);
+  };
 
   const handleVoiceResult = useCallback(async (transcript: string) => {
     if (isInterpretingRef.current) return;
@@ -1032,7 +1059,19 @@ Recept generálva Konyha Miki segítségével!
           <div className="flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-4 mb-2">
             <img src={konyhaMikiLogoBase64} alt="Konyha Miki logó" className="h-16 w-auto flex-shrink-0 order-2 md:order-1" />
             <div className="flex-grow order-1 md:order-2">
-              <h2 className="text-2xl md:text-3xl font-bold text-primary-800 break-words">{recipe.recipeName}</h2>
+              <div className="flex items-center justify-center md:justify-start gap-3">
+                <h2 className="text-2xl md:text-3xl font-bold text-primary-800 break-words">{recipe.recipeName}</h2>
+                <button 
+                  onClick={() => setIsStatusModalOpen(true)}
+                  className="text-3xl transition-transform hover:scale-110 focus:outline-none"
+                  aria-label="Kedvencnek jelölés"
+                >
+                  {(recipe.favoritedBy && recipe.favoritedBy.length > 0) ? 
+                      <span className="text-red-500">♥</span> : 
+                      <span className="text-gray-400">♡</span>
+                  }
+                </button>
+              </div>
               <div className="mt-1 flex justify-center md:justify-start">
                 <StarRating rating={recipe.rating || 0} onRatingChange={handleRatingChange} />
               </div>
@@ -1137,7 +1176,7 @@ Recept generálva Konyha Miki segítségével!
             <div className="my-6 p-3 bg-gray-50 border rounded-lg flex flex-wrap justify-center items-center gap-3 no-print">
                 <button onClick={() => setIsSaveModalOpen(true)} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-primary-100 text-primary-800 rounded-lg hover:bg-primary-200 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
-                    Mentés a kedvencekbe
+                    Recept mentése
                 </button>
                 <button onClick={handleShare} className="flex items-center gap-2 text-sm font-semibold py-2 px-4 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
@@ -1286,7 +1325,7 @@ Recept generálva Konyha Miki segítségével!
             onClick={onClose}
             className="flex-1 bg-primary-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200"
         >
-            {isFromFavorites ? 'Vissza a kedvencekhez' : 'Új recept készítése'}
+            {isFromFavorites ? 'Vissza a mentettekhez' : 'Új recept készítése'}
         </button>
       </div>
 
@@ -1297,7 +1336,7 @@ Recept generálva Konyha Miki segítségével!
         }} 
         initialValues={timerInitialValues} 
       />}
-      <SaveToFavoritesModal 
+      <SaveRecipeModal 
         isOpen={isSaveModalOpen}
         onClose={() => setIsSaveModalOpen(false)}
         onSave={handleSave}
@@ -1310,6 +1349,14 @@ Recept generálva Konyha Miki segítségével!
         isOpen={isShareFallbackModalOpen}
         onClose={() => setIsShareFallbackModalOpen(false)}
         textToCopy={recipeTextToCopy}
+      />
+      <FavoriteStatusModal
+        isOpen={isStatusModalOpen}
+        onClose={() => setIsStatusModalOpen(false)}
+        onSave={handleStatusSave}
+        users={users}
+        initialFavoritedByIds={recipe.favoritedBy || []}
+        recipeName={recipe.recipeName}
       />
     </>
   );

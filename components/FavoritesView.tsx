@@ -1,19 +1,16 @@
-import React, { useRef, useState } from 'react';
-import { Favorites, Recipe, SortOption, BackupData, ShoppingListItem, PantryItem, PantryLocation, UserProfile, OptionItem } from '../types';
-import { useNotification } from '../contexts/NotificationContext';
-import * as imageStore from '../services/imageStore';
+import React, { useState, useMemo } from 'react';
+import { Favorites, Recipe, SortOption, UserProfile } from '../types';
 import StarRating from './StarRating';
 import MoveRecipeModal from './MoveRecipeModal';
+import FavoriteStatusModal from './FavoriteStatusModal';
+import FavoriteActionModal from './FavoriteActionModal';
 
 interface FavoritesViewProps {
   favorites: Favorites;
-  shoppingList: ShoppingListItem[];
-  pantry: Record<PantryLocation, PantryItem[]>;
   users: UserProfile[];
   onViewRecipe: (recipe: Recipe) => void;
   onDeleteRecipe: (recipeName: string, category: string) => void;
   onDeleteCategory: (category: string) => void;
-  onImportData: (data: BackupData) => void;
   expandedCategories: Record<string, boolean>;
   onToggleCategory: (category: string) => void;
   filterCategory: string;
@@ -21,13 +18,7 @@ interface FavoritesViewProps {
   sortOption: SortOption;
   onSetSortOption: (option: SortOption) => void;
   onMoveRecipe: (recipe: Recipe, fromCategory: string, toCategory: string) => void;
-  mealTypes: OptionItem[];
-  cuisineOptions: OptionItem[];
-  cookingMethodsList: OptionItem[];
-  cookingMethodCapacities: Record<string, number | null>;
-  orderedMealTypes: OptionItem[];
-  orderedCuisineOptions: OptionItem[];
-  orderedCookingMethods: OptionItem[];
+  onUpdateFavoriteStatus: (recipeName: string, category: string, favoritedByIds: string[]) => void;
 }
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
@@ -41,13 +32,10 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 
 const FavoritesView: React.FC<FavoritesViewProps> = ({
   favorites,
-  shoppingList,
-  pantry,
   users,
   onViewRecipe,
   onDeleteRecipe,
   onDeleteCategory,
-  onImportData,
   expandedCategories,
   onToggleCategory,
   filterCategory,
@@ -55,18 +43,13 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   sortOption,
   onSetSortOption,
   onMoveRecipe,
-  mealTypes,
-  cuisineOptions,
-  cookingMethodsList,
-  cookingMethodCapacities,
-  orderedMealTypes,
-  orderedCuisineOptions,
-  orderedCookingMethods,
+  onUpdateFavoriteStatus,
 }) => {
   const categories = Object.keys(favorites);
-  const { showNotification } = useNotification();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [movingRecipe, setMovingRecipe] = useState<{ recipe: Recipe; fromCategory: string } | null>(null);
+  const [statusModalState, setStatusModalState] = useState<{ recipe: Recipe; category: string } | null>(null);
+  const [actionMenuRecipe, setActionMenuRecipe] = useState<{ recipe: Recipe; category: string } | null>(null);
+  const [favoriteFilter, setFavoriteFilter] = useState('all'); // 'all', 'any_favorite', 'user_id'
 
   const handleMoveRecipe = (toCategory: string) => {
     if (movingRecipe) {
@@ -74,158 +57,40 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
       setMovingRecipe(null); // Close modal
     }
   };
-
-  const handleExport = async () => {
-    try {
-      // 1. Collect all image IDs from recipes
-      const imageIds = new Set<string>();
-      for (const category in favorites) {
-        for (const recipe of favorites[category]) {
-          if (recipe.imageUrl && recipe.imageUrl.startsWith('indexeddb:')) {
-            imageIds.add(recipe.imageUrl.substring(10));
-          }
-          if (recipe.instructions) {
-            for (const instruction of recipe.instructions) {
-              if (instruction.imageUrl && instruction.imageUrl.startsWith('indexeddb:')) {
-                imageIds.add(instruction.imageUrl.substring(10));
-              }
-            }
-          }
-        }
-      }
-
-      // 2. Fetch image data for those IDs
-      const images: Record<string, string> = {};
-      const imagePromises = Array.from(imageIds).map(async (id) => {
-        const data = await imageStore.getImage(id);
-        if (data) {
-          images[id] = data;
-        }
-      });
-      await Promise.all(imagePromises);
-
-      // 3. Construct backup data with separated images map
-      const dataToSave: BackupData = {
-        favorites,
-        shoppingList,
-        pantry,
-        users,
-        images,
-        mealTypes,
-        cuisineOptions,
-        cookingMethods: cookingMethodsList,
-        cookingMethodCapacities,
-        mealTypesOrder: orderedMealTypes.map(item => item.value),
-        cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
-        cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
-      };
-
-      const jsonString = JSON.stringify(dataToSave, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const now = new Date();
-      const date = now.toISOString().split('T')[0];
-      const time = now.toTimeString().split(' ')[0].substring(0, 5).replace(':', '-');
-      const suggestedName = `konyhamiki_mentes_${date}_${time}.json`;
-
-      const isPickerSupported = 'showSaveFilePicker' in window;
-      const isTopFrame = window.self === window.top;
-
-      if (isPickerSupported && isTopFrame) {
-        try {
-          const handle = await window.showSaveFilePicker({
-            suggestedName,
-            types: [{
-              description: 'JSON Fájl',
-              accept: { 'application/json': ['.json'] },
-            }],
-          });
-          const writable = await handle.createWritable();
-          await writable.write(blob);
-          await writable.close();
-          showNotification('Adatok sikeresen mentve!', 'success');
-        } catch (err: any) {
-          if (err.name !== 'AbortError') {
-            console.error("Hiba a mentés során (File Picker):", err);
-            showNotification('Hiba történt az adatok mentése közben.', 'info');
-          }
-        }
-      } else {
-        if (!isPickerSupported) {
-          showNotification('A böngészője nem támogatja a "Mentés másként" funkciót, ezért a fájl közvetlenül letöltésre kerül.', 'info');
-        } else if (!isTopFrame) {
-          showNotification('A böngésző biztonsági korlátozásai miatt a fájl közvetlenül letöltésre kerül.', 'info');
-        }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = suggestedName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-    } catch (error) {
-      console.error("Hiba a mentés során:", error);
-      showNotification('Hiba történt az adatok mentése közben.', 'info');
-    }
-  };
-
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const text = e.target?.result;
-        if (typeof text === 'string') {
-          const data = JSON.parse(text);
-          onImportData(data);
-        } else {
-           throw new Error('A fájl tartalma nem olvasható szövegként.');
-        }
-      } catch (error) {
-        console.error("Hiba a betöltés során:", error);
-        showNotification('Hiba történt a fájl beolvasása vagy feldolgozása közben.', 'info');
-      }
-    };
-    // A mező értékének törlése a megbízható 'onloadend' eseményben, ami siker és hiba esetén is lefut.
-    reader.onloadend = () => {
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-    };
-
-    reader.readAsText(file);
-  };
   
-  const filteredCategories =
-    filterCategory === 'all'
-      ? categories
-      : categories.filter((cat) => cat === filterCategory);
+  const filteredCategories = useMemo(() => {
+    if (filterCategory === 'all') {
+        return categories;
+    }
+    return categories.filter((cat) => cat === filterCategory);
+  }, [categories, filterCategory]);
 
-  // FIX: Explicitly type `pantryList` to `PantryItem[]` to resolve type error when accessing `.length`.
-  const hasAnyData = categories.length > 0 || shoppingList.length > 0 || Object.values(pantry).some((pantryList: PantryItem[]) => pantryList.length > 0) || users.length > 0;
+  const hasAnyResults = useMemo(() => {
+    return filteredCategories.some(category => {
+        let recipes = favorites[category] || [];
+        if (favoriteFilter === 'any_favorite') {
+            return recipes.some(r => r.favoritedBy && r.favoritedBy.length > 0);
+        } else if (favoriteFilter !== 'all') { // It's a user ID
+            return recipes.some(r => r.favoritedBy?.includes(favoriteFilter));
+        }
+        return recipes.length > 0;
+    });
+  }, [filteredCategories, favorites, favoriteFilter]);
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-center text-primary-800">Kedvenc Receptjeim</h2>
+      <h2 className="text-2xl font-bold text-center text-primary-800">Mentett Receptek</h2>
         {categories.length === 0 ? (
           <div className="text-center py-12">
               <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
               </svg>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">Nincsenek mentett kedvencek</h3>
+              <h3 className="mt-4 text-lg font-medium text-gray-900">Nincsenek mentett receptek</h3>
               <p className="mt-1 text-sm text-gray-500">Generáljon egy receptet és mentse el, hogy itt megjelenjen!</p>
           </div>
         ) : (
           <>
-            {categories.length > 1 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 border rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 border rounded-lg">
                 <div>
                   <label htmlFor="category-filter" className="block text-sm font-medium text-gray-700 mb-1">
                     Szűrés kategória szerint
@@ -241,6 +106,23 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                       <option key={cat} value={cat}>
                         {cat}
                       </option>
+                    ))}
+                  </select>
+                </div>
+                 <div>
+                  <label htmlFor="favorite-filter" className="block text-sm font-medium text-gray-700 mb-1">
+                    Kedvencek szűrése
+                  </label>
+                  <select
+                    id="favorite-filter"
+                    value={favoriteFilter}
+                    onChange={(e) => setFavoriteFilter(e.target.value)}
+                    className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="all">Minden mentett</option>
+                    <option value="any_favorite">Bárki kedvence</option>
+                    {users.map(user => (
+                        <option key={user.id} value={user.id}>{user.name} kedvencei</option>
                     ))}
                   </select>
                 </div>
@@ -262,11 +144,22 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                   </select>
                 </div>
               </div>
-            )}
 
             {filteredCategories.map((category) => {
               const recipes = favorites[category];
-              const sortedRecipes = [...recipes].sort((a, b) => {
+              
+              let displayedRecipes = recipes;
+              if (favoriteFilter === 'any_favorite') {
+                  displayedRecipes = recipes.filter(r => r.favoritedBy && r.favoritedBy.length > 0);
+              } else if (favoriteFilter !== 'all') { // It's a user ID
+                  displayedRecipes = recipes.filter(r => r.favoritedBy?.includes(favoriteFilter));
+              }
+
+              if (displayedRecipes.length === 0) {
+                return null;
+              }
+
+              const sortedRecipes = [...displayedRecipes].sort((a, b) => {
                 switch (sortOption) {
                   case SortOption.NAME_ASC:
                     return a.recipeName.localeCompare(b.recipeName, 'hu');
@@ -298,7 +191,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                     <div className="flex items-center gap-3">
                       <span className="font-bold text-lg text-primary-700">{category}</span>
                       <span className="text-sm bg-primary-100 text-primary-800 font-semibold px-2 py-0.5 rounded-full">
-                        {favorites[category].length} recept
+                        {displayedRecipes.length} recept
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -315,27 +208,31 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                     </div>
                   </button>
                   {expandedCategories[category] && (
-                    <ul className="divide-y divide-gray-200 bg-white p-2">
+                    <ul className="divide-y divide-gray-200 bg-white">
                       {sortedRecipes.map((recipe) => (
-                        <li key={recipe.recipeName} className="flex items-center justify-between p-3 gap-2">
-                          <div className="flex items-center gap-3 flex-grow min-w-0">
-                            <span className="font-medium text-gray-800 truncate" title={recipe.recipeName}>{recipe.recipeName}</span>
-                            {recipe.rating && recipe.rating > 0 && <StarRating rating={recipe.rating} readOnly />}
-                          </div>
-                          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                            <button onClick={() => onViewRecipe(recipe)} className="text-sm font-semibold text-primary-600 hover:text-primary-800 p-1">
-                              Megtekintés
-                            </button>
-                             <button 
-                                onClick={() => setMovingRecipe({ recipe, fromCategory: category })}
-                                className="text-sm font-medium text-blue-600 hover:text-blue-800 p-1"
-                                aria-label={`'${recipe.recipeName}' áthelyezése`}
-                            >
-                                Áthelyezés
-                            </button>
-                            <button onClick={() => onDeleteRecipe(recipe.recipeName, category)} className="text-sm font-medium text-red-600 hover:text-red-800 p-1">
-                              Törlés
-                            </button>
+                        <li key={recipe.recipeName} className="p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 flex-grow min-w-0">
+                                <button 
+                                  onClick={() => setStatusModalState({ recipe, category })} 
+                                  className="text-2xl transition-transform hover:scale-125 focus:outline-none flex-shrink-0"
+                                  aria-label="Kedvenc állapot módosítása"
+                                >
+                                  {(recipe.favoritedBy && recipe.favoritedBy.length > 0) ? 
+                                      <span className="text-red-500">♥</span> : 
+                                      <span className="text-gray-400">♡</span>
+                                  }
+                                </button>
+                                <button 
+                                  onClick={() => setActionMenuRecipe({ recipe, category })}
+                                  className="font-medium text-gray-800 text-left break-words w-full hover:text-primary-600 focus:outline-none focus:ring-1 focus:ring-primary-300 rounded"
+                                >
+                                    {recipe.recipeName}
+                                </button>
+                            </div>
+                            <div className="flex-shrink-0 ml-2">
+                                {recipe.rating && recipe.rating > 0 && <StarRating rating={recipe.rating} readOnly />}
+                            </div>
                           </div>
                         </li>
                       ))}
@@ -344,36 +241,17 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                 </div>
               )
             })}
+
+            {!hasAnyResults && (
+                <div className="text-center py-12">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    <h3 className="mt-2 text-lg font-medium text-gray-900">Nincs a szűrésnek megfelelő recept</h3>
+                    <p className="mt-1 text-sm text-gray-500">Próbáljon más szűrési feltételt beállítani.</p>
+                </div>
+            )}
           </>
         )}
-       <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-200">
-        <h3 className="text-lg font-bold text-center text-gray-700 mb-4">Adatkezelés</h3>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-                onClick={handleExport}
-                disabled={!hasAnyData}
-                className="flex-1 bg-blue-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-                Mentés Fájlba
-            </button>
-            <button
-                onClick={handleImportClick}
-                className="flex-1 bg-green-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition"
-            >
-                Betöltés Fájlból
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".json"
-              className="hidden"
-              aria-hidden="true"
-            />
-        </div>
-        <p className="text-xs text-center text-gray-500 mt-3">A betöltés összefésüli a meglévő adatokat az újonnan betöltöttekkel.</p>
-      </div>
-
+       
        {movingRecipe && (
         <MoveRecipeModal
           isOpen={!!movingRecipe}
@@ -382,6 +260,40 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
           existingCategories={categories}
           recipeName={movingRecipe.recipe.recipeName}
           sourceCategory={movingRecipe.fromCategory}
+        />
+      )}
+       {statusModalState && (
+        <FavoriteStatusModal
+          isOpen={!!statusModalState}
+          onClose={() => setStatusModalState(null)}
+          onSave={(ids) => {
+            onUpdateFavoriteStatus(statusModalState.recipe.recipeName, statusModalState.category, ids);
+            setStatusModalState(null);
+          }}
+          users={users}
+          initialFavoritedByIds={statusModalState.recipe.favoritedBy || []}
+          recipeName={statusModalState.recipe.recipeName}
+        />
+      )}
+      {actionMenuRecipe && (
+        <FavoriteActionModal
+            isOpen={!!actionMenuRecipe}
+            onClose={() => setActionMenuRecipe(null)}
+            recipe={actionMenuRecipe.recipe}
+            onView={() => {
+                onViewRecipe(actionMenuRecipe.recipe);
+                setActionMenuRecipe(null);
+            }}
+            onMove={() => {
+                setMovingRecipe({ recipe: actionMenuRecipe.recipe, fromCategory: actionMenuRecipe.category });
+                setActionMenuRecipe(null);
+            }}
+            onDelete={() => {
+                if (window.confirm(`Biztosan törli a következő receptet: "${actionMenuRecipe.recipe.recipeName}"?`)) {
+                    onDeleteRecipe(actionMenuRecipe.recipe.recipeName, actionMenuRecipe.category);
+                }
+                setActionMenuRecipe(null);
+            }}
         />
       )}
     </div>

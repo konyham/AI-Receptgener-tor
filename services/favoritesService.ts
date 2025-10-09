@@ -24,7 +24,8 @@ export const validateAndRecover = (data: unknown): { favorites: Favorites; recov
         const validRecipes: Recipe[] = [];
         recipes.forEach((recipe: any, index: number) => {
           const isValidRating = typeof recipe.rating === 'undefined' || (typeof recipe.rating === 'number' && recipe.rating >= 1 && recipe.rating <= 5);
-          if (typeof recipe === 'object' && recipe !== null && recipe.recipeName && Array.isArray(recipe.ingredients) && Array.isArray(recipe.instructions) && isValidRating) {
+          const isValidFavoritedBy = typeof recipe.favoritedBy === 'undefined' || (Array.isArray(recipe.favoritedBy) && recipe.favoritedBy.every((id: any) => typeof id === 'string'));
+          if (typeof recipe === 'object' && recipe !== null && recipe.recipeName && Array.isArray(recipe.ingredients) && Array.isArray(recipe.instructions) && isValidRating && isValidFavoritedBy) {
             
             // FIX: Add data migration for old instruction format (string[] -> InstructionStep[]).
             // This ensures backward compatibility with favorites saved before the step-image feature was added.
@@ -193,6 +194,7 @@ export const addRecipeToFavorites = async (recipe: Recipe, category: string): Pr
     };
   } else {
     // Recipe is new, add it.
+    recipeToSave.favoritedBy = recipeToSave.favoritedBy || [];
     favorites[category].push(recipeToSave);
   }
 
@@ -341,4 +343,23 @@ export const processFavoritesForStorage = async (favorites: Favorites): Promise<
     }
   }
   return processedFavorites;
+};
+
+/**
+ * Updates the `favoritedBy` array for a specific recipe.
+ * @param recipeName The name of the recipe to update.
+ * @param category The category the recipe is in.
+ * @param favoritedByIds The new array of user IDs.
+ * @returns The updated favorites object.
+ */
+export const updateFavoriteStatus = async (recipeName: string, category: string, favoritedByIds: string[]): Promise<Favorites> => {
+  const { favorites } = getFavorites();
+  if (favorites[category]) {
+    const recipeIndex = favorites[category].findIndex(r => r.recipeName === recipeName);
+    if (recipeIndex !== -1) {
+      favorites[category][recipeIndex].favoritedBy = favoritedByIds;
+      saveFavorites(favorites);
+    }
+  }
+  return favorites;
 };

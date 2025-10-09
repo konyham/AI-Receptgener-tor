@@ -30,7 +30,6 @@ const ShareFallbackModal: React.FC<ShareFallbackModalProps> = ({ isOpen, onClose
         if (event.key === 'Tab' && modalElement) {
             const focusableElements = Array.from(modalElement.querySelectorAll<HTMLElement>(
                 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-            // FIX: Explicitly type `el` as HTMLElement to resolve `offsetParent` property access error.
             )).filter((el: HTMLElement) => el.offsetParent !== null); // Filter for visible elements
             
             const firstElement = focusableElements[0];

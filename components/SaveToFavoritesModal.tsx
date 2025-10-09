@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-interface SaveToFavoritesModalProps {
+interface SaveRecipeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (category: string) => void;
@@ -8,7 +8,7 @@ interface SaveToFavoritesModalProps {
   suggestedCategory?: string;
 }
 
-const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onClose, onSave, existingCategories, suggestedCategory }) => {
+const SaveRecipeModal: React.FC<SaveRecipeModalProps> = ({ isOpen, onClose, onSave, existingCategories, suggestedCategory }) => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [isCreatingNew, setIsCreatingNew] = useState(false);
@@ -58,7 +58,6 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
         if (event.key === 'Tab' && modalElement) {
             const focusableElements = Array.from(modalElement.querySelectorAll<HTMLElement>(
                 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-            // FIX: Explicitly type `el` as HTMLElement to resolve `offsetParent` property access error.
             )).filter((el: HTMLElement) => el.offsetParent !== null); // Filter for visible elements
             
             const firstElement = focusableElements[0];
@@ -122,7 +121,7 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="save-modal-title">
       <div ref={modalRef} className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-sm">
-        <h2 id="save-modal-title" className="text-2xl font-bold text-primary-800 mb-4">Mentés a kedvencekbe</h2>
+        <h2 id="save-modal-title" className="text-2xl font-bold text-primary-800 mb-4">Recept mentése</h2>
         
         <div className="space-y-4">
             {isCreatingNew ? (
@@ -181,4 +180,4 @@ const SaveToFavoritesModal: React.FC<SaveToFavoritesModalProps> = ({ isOpen, onC
   );
 };
 
-export default SaveToFavoritesModal;
+export default SaveRecipeModal;

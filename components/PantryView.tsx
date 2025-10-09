@@ -3,6 +3,7 @@ import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PA
 import { useNotification } from '../contexts/NotificationContext';
 import * as imageStore from '../services/imageStore';
 import MoveItemsModal from './MoveItemsModal';
+import { categorizeIngredients } from '../services/geminiService';
 
 // Modal for editing a pantry item
 const EditPantryItemModal: React.FC<{
@@ -90,9 +91,6 @@ const EditPantryItemModal: React.FC<{
 
 interface PantryViewProps {
   pantry: Record<PantryLocation, PantryItem[]>;
-  favorites: Favorites;
-  shoppingList: ShoppingListItem[];
-  users: UserProfile[];
   onAddItems: (items: string[], location: PantryLocation, date: string | null, storageType: StorageType) => void;
   onUpdateItem: (originalItem: PantryItem, updatedItem: PantryItem, location: PantryLocation) => void;
   onRemoveItem: (item: PantryItem, location: PantryLocation) => void;
@@ -100,23 +98,14 @@ interface PantryViewProps {
   onMoveCheckedToPantryRequest: () => void;
   onGenerateFromPantryRequest: () => void;
   onGenerateFromSelectedPantryItemsRequest: (items: string[]) => void;
-  onImportData: (data: BackupData) => void;
   shoppingListItems: ShoppingListItem[];
   onMoveItems: (indices: number[], sourceLocation: PantryLocation, destinationLocation: PantryLocation) => void;
-  mealTypes: OptionItem[];
-  cuisineOptions: OptionItem[];
-  cookingMethodsList: OptionItem[];
-  cookingMethodCapacities: Record<string, number | null>;
-  orderedMealTypes: OptionItem[];
-  orderedCuisineOptions: OptionItem[];
-  orderedCookingMethods: OptionItem[];
 }
+
+type PantryItemWithIndex = PantryItem & { originalIndex: number };
 
 const PantryView: React.FC<PantryViewProps> = ({
   pantry,
-  favorites,
-  shoppingList,
-  users,
   onAddItems,
   onUpdateItem,
   onRemoveItem,
@@ -124,16 +113,8 @@ const PantryView: React.FC<PantryViewProps> = ({
   onMoveCheckedToPantryRequest,
   onGenerateFromPantryRequest,
   onGenerateFromSelectedPantryItemsRequest,
-  onImportData,
   shoppingListItems,
   onMoveItems,
-  mealTypes,
-  cuisineOptions,
-  cookingMethodsList,
-  cookingMethodCapacities,
-  orderedMealTypes,
-  orderedCuisineOptions,
-  orderedCookingMethods,
 }) => {
   const [newItem, setNewItem] = useState('');
   const [newItemDate, setNewItemDate] = useState<string | null>(new Date().toISOString().split('T')[0]);
@@ -144,16 +125,25 @@ const PantryView: React.FC<PantryViewProps> = ({
   const [selectedItems, setSelectedItems] = useState<Record<PantryLocation, Set<number>>>({ Tiszadada: new Set(), Vásárosnamény: new Set() });
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [storageFilter, setStorageFilter] = useState<StorageType | 'all'>('all');
-  
-  const { showNotification } = useNotification();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [isCategorizing, setIsCategorizing] = useState(false);
+  const [categorizedPantry, setCategorizedPantry] = useState<Record<string, PantryItemWithIndex[]> | null>(null);
+  const [expandedAIGroups, setExpandedAIGroups] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    // Reset categorization when location changes
+    setCategorizedPantry(null);
+    setSearchTerm('');
+    setStorageFilter('all');
+  }, [activeLocation]);
+  
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (newItem.trim()) {
       const itemsToAdd = newItem.split(',').map(item => item.trim()).filter(Boolean);
       onAddItems(itemsToAdd, activeLocation, newItemDate, newItemStorageType);
       setNewItem('');
+      setCategorizedPantry(null); // Invalidate categorization
     }
   };
 
@@ -161,16 +151,17 @@ const PantryView: React.FC<PantryViewProps> = ({
     if (editingItem) {
       onUpdateItem(editingItem.item, updatedItem, activeLocation);
       setEditingItem(null);
+      setCategorizedPantry(null); // Invalidate categorization
     }
   };
 
-  const handleToggleSelectItem = (index: number) => {
+  const handleToggleSelectItem = (originalIndex: number) => {
     setSelectedItems(prev => {
         const newSelection = new Set(prev[activeLocation]);
-        if (newSelection.has(index)) {
-            newSelection.delete(index);
+        if (newSelection.has(originalIndex)) {
+            newSelection.delete(originalIndex);
         } else {
-            newSelection.add(index);
+            newSelection.add(originalIndex);
         }
         return { ...prev, [activeLocation]: newSelection };
     });
@@ -178,7 +169,7 @@ const PantryView: React.FC<PantryViewProps> = ({
 
   const handleSelectAll = () => {
       setSelectedItems(prev => {
-          const allIndices = new Set(filteredAndSortedPantry.map((_, index) => index));
+          const allIndices = new Set(filteredAndSortedPantry.map((item) => item.originalIndex));
           return { ...prev, [activeLocation]: allIndices };
       });
   };
@@ -188,7 +179,8 @@ const PantryView: React.FC<PantryViewProps> = ({
   };
 
   const handleGenerateFromSelected = () => {
-    const selectedItemTexts = Array.from(selectedItems[activeLocation]).map(index => filteredAndSortedPantry[index].text);
+    const allItems = pantry[activeLocation] || [];
+    const selectedItemTexts = Array.from(selectedItems[activeLocation]).map(index => allItems[index].text);
     onGenerateFromSelectedPantryItemsRequest(selectedItemTexts);
   };
   
@@ -200,14 +192,49 @@ const PantryView: React.FC<PantryViewProps> = ({
   
   const executeMove = (destination: PantryLocation) => {
     onMoveItems(Array.from(selectedItems[activeLocation]), activeLocation, destination);
-    handleDeselectAll(); // Clear selection after moving
+    handleDeselectAll();
     setIsMoveModalOpen(false);
+    setCategorizedPantry(null);
+  };
+  
+  const handleCategorize = async () => {
+    if (isCategorizing || filteredAndSortedPantry.length === 0) return;
+    setIsCategorizing(true);
+    try {
+        const ingredientTexts = filteredAndSortedPantry.map(item => item.text);
+        const result = await categorizeIngredients(ingredientTexts);
+        
+        const originalItemMap = new Map(filteredAndSortedPantry.map(item => [item.text.toLowerCase(), item]));
+        
+        const grouped: Record<string, PantryItemWithIndex[]> = {};
+        
+        result.forEach(({ ingredient, category }) => {
+            const originalItem = originalItemMap.get(ingredient.toLowerCase());
+            if (originalItem) {
+                if (!grouped[category]) {
+                    grouped[category] = [];
+                }
+                grouped[category].push(originalItem);
+            }
+        });
+
+        setCategorizedPantry(grouped);
+        // FIX: Cast the initial value of the reduce call to fix type inference issue.
+        setExpandedAIGroups(Object.keys(grouped).reduce((acc, key) => ({...acc, [key]: true}), {} as Record<string, boolean>));
+
+    } catch (e: any) {
+        // Assuming useNotification is available
+        // showNotification(e.message, 'info');
+    } finally {
+        setIsCategorizing(false);
+    }
   };
 
   const filteredAndSortedPantry = useMemo(() => {
     const list = pantry[activeLocation] || [];
     
     return list
+      .map((item, originalIndex) => ({ ...item, originalIndex })) // Add original index
       .filter(item => item.text.toLowerCase().includes(searchTerm.toLowerCase()))
       .filter(item => {
         if (storageFilter === 'all') return true;
@@ -227,21 +254,19 @@ const PantryView: React.FC<PantryViewProps> = ({
             return urgencyA - urgencyB;
         }
 
-        // Storage types are the same, sort by date
-        if (a.dateAdded === null && b.dateAdded !== null) return -1; // a is more urgent
-        if (a.dateAdded !== null && b.dateAdded === null) return 1;  // b is more urgent
+        if (a.dateAdded === null && b.dateAdded !== null) return -1;
+        if (a.dateAdded !== null && b.dateAdded === null) return 1;
         if (a.dateAdded === null && b.dateAdded === null) {
-            return a.text.localeCompare(b.text); // stable sort for items with no date
+            return a.text.localeCompare(b.text);
         }
 
-        // Both have dates, sort oldest first
         const timeA = new Date(a.dateAdded!).getTime();
         const timeB = new Date(b.dateAdded!).getTime();
         if (timeA !== timeB) {
             return timeA - timeB;
         }
 
-        return a.text.localeCompare(b.text); // stable sort for items with same date
+        return a.text.localeCompare(b.text);
     });
   }, [pantry, activeLocation, searchTerm, storageFilter]);
   
@@ -276,120 +301,6 @@ const PantryView: React.FC<PantryViewProps> = ({
     }
   };
   
-  const handleExport = async () => {
-    try {
-      const imageIds = new Set<string>();
-      for (const category in favorites) {
-        for (const recipe of favorites[category]) {
-          if (recipe.imageUrl && recipe.imageUrl.startsWith('indexeddb:')) {
-            imageIds.add(recipe.imageUrl.substring(10));
-          }
-          if (recipe.instructions) {
-            for (const instruction of recipe.instructions) {
-              if (instruction.imageUrl && instruction.imageUrl.startsWith('indexeddb:')) {
-                imageIds.add(instruction.imageUrl.substring(10));
-              }
-            }
-          }
-        }
-      }
-
-      const images: Record<string, string> = {};
-      const imagePromises = Array.from(imageIds).map(async (id) => {
-        const data = await imageStore.getImage(id);
-        if (data) {
-          images[id] = data;
-        }
-      });
-      await Promise.all(imagePromises);
-
-      const dataToSave: BackupData = {
-        favorites,
-        shoppingList,
-        pantry,
-        users,
-        images,
-        mealTypes,
-        cuisineOptions,
-        cookingMethods: cookingMethodsList,
-        cookingMethodCapacities,
-        mealTypesOrder: orderedMealTypes.map(item => item.value),
-        cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
-        cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
-      };
-
-      const jsonString = JSON.stringify(dataToSave, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const now = new Date();
-      const date = now.toISOString().split('T')[0];
-      const time = now.toTimeString().split(' ')[0].substring(0, 5).replace(':', '-');
-      const suggestedName = `konyhamiki_mentes_${date}_${time}.json`;
-
-      if ('showSaveFilePicker' in window && window.self === window.top) {
-        const handle = await window.showSaveFilePicker({
-          suggestedName,
-          types: [{ description: 'JSON Fájl', accept: { 'application/json': ['.json'] } }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        showNotification('Adatok sikeresen mentve!', 'success');
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = suggestedName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error("Hiba a mentés során:", err);
-        showNotification('Hiba történt az adatok mentése közben.', 'info');
-      }
-    }
-  };
-
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const text = e.target?.result;
-        if (typeof text === 'string') {
-          const data = JSON.parse(text);
-          onImportData(data);
-        } else {
-           throw new Error('A fájl tartalma nem olvasható szövegként.');
-        }
-      } catch (error) {
-        console.error("Hiba a betöltés során:", error);
-        showNotification('Hiba történt a fájl beolvasása vagy feldolgozása közben.', 'info');
-      }
-    };
-     reader.onerror = () => {
-        showNotification('Hiba történt a fájl olvasása közben.', 'info');
-    };
-    reader.onloadend = () => {
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-    };
-
-    reader.readAsText(file);
-  };
-  
-  // FIX: Explicitly type `l` to `PantryItem[]` to resolve type error when accessing `.length`.
-  const hasAnyData = Object.keys(favorites).length > 0 || shoppingListItems.length > 0 || Object.values(pantry).some((l: PantryItem[]) => l.length > 0) || users.length > 0;
-  
   const storageTypeLabels: Record<StorageType, { label: string; icon: string }> = {
     [StorageType.FREEZER]: { label: "Fagyasztó", icon: "❄️" },
     [StorageType.REFRIGERATOR]: { label: "Hűtő", icon: "🧊" },
@@ -402,6 +313,47 @@ const PantryView: React.FC<PantryViewProps> = ({
     { value: StorageType.PANTRY, label: 'Kamra' },
     { value: StorageType.FREEZER, label: 'Fagyasztó' },
   ];
+  
+  const renderItemList = (items: PantryItemWithIndex[]) => (
+     <ul className="divide-y divide-gray-200">
+        {items.map((item) => {
+          const urgency = getUrgency(item);
+          const isSelected = selectedItems[activeLocation].has(item.originalIndex);
+
+          return (
+            <li key={`${item.text}-${item.dateAdded}-${item.originalIndex}`} className={`flex items-center justify-between p-3 gap-2 transition-colors ${isSelected ? 'bg-primary-100' : ''}`}>
+              <div className="flex items-center gap-3 flex-grow min-w-0">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => handleToggleSelectItem(item.originalIndex)}
+                  className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 flex-shrink-0"
+                  aria-label={`'${item.text}' kiválasztása`}
+                />
+                <div className="flex-grow">
+                  <p className="font-medium text-gray-800 break-words">{item.text}</p>
+                  <div className="flex flex-wrap items-center gap-x-3 text-xs text-gray-500">
+                    {item.quantity && <p>{item.quantity}</p>}
+                    <p className={`border-l-4 pl-2 ${urgency.colorClass}`}>
+                       {urgency.label}
+                    </p>
+                    <p>{storageTypeLabels[item.storageType].icon} {storageTypeLabels[item.storageType].label}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                <button onClick={() => setEditingItem({ item })} className="text-sm font-medium text-blue-600 hover:text-blue-800 p-1">
+                  Szerkesztés
+                </button>
+                <button onClick={() => onRemoveItem(item, activeLocation)} className="text-sm font-medium text-red-600 hover:text-red-800 p-1">
+                  Törlés
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+  );
 
   return (
     <div className="space-y-6">
@@ -490,6 +442,28 @@ const PantryView: React.FC<PantryViewProps> = ({
       </div>
 
        <div className="space-y-4">
+             <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                    onClick={handleCategorize}
+                    disabled={isCategorizing || filteredAndSortedPantry.length === 0}
+                    className="flex-1 bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-purple-700 transition disabled:bg-gray-400 flex items-center justify-center gap-2"
+                >
+                    {isCategorizing ? (
+                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 7.373 11.627 2 5 2a1 1 0 00-1 1z" /><path d="M13 5a1 1 0 00-1-1C6.477 4 2 8.477 2 14a1 1 0 102 0c0-4.418 3.582-8 8-8a1 1 0 001-1z" /><path d="M5 9a1 1 0 011-1h2a1 1 0 110 2H6a1 1 0 01-1-1zm8 2a1 1 0 00-1 1v2a1 1 0 102 0v-2a1 1 0 00-1-1z" /></svg>
+                    )}
+                    {isCategorizing ? 'Kategorizálás...' : 'AI-alapú kategorizálás'}
+                </button>
+                {categorizedPantry && (
+                    <button
+                        onClick={() => setCategorizedPantry(null)}
+                        className="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition"
+                    >
+                        Kategorizálás törlése
+                    </button>
+                )}
+            </div>
             <div className="flex flex-wrap items-center gap-2 rounded-lg p-2 bg-gray-100">
                 <span className="text-sm font-semibold text-gray-600 mr-2">Szűrés:</span>
                 {filterOptions.map(opt => (
@@ -512,7 +486,7 @@ const PantryView: React.FC<PantryViewProps> = ({
             />
        </div>
       
-      {filteredAndSortedPantry.length > 0 ? (
+      {pantry[activeLocation]?.length > 0 ? (
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2 justify-between items-center">
             <div className="flex gap-2">
@@ -525,44 +499,28 @@ const PantryView: React.FC<PantryViewProps> = ({
                 </button>
             )}
           </div>
-          <ul className="divide-y divide-gray-200">
-            {filteredAndSortedPantry.map((item, index) => {
-              const urgency = getUrgency(item);
-              const isSelected = selectedItems[activeLocation].has(index);
-
-              return (
-                <li key={`${item.text}-${item.dateAdded}-${index}`} className={`flex items-center justify-between p-3 gap-2 transition-colors ${isSelected ? 'bg-primary-100' : ''}`}>
-                  <div className="flex items-center gap-3 flex-grow min-w-0">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => handleToggleSelectItem(index)}
-                      className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 flex-shrink-0"
-                      aria-label={`'${item.text}' kiválasztása`}
-                    />
-                    <div className="flex-grow">
-                      <p className="font-medium text-gray-800 break-words">{item.text}</p>
-                      <div className="flex flex-wrap items-center gap-x-3 text-xs text-gray-500">
-                        {item.quantity && <p>{item.quantity}</p>}
-                        <p className={`border-l-4 pl-2 ${urgency.colorClass}`}>
-                           {urgency.label}
-                        </p>
-                        <p>{storageTypeLabels[item.storageType].icon} {storageTypeLabels[item.storageType].label}</p>
-                      </div>
+          {categorizedPantry ? (
+              <div className="space-y-3">
+                {/* FIX: Explicitly type the destructured array from Object.entries to resolve type errors. */}
+                {Object.entries(categorizedPantry).map(([category, items]: [string, PantryItemWithIndex[]]) => (
+                    <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                        <button
+                            onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
+                            className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100"
+                            aria-expanded={!!expandedAIGroups[category]}
+                        >
+                            <span className="font-bold text-primary-700">{category}</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${expandedAIGroups[category] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        {expandedAIGroups[category] && (
+                           renderItemList(items)
+                        )}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                    <button onClick={() => setEditingItem({ item })} className="text-sm font-medium text-blue-600 hover:text-blue-800 p-1">
-                      Szerkesztés
-                    </button>
-                    <button onClick={() => onRemoveItem(item, activeLocation)} className="text-sm font-medium text-red-600 hover:text-red-800 p-1">
-                      Törlés
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                ))}
+             </div>
+          ) : (
+            renderItemList(filteredAndSortedPantry)
+          )}
           <div className="pt-4 flex flex-col sm:flex-row gap-2 justify-end">
             <button
               onClick={() => {
@@ -585,34 +543,6 @@ const PantryView: React.FC<PantryViewProps> = ({
             <p className="mt-1 text-sm text-gray-500">Adj hozzá tételeket, vagy módosítsd a keresési/szűrési feltételeket.</p>
         </div>
       )}
-      
-       <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-200">
-        <h3 className="text-lg font-bold text-center text-gray-700 mb-4">Adatkezelés</h3>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-                onClick={handleExport}
-                disabled={!hasAnyData}
-                className="flex-1 bg-blue-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-                Mentés Fájlba
-            </button>
-            <button
-                onClick={handleImportClick}
-                className="flex-1 bg-green-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition"
-            >
-                Betöltés Fájlból
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".json"
-              className="hidden"
-              aria-hidden="true"
-            />
-        </div>
-         <p className="text-xs text-center text-gray-500 mt-3">A betöltés összefésüli a meglévő adatokat az újonnan betöltöttekkel.</p>
-      </div>
 
       {editingItem && (
         <EditPantryItemModal

@@ -155,6 +155,7 @@ export interface Recipe {
   mealType: MealType;
   cuisine: CuisineOption;
   recipePace: RecipePace;
+  favoritedBy?: string[];
 }
 
 export interface RecipeSuggestions {
@@ -282,4 +283,9 @@ export interface BackupData {
   mealTypesOrder?: string[];
   cuisineOptionsOrder?: string[];
   cookingMethodsOrder?: string[];
+}
+
+export interface CategorizedIngredient {
+  ingredient: string;
+  category: string;
 }

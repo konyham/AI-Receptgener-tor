@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -10,6 +10,7 @@ import UsersView from './components/UsersView';
 import AppVoiceControl from './components/AppVoiceControl';
 // FIX: The imported module was missing a default export. This has been fixed in the component file.
 import LocationPromptModal from './components/LocationPromptModal';
+import LoadOnStartModal from './components/LoadOnStartModal';
 import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
@@ -53,6 +54,7 @@ import {
 import { safeSetLocalStorage } from './utils/storage';
 import { konyhaMikiLogo } from './assets';
 import * as imageStore from './services/imageStore';
+import DataManagementControls from './components/DataManagementControls';
 
 const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
     try {
@@ -91,6 +93,7 @@ const App: React.FC = () => {
   // Location prompt state
   const [isLocationPromptOpen, setIsLocationPromptOpen] = useState(false);
   const [locationCallback, setLocationCallback] = useState<(location: PantryLocation) => void>(() => () => {});
+  const [isLoadOnStartModalOpen, setIsLoadOnStartModalOpen] = useState(false);
 
   // Customizable options state (lifted from RecipeInputForm)
   const [mealTypes, setMealTypes] = useState<OptionItem[]>(() => loadFromLocalStorage(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES));
@@ -105,6 +108,7 @@ const App: React.FC = () => {
 
   const { showNotification } = useNotification();
   const isProcessingVoiceCommandRef = React.useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(() => {
     try {
@@ -139,6 +143,48 @@ const App: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Effect to prompt loading data if storage is empty on startup.
+  useEffect(() => {
+    const favoritesData = localStorage.getItem('ai-recipe-generator-favorites');
+    const shoppingListData = localStorage.getItem('ai-recipe-generator-shopping-list');
+    const pantryData = localStorage.getItem('ai-recipe-generator-pantry');
+    
+    const hasFavorites = favoritesData && favoritesData !== '{}';
+    const hasShoppingList = shoppingListData && shoppingListData !== '[]';
+    const hasPantry = pantryData && pantryData !== '{"Tiszadada":[],"Vásárosnamény":[]}';
+    
+    if (!hasFavorites && !hasShoppingList && !hasPantry) {
+        const timer = setTimeout(() => {
+            setIsLoadOnStartModalOpen(true);
+        }, 1000);
+        return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Effect to warn user before closing the tab if they have data.
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+        const favoritesData = localStorage.getItem('ai-recipe-generator-favorites');
+        const shoppingListData = localStorage.getItem('ai-recipe-generator-shopping-list');
+        const pantryData = localStorage.getItem('ai-recipe-generator-pantry');
+
+        const hasFavorites = favoritesData && favoritesData !== '{}';
+        const hasShoppingList = shoppingListData && shoppingListData !== '[]';
+        const hasPantry = pantryData && pantryData !== '{"Tiszadada":[],"Vásárosnamény":[]}';
+
+        if (hasFavorites || hasShoppingList || hasPantry) {
+            const message = "Biztosan ki akar lépni? Az adatok a böngészőben mentve vannak, de a biztonság kedvéért érdemes lehet a 'Mentés Fájlba' funkcióval is elmenteni egy fájlba.";
+            event.returnValue = message;
+            return message;
+        }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
 
   // Effects to sync ordered lists (lifted from RecipeInputForm)
     useEffect(() => {
@@ -300,10 +346,10 @@ const App: React.FC = () => {
     try {
       const updatedFavorites = await favoritesService.addRecipeToFavorites(recipeToSave, category);
       setFavorites(updatedFavorites);
-      showNotification(`'${recipeToSave.recipeName}' elmentve a(z) '${category}' kategóriába!`, 'success');
+      showNotification(`'${recipeToSave.recipeName}' elmentve a(z) '${category}' kategóriába.`, 'success');
     } catch (e: any) {
       console.error("Failed to save to favorites:", e);
-      showNotification(e.message || 'Hiba történt a kedvencek mentése közben.', 'info');
+      showNotification(e.message || 'Hiba történt a mentés közben.', 'info');
     }
   };
   
@@ -316,7 +362,7 @@ const App: React.FC = () => {
   const handleDeleteFavorite = async (recipeName: string, category: string) => {
     const updatedFavorites = await favoritesService.removeRecipeFromFavorites(recipeName, category);
     setFavorites(updatedFavorites);
-    showNotification(`'${recipeName}' törölve a kedvencek közül.`, 'success');
+    showNotification(`'${recipeName}' törölve a mentettek közül.`, 'success');
   };
 
   const handleDeleteCategory = async (category: string) => {
@@ -338,6 +384,21 @@ const App: React.FC = () => {
         showNotification(`'${recipe.recipeName}' áthelyezve ide: '${toCategory}'`, 'success');
     } else {
         showNotification(result.message || 'Az áthelyezés nem sikerült.', 'info');
+    }
+  };
+
+  const handleUpdateFavoriteStatus = async (recipeName: string, category: string, favoritedByIds: string[]) => {
+    try {
+      const updatedFavorites = await favoritesService.updateFavoriteStatus(recipeName, category, favoritedByIds);
+      setFavorites(updatedFavorites);
+
+      if (recipe && recipe.recipeName === recipeName) {
+        const updatedRecipe = updatedFavorites[category]?.find(r => r.recipeName === recipeName);
+        if (updatedRecipe) setRecipe(updatedRecipe);
+      }
+      showNotification('Kedvenc állapot frissítve!', 'success');
+    } catch (e: any) {
+      showNotification('Hiba a mentés közben.', 'info');
     }
   };
 
@@ -652,14 +713,15 @@ const App: React.FC = () => {
       let optionsMessage = '';
       if (data.mealTypes && Array.isArray(data.mealTypes)) {
           const optionMap = new Map(mealTypes.map(opt => [opt.value, opt]));
-          data.mealTypes.forEach(opt => optionMap.set(opt.value, opt));
+          (data.mealTypes as OptionItem[]).forEach(opt => optionMap.set(opt.value, opt));
           const mergedOptions = Array.from(optionMap.values());
 
           setMealTypes(mergedOptions);
           safeSetLocalStorage(MEAL_TYPES_STORAGE_KEY, mergedOptions);
           if (data.mealTypesOrder) {
               const importedOrderSet = new Set(data.mealTypesOrder);
-              const newItems = mergedOptions.filter(opt => !importedOrderSet.has(opt.value)).map(opt => opt.value);
+              // FIX: Explicitly type `opt` as `OptionItem` to resolve error when accessing `opt.value`.
+              const newItems = mergedOptions.filter((opt: OptionItem) => !importedOrderSet.has(opt.value)).map((opt: OptionItem) => opt.value);
               const finalOrder = [...data.mealTypesOrder, ...newItems];
               safeSetLocalStorage(MEAL_TYPES_ORDER_KEY, finalOrder);
           }
@@ -667,14 +729,15 @@ const App: React.FC = () => {
       }
       if (data.cuisineOptions && Array.isArray(data.cuisineOptions)) {
           const optionMap = new Map(cuisineOptions.map(opt => [opt.value, opt]));
-          data.cuisineOptions.forEach(opt => optionMap.set(opt.value, opt));
+          (data.cuisineOptions as OptionItem[]).forEach(opt => optionMap.set(opt.value, opt));
           const mergedOptions = Array.from(optionMap.values());
 
           setCuisineOptions(mergedOptions);
           safeSetLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, mergedOptions);
           if (data.cuisineOptionsOrder) {
               const importedOrderSet = new Set(data.cuisineOptionsOrder);
-              const newItems = mergedOptions.filter(opt => !importedOrderSet.has(opt.value)).map(opt => opt.value);
+              // FIX: Explicitly type `opt` as `OptionItem` to resolve error when accessing `opt.value`.
+              const newItems = mergedOptions.filter((opt: OptionItem) => !importedOrderSet.has(opt.value)).map((opt: OptionItem) => opt.value);
               const finalOrder = [...data.cuisineOptionsOrder, ...newItems];
               safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, finalOrder);
           }
@@ -682,7 +745,7 @@ const App: React.FC = () => {
       }
       if (data.cookingMethods && Array.isArray(data.cookingMethods)) {
           const optionMap = new Map(cookingMethodsList.map(opt => [opt.value, opt]));
-          data.cookingMethods.forEach(opt => optionMap.set(opt.value, opt));
+          (data.cookingMethods as OptionItem[]).forEach(opt => optionMap.set(opt.value, opt));
           const mergedOptions = Array.from(optionMap.values());
           
           setCookingMethodsList(mergedOptions);
@@ -695,7 +758,8 @@ const App: React.FC = () => {
           }
           if (data.cookingMethodsOrder) {
               const importedOrderSet = new Set(data.cookingMethodsOrder);
-              const newItems = mergedOptions.filter(opt => !importedOrderSet.has(opt.value)).map(opt => opt.value);
+              // FIX: Explicitly type `opt` as `OptionItem` to resolve error when accessing `opt.value`.
+              const newItems = mergedOptions.filter((opt: OptionItem) => !importedOrderSet.has(opt.value)).map((opt: OptionItem) => opt.value);
               const finalOrder = [...data.cookingMethodsOrder, ...newItems];
               safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, finalOrder);
           }
@@ -714,6 +778,128 @@ const App: React.FC = () => {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const imageIds = new Set<string>();
+      for (const category in favorites) {
+        for (const recipe of favorites[category]) {
+          if (recipe.imageUrl && recipe.imageUrl.startsWith('indexeddb:')) {
+            imageIds.add(recipe.imageUrl.substring(10));
+          }
+          if (recipe.instructions) {
+            for (const instruction of recipe.instructions) {
+              if (instruction.imageUrl && instruction.imageUrl.startsWith('indexeddb:')) {
+                imageIds.add(instruction.imageUrl.substring(10));
+              }
+            }
+          }
+        }
+      }
+
+      const images: Record<string, string> = {};
+      const imagePromises = Array.from(imageIds).map(async (id) => {
+        const data = await imageStore.getImage(id);
+        if (data) {
+          images[id] = data;
+        }
+      });
+      await Promise.all(imagePromises);
+
+      const dataToSave: BackupData = {
+        favorites,
+        shoppingList,
+        pantry,
+        users,
+        images,
+        mealTypes,
+        cuisineOptions,
+        cookingMethods: cookingMethodsList,
+        cookingMethodCapacities,
+        mealTypesOrder: orderedMealTypes.map(item => item.value),
+        cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
+        cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
+      };
+
+      const jsonString = JSON.stringify(dataToSave, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const now = new Date();
+      const date = now.toISOString().split('T')[0];
+      const time = now.toTimeString().split(' ')[0].substring(0, 5).replace(':', '-');
+      const suggestedName = `konyhamiki_mentes_${date}_${time}.json`;
+
+      const isPickerSupported = 'showSaveFilePicker' in window;
+      const isTopFrame = window.self === window.top;
+
+      if (isPickerSupported && isTopFrame) {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName,
+            types: [{ description: 'JSON Fájl', accept: { 'application/json': ['.json'] } }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          showNotification('Adatok sikeresen mentve!', 'success');
+        } catch (err: any) {
+          if (err.name !== 'AbortError') {
+            console.error("Hiba a mentés során (File Picker):", err);
+            showNotification('Hiba történt az adatok mentése közben.', 'info');
+          }
+        }
+      } else {
+        if (!isPickerSupported) {
+          showNotification('A böngészője nem támogatja a "Mentés másként" funkciót, ezért a fájl közvetlenül letöltésre kerül.', 'info');
+        } else if (!isTopFrame) {
+          showNotification('A böngésző biztonsági korlátozásai miatt a fájl közvetlenül letöltésre kerül.', 'info');
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = suggestedName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error("Hiba a mentés során:", error);
+      showNotification('Hiba történt az adatok mentése közben.', 'info');
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result;
+        if (typeof text === 'string') {
+          const data = JSON.parse(text);
+          handleImportData(data);
+        } else {
+          throw new Error('A fájl tartalma nem olvasható szövegként.');
+        }
+      } catch (error) {
+        console.error("Hiba a betöltés során:", error);
+        showNotification('Hiba történt a fájl beolvasása vagy feldolgozása közben.', 'info');
+      }
+    };
+    reader.onloadend = () => {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    };
+
+    reader.readAsText(file);
+  };
+
+  const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || Object.values(pantry).some((pantryList: PantryItem[]) => pantryList.length > 0) || users.length > 0;
 
   const handleAppVoiceResult = async (transcript: string) => {
     if (isProcessingVoiceCommandRef.current) return;
@@ -768,6 +954,8 @@ const App: React.FC = () => {
           onAddItemsToShoppingList={handleAddItemsToShoppingList}
           isLoading={isLoading}
           onRecipeUpdate={handleRecipeUpdate}
+          users={users}
+          onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
           shouldGenerateImageInitially={shouldGenerateImage}
         />
       );
@@ -777,13 +965,10 @@ const App: React.FC = () => {
         return (
           <FavoritesView
             favorites={favorites}
-            shoppingList={shoppingList}
-            pantry={pantry}
             users={users}
             onViewRecipe={handleViewFavorite}
             onDeleteRecipe={handleDeleteFavorite}
             onDeleteCategory={handleDeleteCategory}
-            onImportData={handleImportData}
             expandedCategories={expandedCategories}
             onToggleCategory={(cat) => setExpandedCategories(prev => ({...prev, [cat]: !prev[cat]}))}
             filterCategory={filterCategory}
@@ -791,45 +976,25 @@ const App: React.FC = () => {
             sortOption={sortOption}
             onSetSortOption={setSortOption}
             onMoveRecipe={handleMoveFavorite}
-            mealTypes={mealTypes}
-            cuisineOptions={cuisineOptions}
-            cookingMethodsList={cookingMethodsList}
-            cookingMethodCapacities={cookingMethodCapacities}
-            orderedMealTypes={orderedMealTypes}
-            orderedCuisineOptions={orderedCuisineOptions}
-            orderedCookingMethods={orderedCookingMethods}
+            onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
           />
         );
       case 'shopping-list':
         return (
           <ShoppingListView
             list={shoppingList}
-            favorites={favorites}
-            pantry={pantry}
-            users={users}
             onAddItems={handleAddItemsToShoppingList}
             onUpdateItem={handleUpdateShoppingListItem}
             onRemoveItem={handleRemoveShoppingListItem}
             onClearChecked={handleClearCheckedShoppingList}
             onClearAll={handleClearAllShoppingList}
-            onImportData={handleImportData}
             onMoveItemToPantryRequest={handleMoveShoppingListItemToPantryRequest}
-            mealTypes={mealTypes}
-            cuisineOptions={cuisineOptions}
-            cookingMethodsList={cookingMethodsList}
-            cookingMethodCapacities={cookingMethodCapacities}
-            orderedMealTypes={orderedMealTypes}
-            orderedCuisineOptions={orderedCuisineOptions}
-            orderedCookingMethods={orderedCookingMethods}
           />
         );
       case 'pantry':
         return (
             <PantryView
               pantry={pantry}
-              favorites={favorites}
-              shoppingList={shoppingList}
-              users={users}
               onAddItems={handleAddItemsToPantry}
               onUpdateItem={handleUpdatePantryItem}
               onRemoveItem={handleRemovePantryItem}
@@ -837,16 +1002,8 @@ const App: React.FC = () => {
               onMoveCheckedToPantryRequest={handleMoveCheckedToPantryRequest}
               onGenerateFromPantryRequest={handleGenerateFromPantryRequest}
               onGenerateFromSelectedPantryItemsRequest={handleGenerateFromSelectedPantryItemsRequest}
-              onImportData={handleImportData}
               shoppingListItems={shoppingList}
               onMoveItems={handleMovePantryItems}
-              mealTypes={mealTypes}
-              cuisineOptions={cuisineOptions}
-              cookingMethodsList={cookingMethodsList}
-              cookingMethodCapacities={cookingMethodCapacities}
-              orderedMealTypes={orderedMealTypes}
-              orderedCuisineOptions={orderedCuisineOptions}
-              orderedCookingMethods={orderedCookingMethods}
             />
         );
         case 'users':
@@ -855,17 +1012,6 @@ const App: React.FC = () => {
                     users={users}
                     onSaveUser={handleSaveUser}
                     onDeleteUser={handleDeleteUser}
-                    favorites={favorites}
-                    shoppingList={shoppingList}
-                    pantry={pantry}
-                    onImportData={handleImportData}
-                    mealTypes={mealTypes}
-                    cuisineOptions={cuisineOptions}
-                    cookingMethodsList={cookingMethodsList}
-                    cookingMethodCapacities={cookingMethodCapacities}
-                    orderedMealTypes={orderedMealTypes}
-                    orderedCuisineOptions={orderedCuisineOptions}
-                    orderedCookingMethods={orderedCookingMethods}
                 />
             );
       case 'generator':
@@ -907,7 +1053,7 @@ const App: React.FC = () => {
 
   const navItems: { id: AppView; label: string }[] = [
     { id: 'generator', label: 'Receptgenerátor' },
-    { id: 'favorites', label: 'Kedvencek' },
+    { id: 'favorites', label: 'Mentett Receptek' },
     { id: 'pantry', label: 'Kamra' },
     { id: 'shopping-list', label: 'Bevásárlólista' },
     { id: 'users', label: 'Felhasználók' },
@@ -924,6 +1070,13 @@ const App: React.FC = () => {
       </header>
       
       <main className="container mx-auto p-4 md:p-6">
+          <DataManagementControls
+            onExport={handleExport}
+            onImportClick={handleImportClick}
+            onFileChange={handleFileChange}
+            fileInputRef={fileInputRef}
+            hasAnyData={hasAnyData}
+          />
           <nav className="mb-6">
               <ul className="flex flex-wrap border-b border-gray-200">
                   {navItems.map(item => (
@@ -969,6 +1122,11 @@ const App: React.FC = () => {
             locationCallback(location);
             setIsLocationPromptOpen(false);
         }}
+      />
+      <LoadOnStartModal
+        isOpen={isLoadOnStartModalOpen}
+        onClose={() => setIsLoadOnStartModalOpen(false)}
+        onLoad={handleImportClick}
       />
     </div>
   );
