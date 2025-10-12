@@ -457,9 +457,9 @@ KEY INGREDIENTS: ${recipe.ingredients.slice(0, 5).join(', ')}.
 PRESENTATION: The food must be beautifully arranged on a plate or in a bowl, ready to be eaten.
 
 ABSOLUTE MANDATORY RULES:
-1.  **THE IMAGE MUST BE OF FOOD ONLY.**
-2.  **DO NOT generate any buildings, houses, landscapes, people, or non-food objects.**
-3.  **DO NOT include any text, letters, watermarks, or logos of any kind.**
+1.  **NO TEXT. NO LETTERS. NO WATERMARKS. NO LOGOS.** The final image must be completely clean and contain zero text of any kind. This is the most important rule.
+2.  **THE IMAGE MUST BE OF FOOD ONLY.**
+3.  **DO NOT generate any buildings, houses, landscapes, people, or non-food objects.**
 4.  The final image must be extremely appetizing and look delicious.
 `;
   
@@ -596,9 +596,9 @@ INSTRUCTION TO VISUALIZE: "${instructionText}"
 RELEVANT COOKING METHOD: ${cookingMethodLabels.join(', ')}
 
 ABSOLUTE MANDATORY RULES:
-1.  **The image must ONLY show the cooking step in progress.** Show ingredients being prepared, mixed in a bowl, or cooking in a pan/pot.
-2.  **DO NOT show a finished, plated dish.** This is about the process, not the result.
-3.  **DO NOT include any text, letters, watermarks, or logos.**
+1.  **NO TEXT. NO LETTERS. NO WATERMARKS. NO LOGOS.** The final image must be completely clean and contain zero text of any kind. This is the most important rule.
+2.  **The image must ONLY show the cooking step in progress.** Show ingredients being prepared, mixed in a bowl, or cooking in a pan/pot.
+3.  **DO NOT show a finished, plated dish.** This is about the process, not the result.
 4.  **DO NOT include people, hands, or buildings.**
 `;
   

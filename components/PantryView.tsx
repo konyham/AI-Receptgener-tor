@@ -221,8 +221,11 @@ const PantryView: React.FC<PantryViewProps> = ({
         });
 
         setCategorizedPantry(grouped);
-        // FIX: Cast the initial value of the reduce call to fix type inference issue, which was likely causing cascading type errors.
-        setExpandedAIGroups(Object.keys(grouped).reduce((acc, key) => ({...acc, [key]: true}), {} as Record<string, boolean>));
+        // FIX: The `reduce` method was using a type-casted empty object, causing type inference issues and an 'unknown index type' error. This has been fixed by using the generic form of `reduce` to properly type the accumulator.
+        setExpandedAIGroups(Object.keys(grouped).reduce<Record<string, boolean>>((acc, key) => {
+            acc[key] = true;
+            return acc;
+        }, {}));
 
     } catch (e: any) {
         showNotification(e.message, 'info');

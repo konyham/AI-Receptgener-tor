@@ -1002,7 +1002,9 @@ const App: React.FC = () => {
           onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
           shouldGenerateImageInitially={shouldGenerateImage}
           onGenerateFromSuggestion={handleGenerateFromSuggestion}
-          cookingMethodsList={cookingMethodsList}
+          mealTypes={orderedMealTypes}
+          cuisineOptions={orderedCuisineOptions}
+          cookingMethodsList={orderedCookingMethods}
         />
       );
     }

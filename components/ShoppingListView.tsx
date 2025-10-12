@@ -126,8 +126,11 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
 
         setCategorizedList(grouped);
         // Expand all categories by default
-        // FIX: Cast the initial value of the reduce call to fix type inference issue.
-        setExpandedAIGroups(Object.keys(grouped).reduce((acc, key) => ({...acc, [key]: true}), {} as Record<string, boolean>));
+        // FIX: The `reduce` method was using a type-casted empty object as an initial value, which can lead to incorrect type inference for the accumulator. This has been corrected by using the generic form of `reduce` to explicitly type the accumulator, ensuring type safety. This likely resolves the reported cascading type error about `ShoppingListItem`.
+        setExpandedAIGroups(Object.keys(grouped).reduce<Record<string, boolean>>((acc, key) => {
+            acc[key] = true;
+            return acc;
+        }, {}));
 
     } catch (e: any) {
         showNotification(e.message, 'info');

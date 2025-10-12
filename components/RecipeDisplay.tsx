@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Recipe, VoiceCommand, Favorites, UserProfile, InstructionStep, AlternativeRecipeSuggestion, OptionItem } from '../types';
+import { Recipe, VoiceCommand, Favorites, UserProfile, InstructionStep, AlternativeRecipeSuggestion, OptionItem, MealType, CuisineOption, CookingMethod } from '../types';
 import { interpretUserCommand, generateRecipeImage, calculateRecipeCost, simplifyRecipe, generateInstructionImage, generateAlternativeRecipeSuggestions } from '../services/geminiService';
 import * as imageStore from '../services/imageStore';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
@@ -30,6 +30,8 @@ interface RecipeDisplayProps {
   onUpdateFavoriteStatus: (recipeName: string, category: string, favoritedByIds: string[]) => void;
   shouldGenerateImageInitially: boolean;
   onGenerateFromSuggestion: (suggestion: AlternativeRecipeSuggestion) => void;
+  mealTypes: OptionItem[];
+  cuisineOptions: OptionItem[];
   cookingMethodsList: OptionItem[];
 }
 
@@ -362,7 +364,7 @@ const addWatermarkToStepImage = (base64Image: string): Promise<string> => {
 };
 
 
-const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave, onAddItemsToShoppingList, isLoading, onRecipeUpdate, users, onUpdateFavoriteStatus, shouldGenerateImageInitially, onGenerateFromSuggestion, cookingMethodsList }) => {
+const RecipeDisplay: React.FC<RecipeDisplayProps> = ({ recipe, onClose, onRefine, isFromFavorites, favorites, onSave, onAddItemsToShoppingList, isLoading, onRecipeUpdate, users, onUpdateFavoriteStatus, shouldGenerateImageInitially, onGenerateFromSuggestion, mealTypes, cuisineOptions, cookingMethodsList }) => {
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle');
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isInterpreting, setIsInterpreting] = useState(false);
@@ -1088,6 +1090,30 @@ Recept generálva Konyha Miki segítségével!
     setEditableRecipe(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleCookingMethodChange = (method: CookingMethod) => {
+    const currentMethods = editableRecipe.cookingMethods;
+    let newMethods: CookingMethod[];
+    
+    if (currentMethods.includes(method)) {
+        newMethods = currentMethods.filter(m => m !== method);
+    } else {
+        newMethods = [...currentMethods, method];
+    }
+
+    if (method === CookingMethod.TRADITIONAL && !currentMethods.includes(method)) {
+        newMethods = [CookingMethod.TRADITIONAL];
+    }
+    if (method !== CookingMethod.TRADITIONAL && !currentMethods.includes(method)) {
+        newMethods = newMethods.filter(m => m !== CookingMethod.TRADITIONAL);
+    }
+    
+    if (newMethods.length === 0) {
+        newMethods = [CookingMethod.TRADITIONAL];
+    }
+    
+    handleFieldChange('cookingMethods', newMethods);
+  };
+
   const handleInstructionChange = (index: number, newText: string) => {
       const newInstructions = [...editableRecipe.instructions];
       newInstructions[index] = { ...newInstructions[index], text: newText };
@@ -1149,6 +1175,12 @@ Recept generálva Konyha Miki segítségével!
 
   const isActivelySpeaking = voiceMode !== 'idle' || isSpeakingRef.current;
   const suggestedCategory = customMealTypes.find(m => m.value === recipe.mealType)?.label;
+
+  const mealTypeLabel = mealTypes.find(m => m.value === recipe.mealType)?.label;
+  const cuisineLabel = cuisineOptions.find(c => c.value === recipe.cuisine)?.label;
+  const currentCookingMethodLabels = recipe.cookingMethods
+    .map(cm => cookingMethodsList.find(c => c.value === cm)?.label)
+    .filter(Boolean);
 
   return (
     <>
@@ -1257,7 +1289,7 @@ Recept generálva Konyha Miki segítségével!
             )}
         </div>
           
-          <div className="flex flex-wrap gap-4 md:gap-8 mb-6 text-gray-700">
+          <div className="flex flex-wrap items-start gap-x-8 gap-y-4 mb-6 text-gray-700">
               <div className="flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   <div>
@@ -1279,6 +1311,32 @@ Recept generálva Konyha Miki segítségével!
                       {isEditing ? <input type="text" value={editableRecipe.servings} onChange={e => handleFieldChange('servings', e.target.value)} className="w-24 bg-primary-50 border-b border-primary-300"/> : <span>{recipe.servings}</span>}
                   </div>
               </div>
+              {isEditing ? (
+                 <div className="w-full md:w-auto">
+                    <span className="font-semibold block text-sm">Étkezés</span>
+                    <select value={editableRecipe.mealType} onChange={e => handleFieldChange('mealType', e.target.value as MealType)} className="w-full bg-primary-50 border-b border-primary-300 p-1 mt-1 rounded-t-md">
+                        {mealTypes.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                    </select>
+                </div>
+              ) : mealTypeLabel && (
+                <div className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a2 2 0 012 2v5a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z" /><path strokeLinecap="round" strokeLinejoin="round" d="M7 13h5a2 2 0 012 2v5a2 2 0 01-2 2H7a2 2 0 01-2-2v-5a2 2 0 012-2z" /></svg>
+                    <div><span className="font-semibold block text-sm">Étkezés</span><span>{mealTypeLabel}</span></div>
+                </div>
+              )}
+               {isEditing ? (
+                 <div className="w-full md:w-auto">
+                    <span className="font-semibold block text-sm">Konyha</span>
+                    <select value={editableRecipe.cuisine} onChange={e => handleFieldChange('cuisine', e.target.value as CuisineOption)} className="w-full bg-primary-50 border-b border-primary-300 p-1 mt-1 rounded-t-md">
+                        {cuisineOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                    </select>
+                </div>
+              ) : cuisineLabel && cuisineLabel !== 'Nincs megadva' && (
+                <div className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2h1a2 2 0 002-2v-1a2 2 0 012-2h1.945M7.758 15H13.242M11 17.75V15M3 12a9 9 0 1118 0 9 9 0 01-18 0z" /></svg>
+                    <div><span className="font-semibold block text-sm">Konyha</span><span>{cuisineLabel}</span></div>
+                </div>
+              )}
               {recipe.estimatedCost && (
                 <div className="flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-500" viewBox="0 0 20 20" fill="currentColor">
@@ -1292,6 +1350,35 @@ Recept generálva Konyha Miki segítségével!
                 </div>
               )}
           </div>
+
+          {isEditing ? (
+            <div className="mb-6">
+                <span className="font-semibold block text-sm mb-2 text-gray-700">Elkészítés módja</span>
+                <div className="space-y-2 p-3 bg-primary-50 rounded-lg border border-primary-100">
+                    {cookingMethodsList.map(option => (
+                        <label key={option.value} className="flex items-center gap-2">
+                            <input 
+                                type="checkbox"
+                                value={option.value}
+                                checked={editableRecipe.cookingMethods.includes(option.value as CookingMethod)}
+                                onChange={() => handleCookingMethodChange(option.value as CookingMethod)}
+                                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                            />
+                            <span className="text-sm text-gray-800">{option.label}</span>
+                        </label>
+                    ))}
+                </div>
+            </div>
+          ) : currentCookingMethodLabels.length > 0 && (
+            <div className="mb-6">
+                <h4 className="font-semibold text-gray-700 text-sm">Elkészítés módja</h4>
+                <div className="flex flex-wrap gap-2 mt-2">
+                    {currentCookingMethodLabels.map(label => (
+                        <span key={label} className="text-sm bg-gray-100 text-gray-800 font-medium px-3 py-1 rounded-full">{label}</span>
+                    ))}
+                </div>
+            </div>
+          )}
         </div>
         
         <NutritionalInfo recipe={editableRecipe} isEditing={isEditing} onChange={handleFieldChange} />
