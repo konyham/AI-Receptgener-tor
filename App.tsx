@@ -1025,6 +1025,7 @@ const App: React.FC = () => {
             onSetSortOption={setSortOption}
             onMoveRecipe={handleMoveFavorite}
             onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
+            cuisineOptions={orderedCuisineOptions}
           />
         );
       case 'shopping-list':

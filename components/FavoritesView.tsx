@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Favorites, Recipe, SortOption, UserProfile } from '../types';
+import { Favorites, Recipe, SortOption, UserProfile, OptionItem } from '../types';
 import StarRating from './StarRating';
 import MoveRecipeModal from './MoveRecipeModal';
 import FavoriteStatusModal from './FavoriteStatusModal';
@@ -21,6 +21,7 @@ interface FavoritesViewProps {
   onSetSortOption: (option: SortOption) => void;
   onMoveRecipe: (recipe: Recipe, fromCategory: string, toCategory: string) => void;
   onUpdateFavoriteStatus: (recipeName: string, category: string, favoritedByIds: string[]) => void;
+  cuisineOptions: OptionItem[];
 }
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
@@ -46,6 +47,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   onSetSortOption,
   onMoveRecipe,
   onUpdateFavoriteStatus,
+  cuisineOptions,
 }) => {
   const categories = Object.keys(favorites);
   const [movingRecipe, setMovingRecipe] = useState<{ recipe: Recipe; fromCategory: string } | null>(null);
@@ -56,6 +58,9 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ recipeName: string; category: string } | null>(null);
   const [isProcessingDelete, setIsProcessingDelete] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const cuisineLabels = useMemo(() => new Map(cuisineOptions.map(opt => [opt.value, opt.label])), [cuisineOptions]);
 
 
   const handleMoveRecipe = (toCategory: string) => {
@@ -96,16 +101,33 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   }, [categories, filterCategory]);
 
   const hasAnyResults = useMemo(() => {
+    const normalizedQuery = searchQuery.toLowerCase().trim();
+
     return filteredCategories.some(category => {
-        let recipes = favorites[category] || [];
+        const recipes = favorites[category] || [];
+
+        const searchedRecipes = normalizedQuery === ''
+            ? recipes
+            : recipes.filter(recipe => {
+                const cuisineLabel = cuisineLabels.get(recipe.cuisine)?.toLowerCase() || '';
+                return (
+                    recipe.recipeName.toLowerCase().includes(normalizedQuery) ||
+                    recipe.ingredients.some(ing => ing.toLowerCase().includes(normalizedQuery)) ||
+                    cuisineLabel.includes(normalizedQuery)
+                );
+            });
+
+        if (searchedRecipes.length === 0) return false;
+
         if (favoriteFilter === 'any_favorite') {
-            return recipes.some(r => r.favoritedBy && r.favoritedBy.length > 0);
+            return searchedRecipes.some(r => r.favoritedBy && r.favoritedBy.length > 0);
         } else if (favoriteFilter !== 'all') { // It's a user ID
-            return recipes.some(r => r.favoritedBy?.includes(favoriteFilter));
+            return searchedRecipes.some(r => r.favoritedBy?.includes(favoriteFilter));
         }
-        return recipes.length > 0;
+
+        return true;
     });
-  }, [filteredCategories, favorites, favoriteFilter]);
+  }, [filteredCategories, favorites, favoriteFilter, searchQuery, cuisineLabels]);
 
   return (
     <div className="space-y-6">
@@ -120,69 +142,105 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 border rounded-lg">
-                <div>
-                  <label htmlFor="category-filter" className="block text-sm font-medium text-gray-700 mb-1">
-                    Szűrés kategória szerint
-                  </label>
-                  <select
-                    id="category-filter"
-                    value={filterCategory}
-                    onChange={(e) => onSetFilterCategory(e.target.value)}
-                    className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="all">Minden kategória</option>
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
+            <div className="space-y-4 p-4 bg-gray-50 border rounded-lg">
+                <div className="mb-4">
+                    <label htmlFor="search-input" className="block text-sm font-medium text-gray-700 mb-1">
+                        Keresés (név, hozzávaló, konyha)
+                    </label>
+                    <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                            </svg>
+                        </div>
+                        <input
+                            id="search-input"
+                            type="search"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Pl. csirkepaprikás, tejföl, magyaros..."
+                            className="w-full p-2 pl-10 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
+                        />
+                    </div>
                 </div>
-                 <div>
-                  <label htmlFor="favorite-filter" className="block text-sm font-medium text-gray-700 mb-1">
-                    Kedvencek szűrése
-                  </label>
-                  <select
-                    id="favorite-filter"
-                    value={favoriteFilter}
-                    onChange={(e) => setFavoriteFilter(e.target.value)}
-                    className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="all">Minden mentett</option>
-                    <option value="any_favorite">Bárki kedvence</option>
-                    {users.map(user => (
-                        <option key={user.id} value={user.id}>{user.name} kedvencei</option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                    <label htmlFor="category-filter" className="block text-sm font-medium text-gray-700 mb-1">
+                        Szűrés kategória szerint
+                    </label>
+                    <select
+                        id="category-filter"
+                        value={filterCategory}
+                        onChange={(e) => onSetFilterCategory(e.target.value)}
+                        className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
+                    >
+                        <option value="all">Minden kategória</option>
+                        {categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                            {cat}
+                        </option>
+                        ))}
+                    </select>
+                    </div>
+                    <div>
+                    <label htmlFor="favorite-filter" className="block text-sm font-medium text-gray-700 mb-1">
+                        Kedvencek szűrése
+                    </label>
+                    <select
+                        id="favorite-filter"
+                        value={favoriteFilter}
+                        onChange={(e) => setFavoriteFilter(e.target.value)}
+                        className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
+                    >
+                        <option value="all">Minden mentett</option>
+                        <option value="any_favorite">Bárki kedvence</option>
+                        {users.map(user => (
+                            <option key={user.id} value={user.id}>{user.name} kedvencei</option>
+                        ))}
+                    </select>
+                    </div>
+                    <div>
+                    <label htmlFor="sort-order" className="block text-sm font-medium text-gray-700 mb-1">
+                        Rendezés
+                    </label>
+                    <select
+                        id="sort-order"
+                        value={sortOption}
+                        onChange={(e) => onSetSortOption(e.target.value as SortOption)}
+                        className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
+                    >
+                        {SORT_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                            {option.label}
+                        </option>
+                        ))}
+                    </select>
+                    </div>
                 </div>
-                <div>
-                  <label htmlFor="sort-order" className="block text-sm font-medium text-gray-700 mb-1">
-                    Rendezés
-                  </label>
-                  <select
-                    id="sort-order"
-                    value={sortOption}
-                    onChange={(e) => onSetSortOption(e.target.value as SortOption)}
-                    className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
-                  >
-                    {SORT_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+            </div>
 
             {filteredCategories.map((category) => {
               const recipes = favorites[category];
+              const normalizedQuery = searchQuery.toLowerCase().trim();
+
+              // 1. Filter by search query
+              const searchedRecipes = normalizedQuery === ''
+                  ? recipes
+                  : recipes.filter(recipe => {
+                      const cuisineLabel = cuisineLabels.get(recipe.cuisine)?.toLowerCase() || '';
+                      return (
+                          recipe.recipeName.toLowerCase().includes(normalizedQuery) ||
+                          recipe.ingredients.some(ing => ing.toLowerCase().includes(normalizedQuery)) ||
+                          cuisineLabel.includes(normalizedQuery)
+                      );
+                    });
               
-              let displayedRecipes = recipes;
+              // 2. Filter by favorite status
+              let displayedRecipes = searchedRecipes;
               if (favoriteFilter === 'any_favorite') {
-                  displayedRecipes = recipes.filter(r => r.favoritedBy && r.favoritedBy.length > 0);
+                  displayedRecipes = searchedRecipes.filter(r => r.favoritedBy && r.favoritedBy.length > 0);
               } else if (favoriteFilter !== 'all') { // It's a user ID
-                  displayedRecipes = recipes.filter(r => r.favoritedBy?.includes(favoriteFilter));
+                  displayedRecipes = searchedRecipes.filter(r => r.favoritedBy?.includes(favoriteFilter));
               }
 
               if (displayedRecipes.length === 0) {
@@ -280,7 +338,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                 <div className="text-center py-12">
                     <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     <h3 className="mt-2 text-lg font-medium text-gray-900">Nincs a szűrésnek megfelelő recept</h3>
-                    <p className="mt-1 text-sm text-gray-500">Próbáljon más szűrési feltételt beállítani.</p>
+                    <p className="mt-1 text-sm text-gray-500">Próbáljon más keresési vagy szűrési feltételt beállítani.</p>
                 </div>
             )}
           </>
