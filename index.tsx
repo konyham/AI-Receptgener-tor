@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -11,8 +12,10 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <NotificationProvider>
-      <App />
-    </NotificationProvider>
+    <LanguageProvider>
+      <NotificationProvider>
+        <App />
+      </NotificationProvider>
+    </LanguageProvider>
   </React.StrictMode>
 );

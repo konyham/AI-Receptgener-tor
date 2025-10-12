@@ -18,6 +18,7 @@ import * as pantryService from './services/pantryService';
 import * as userService from './services/userService';
 import { useNotification } from './contexts/NotificationContext';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
+import { useTranslation } from './hooks/useTranslation';
 import {
   Recipe,
   DietOption,
@@ -72,6 +73,7 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 
 
 const App: React.FC = () => {
+  const { t, language, setLanguage } = useTranslation();
   const [view, setView] = useState<AppView>('generator');
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -110,6 +112,11 @@ const App: React.FC = () => {
   const { showNotification } = useNotification();
   const isProcessingVoiceCommandRef = React.useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.title = t('app.documentTitle');
+  }, [language, t]);
 
   const loadData = useCallback(() => {
     try {
@@ -1067,8 +1074,8 @@ const App: React.FC = () => {
       default:
         return (
           <>
-            <h1 className="text-3xl font-bold text-center text-primary-800">Konyha Miki, az Ön mesterséges intelligencia konyhafőnöke</h1>
-            <p className="text-center text-gray-600 mb-6">Mondja el, miből főzne, és én segítek!</p>
+            <h1 className="text-3xl font-bold text-center text-primary-800">{t('app.title')}</h1>
+            <p className="text-center text-gray-600 mb-6">{t('app.subtitle')}</p>
             {isLoading && <LoadingSpinner />}
             {error && <ErrorMessage message={error} />}
             {!isLoading && !error && (
@@ -1101,11 +1108,11 @@ const App: React.FC = () => {
   };
 
   const navItems: { id: AppView; label: string }[] = [
-    { id: 'generator', label: 'Receptgenerátor' },
-    { id: 'favorites', label: 'Mentett Receptek' },
-    { id: 'pantry', label: 'Kamra' },
-    { id: 'shopping-list', label: 'Bevásárlólista' },
-    { id: 'users', label: 'Felhasználók' },
+    { id: 'generator', label: t('nav.generator') },
+    { id: 'favorites', label: t('nav.favorites') },
+    { id: 'pantry', label: t('nav.pantry') },
+    { id: 'shopping-list', label: t('nav.shoppingList') },
+    { id: 'users', label: t('nav.users') },
   ];
 
   return (
@@ -1114,6 +1121,10 @@ const App: React.FC = () => {
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
              <img src={konyhaMikiLogo} alt="Konyha Miki Logó" className="h-12" />
+          </div>
+           <div className="flex items-center gap-4">
+            <button onClick={() => setLanguage('hu')} className={`text-sm font-semibold ${language === 'hu' ? 'text-primary-700 underline' : 'text-gray-500 hover:text-primary-600'}`}>Magyar</button>
+            <button onClick={() => setLanguage('en')} className={`text-sm font-semibold ${language === 'en' ? 'text-primary-700 underline' : 'text-gray-500 hover:text-primary-600'}`}>English</button>
           </div>
         </div>
       </header>
@@ -1162,7 +1173,7 @@ const App: React.FC = () => {
       </main>
       
       <footer className="text-center py-6 text-sm text-gray-500">
-          <p>&copy; {new Date().getFullYear()} Konyha Miki. Minden jog fenntartva.</p>
+          <p>{t('app.footer', { year: new Date().getFullYear() })}</p>
       </footer>
       <LocationPromptModal
         isOpen={isLocationPromptOpen}

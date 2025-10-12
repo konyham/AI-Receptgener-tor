@@ -1,4 +1,7 @@
 
+
+
+
 import React, { useState, useRef } from 'react';
 import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -126,8 +129,8 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
 
         setCategorizedList(grouped);
         // Expand all categories by default
-        // FIX: The `reduce` method was using a type-casted empty object as an initial value, which can lead to incorrect type inference for the accumulator. This has been corrected by using the generic form of `reduce` to explicitly type the accumulator, ensuring type safety. This likely resolves the reported cascading type error about `ShoppingListItem`.
-        setExpandedAIGroups(Object.keys(grouped).reduce<Record<string, boolean>>((acc, key) => {
+        // FIX: The `reduce` method was using a type-casted empty object as an initial value, which can lead to incorrect type inference for the accumulator. This has been corrected by explicitly typing the accumulator in the callback, ensuring type safety.
+        setExpandedAIGroups(Object.keys(grouped).reduce((acc: Record<string, boolean>, key) => {
             acc[key] = true;
             return acc;
         }, {}));

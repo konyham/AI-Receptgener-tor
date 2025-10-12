@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { SpeechRecognition } from '../types';
+import { useTranslation } from './useTranslation';
 
 interface UseSpeechRecognitionOptions {
   onResult: (transcript: string) => void;
@@ -18,6 +19,7 @@ export const useSpeechRecognition = ({
   const [isSupported, setIsSupported] = useState(false);
   const [permissionState, setPermissionState] = useState<PermissionState>('checking');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const { language } = useTranslation();
 
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
@@ -50,6 +52,7 @@ export const useSpeechRecognition = ({
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening && permissionState !== 'denied') {
       try {
+        recognitionRef.current.lang = language === 'en' ? 'en-US' : 'hu-HU';
         recognitionRef.current.start();
       } catch (err) {
         // The browser's SpeechRecognition API can throw an "InvalidStateError" DOMException
@@ -62,7 +65,7 @@ export const useSpeechRecognition = ({
         }
       }
     }
-  }, [isListening, permissionState]);
+  }, [isListening, permissionState, language]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -78,7 +81,6 @@ export const useSpeechRecognition = ({
     const recognition = new SpeechRecognitionAPI();
     recognitionRef.current = recognition;
 
-    recognition.lang = 'hu-HU';
     recognition.continuous = continuous;
     recognition.interimResults = false;
 
@@ -117,6 +119,13 @@ export const useSpeechRecognition = ({
       recognition.stop();
     };
   }, [continuous]);
+  
+  // Update lang property when language changes
+  useEffect(() => {
+      if(recognitionRef.current) {
+          recognitionRef.current.lang = language === 'en' ? 'en-US' : 'hu-HU';
+      }
+  }, [language]);
 
   return { isListening, isSupported, startListening, stopListening, permissionState };
 };
