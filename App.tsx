@@ -194,6 +194,24 @@ const App: React.FC = () => {
     };
   }, []);
 
+    // Effect to re-translate option labels when language changes
+    useEffect(() => {
+        const retranslate = (options: OptionItem[], prefix: string): OptionItem[] => {
+            return options.map(item => {
+                // Custom items are not translated, their label is their definition
+                if (item.value.startsWith('custom_')) {
+                    return item;
+                }
+                return { ...item, label: t(`${prefix}.${item.value}`) };
+            });
+        };
+
+        setMealTypes(prev => retranslate(prev, 'options.mealTypes'));
+        setCuisineOptions(prev => retranslate(prev, 'options.cuisineOptions'));
+        setCookingMethodsList(prev => retranslate(prev, 'options.cookingMethods'));
+    }, [language, t]);
+
+
   // Effects to sync ordered lists (lifted from RecipeInputForm)
     useEffect(() => {
         const savedOrder = loadFromLocalStorage<string[] | null>(MEAL_TYPES_ORDER_KEY, null);
@@ -276,7 +294,8 @@ const App: React.FC = () => {
         mealTypes,
         cuisineOptions,
         cookingMethodsList,
-        cookingMethodCapacities
+        cookingMethodCapacities,
+        t
       );
       setRecipe(generatedRecipe);
       setShouldGenerateImage(params.withImage);

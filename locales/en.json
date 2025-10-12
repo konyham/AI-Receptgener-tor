@@ -210,6 +210,12 @@
     "allergies": "Forbidden (Allergies)",
     "notSet": "Not specified"
   },
+  "spinner": {
+    "generating": "Generating recipe..."
+  },
+  "error": {
+    "title": "An error occurred"
+  },
   "modals": {
     "general": {
       "save": "Save",
@@ -345,15 +351,25 @@
     },
     "diets": {
       "none": "Not specified",
+      "none_desc": "Does not follow any special diet.",
       "diabetic": "Diabetic",
+      "diabetic_desc": "Aims to stabilize blood sugar levels, preferring low glycemic index, slow-releasing carbohydrates.",
       "vegetarian": "Vegetarian",
+      "vegetarian_desc": "A meat-free diet, but typically includes dairy products and eggs.",
       "vegan": "Vegan",
+      "vegan_desc": "A diet that excludes all animal products (meat, dairy, eggs, honey).",
       "gluten-free": "Gluten-Free",
+      "gluten-free_desc": "Avoids gluten-containing grains (wheat, barley, rye) and products made from them.",
       "ketogenic": "Ketogenic",
+      "ketogenic_desc": "A very low-carbohydrate, high-fat, moderate-protein diet intended to put the body into a state of ketosis.",
       "paleo": "Paleo",
+      "paleo_desc": "Avoids processed foods, grains, legumes, and dairy, focusing on meat, vegetables, and fruits.",
       "zone": "Zone",
+      "zone_desc": "Focuses on a specific ratio of macronutrients (carbohydrates, protein, fat) of 40-30-30 at every meal.",
       "candida": "Candida",
-      "macrobiotic": "Macrobiotic"
+      "candida_desc": "Aims to reduce candida overgrowth by avoiding sugar, yeast, refined carbohydrates, and certain dairy products.",
+      "macrobiotic": "Macrobiotic",
+      "macrobiotic_desc": "Based on the yin and yang principle, mainly consisting of whole grains, vegetables, and legumes, avoiding processed foods."
     },
     "mealTypes": {
       "breakfast": "Breakfast",
@@ -401,6 +417,28 @@
         "refrigerator": "Fridge",
         "freezer": "Freezer",
         "all": "All"
+    }
+  },
+  "prompts": {
+    "generateRecipe": {
+      "componentRequest": "The user has requested a recipe for making a specific component. Their request is: \"{{specialRequest}}\". Generate a detailed, beginner-friendly recipe EXACTLY for this request. The recipe should focus on preparing this component. - The recipe name should reflect the request (e.g., \"Homemade Smoked Sausage\"). - The description should explain what the recipe is about. - Provide the ingredients with precise quantities. - The preparation steps should be detailed and provided as an array of objects, where each object contains a 'text' key with the step's description. - In the \"servings\" field, specify the approximate yield of the final product (e.g., \"approx. 1 kg sausage\" or \"4 servings of pasta\"). - Ignore the original ingredients ({{ingredients}}) and meal type, as the specific request overrides them. - The response must be in JSON format.",
+      "leftoverBase": "Generate a {{mealType}} recipe by creatively and safely using the following leftovers: **{{ingredients}}**. The goal is to create a completely new, delicious dish, not just to reheat the leftovers. The recipe must be for exactly {{servings}} servings.",
+      "leftoverSafety": " IMPORTANT: Emphasize food safety in the instructions. If the list contains cooked meat or other delicate ingredients, the instructions must include heating them thoroughly until steaming (at least 75°C internal temperature). When combining different leftovers (e.g., raw vegetables and cooked meat), describe the correct order to avoid cross-contamination. The recipe should be logical and appropriate for the given leftovers.",
+      "standardBase": "Generate a {{mealType}} recipe for exactly {{servings}} servings.",
+      "standardWithIngredients": " The recipe should be made from the following ingredients: {{ingredients}}.",
+      "standardSurprise": " Choose 3 random, common household ingredients and create a recipe from them. In the recipe description, mention which 3 ingredients you chose. Important: although the ingredients are a surprise, the recipe must strictly adhere to all other specified conditions (diet, cooking method, number of servings, special request).",
+      "seasonal": " Pay special attention to using fresh, local, and seasonal ingredients whenever possible. If the user provided ingredients, supplement them with seasonal components; if not, base the recipe on seasonal ingredients.",
+      "seasonalLeftover": " Supplement the recipe with fresh, local, and seasonal ingredients to make the dish even more delicious and complete.",
+      "capacityWarning": " Among the selected cooking methods, '{{deviceName}}' has a maximum capacity of about {{capacity}} servings. If the {{servings}} portion size exceeds this, provide clear instructions for cooking in batches or suggest an alternative.",
+      "exclusions": " IMPORTANT RESTRICTION: The recipe MUST NEVER CONTAIN the following, not even in trace amounts: {{excludedIngredients}}. Consider potential allergies or intolerances (e.g., if the user specifies lactose, do not use milk, butter, cheese, etc.). This exclusion is a primary instruction that must be strictly followed, even if it seems to contradict other requests. In case of a conflict (e.g., requesting sausage making while excluding pork), your task is to find a creative solution: find a suitable, non-excluded alternative (e.g., beef sausage, chicken sausage). The recipe must not contain the excluded ingredients under any circumstances.",
+      "cookingMethods": " The cooking method for the recipe should be: {{methods}}. If multiple machines are specified, the recipe should use them logically (e.g., preparing the base in one and finishing in another).",
+      "diet": " The recipe must comply with the following dietary requirement: {{diet}}.",
+      "cuisine": " The style of the recipe should be: {{cuisine}}.",
+      "specialRequest": " The recipe must also meet the following special request: {{specialRequest}}.",
+      "paceQuick": " Place special emphasis on making the recipe as quick as possible (low prep and cooking time).",
+      "paceSimple": " The recipe should consist of as few ingredients as possible and be extremely simple to prepare.",
+      "diabeticInfo": " As the recipe is for a diabetic diet, please provide estimated nutritional information per 100 grams: calories, carbohydrates, protein, fat. Also, provide the recipe's estimated glycemic index (Low, Medium, or High). Finally, give a short, useful tip for diabetics related to the recipe.",
+      "withCost": " Provide an estimated total cost for the recipe in USD ($)."
     }
   }
 }

@@ -97,7 +97,8 @@ export const generateRecipe = async (
   customMealTypes: OptionItem[],
   customCuisineOptions: OptionItem[],
   customCookingMethods: OptionItem[],
-  customCookingMethodCapacities: Record<string, number | null>
+  customCookingMethodCapacities: Record<string, number | null>,
+  t: (key: string, options?: Record<string, any>) => string
 ): Promise<Recipe> => {
   const dietLabel = DIET_OPTIONS.find((d) => d.value === diet)?.label || '';
   const mealTypeLabel =
@@ -109,40 +110,43 @@ export const generateRecipe = async (
 
   let prompt: string;
   const specialRequestLower = specialRequest.toLowerCase().trim();
-  const componentRequestKeywords = ['készítsünk', 'receptje', 'hogyan kell', 'készítése'];
+  const componentRequestKeywords = ['készítsünk', 'receptje', 'hogyan kell', 'készítése', 'make', 'recipe for'];
 
   // Check if the special request is about making a component (like sausage, pasta, etc.)
   if (componentRequestKeywords.some(keyword => specialRequestLower.includes(keyword))) {
-      prompt = `A felhasználó egy specifikus alapanyag elkészítésére kért receptet. A kérése: "${specialRequest}".
-      Generálj egy részletes, kezdőbarát receptet PONTOSAN erre a kérésre. A recept fókuszában az alapanyag elkészítése álljon.
-      - A recept neve tükrözze a kérést (pl. "Házi Füstölt Kolbász").
-      - A leírás magyarázza el, miről szól a recept.
-      - Add meg a hozzávalókat pontos mennyiségekkel.
-      - Az elkészítési lépések legyenek részletesek, és egy objektumokból álló tömbként add meg őket, ahol minden objektum egy 'text' kulcsot tartalmaz a lépés leírásával.
-      - Az adag ("servings") mezőben add meg, hogy kb. mennyi végtermék (pl. "kb. 1 kg kolbász" vagy "4 adag tészta") készül a receptből.
-      - Ne vedd figyelembe az eredeti hozzávalókat (${ingredients}) vagy az étkezés típusát, mert a kérés felülírja azokat.
-      - A válasz JSON formátumban legyen.`;
+      prompt = t('prompts.generateRecipe.componentRequest', {
+        specialRequest: specialRequest,
+        ingredients: ingredients
+      });
   } else {
     // Main recipe generation logic
     if (mode === 'leftover') {
         if (!ingredients.trim()) {
             throw new Error('A maradékokból való főzéshez kérjük, adja meg a rendelkezésre álló maradékokat.');
         }
-        prompt = `Generálj egy ${mealTypeLabel} receptet a következő maradékok kreatív és biztonságos felhasználásával: **${ingredients}**. A cél egy teljesen új, ízletes étel létrehozása, nem csak a maradékok egyszerű felmelegítése. A recept pontosan ${numberOfServings} személyre szóljon.`;
+        prompt = t('prompts.generateRecipe.leftoverBase', {
+          mealType: mealTypeLabel,
+          ingredients: ingredients,
+          servings: numberOfServings
+        });
         if (useSeasonalIngredients) {
-            prompt += ` Egészítsd ki a receptet friss, helyi, idényjellegű (szezonális) hozzávalókkal, hogy az étel még ízletesebb és teljesebb legyen.`;
+            prompt += t('prompts.generateRecipe.seasonalLeftover');
         }
-        prompt += ` FONTOS: Az instrukciókban kiemelten kezeld az élelmiszerbiztonságot. Ha főtt húst vagy más kényes alapanyagot tartalmaz a lista, az instrukcióknak tartalmazniuk kell az alapos, gőzölgőre hevítésre vonatkozó utasítást (legalább 75°C belső hőmérséklet). Különböző maradékok (pl. nyers zöldség és főtt hús) kombinálásakor írd le a helyes sorrendet a keresztszennyeződés elkerülése érdekében. A recept legyen logikus és a megadott maradékokhoz illeszkedő.`;
+        prompt += t('prompts.generateRecipe.leftoverSafety');
 
     } else { // Standard mode
-        prompt = `Generálj egy ${mealTypeLabel} receptet, ami pontosan ${numberOfServings} személyre szól.`;
+        prompt = t('prompts.generateRecipe.standardBase', {
+          mealType: mealTypeLabel,
+          servings: numberOfServings
+        });
+
         if (ingredients.trim()) {
-            prompt += ` A recept a következő alapanyagokból készüljön: ${ingredients}.`;
+            prompt += t('prompts.generateRecipe.standardWithIngredients', { ingredients });
         } else {
-            prompt += ` Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad. Fontos: bár a hozzávalók meglepetések, a receptnek minden más megadott feltételnek (diéta, elkészítési mód, személyek száma, különleges kérés) szigorúan meg kell felelnie.`;
+            prompt += t('prompts.generateRecipe.standardSurprise');
         }
         if (useSeasonalIngredients) {
-            prompt += ` Különös figyelmet fordíts arra, hogy a recept lehetőség szerint friss, helyi és idényjellegű (szezonális) alapanyagokat használjon. Ha a felhasználó adott meg alapanyagokat, egészítsd ki azokat szezonális összetevőkkel, ha pedig nem, akkor a receptet szezonális alapanyagokra építsd.`;
+            prompt += t('prompts.generateRecipe.seasonal');
         }
     }
 
@@ -155,38 +159,43 @@ export const generateRecipe = async (
         if (capacities.length > 0) {
             const minCapacityDevice = capacities.reduce((min, current) => (current.capacity! < min.capacity! ? current : min), capacities[0]);
             if (numberOfServings > minCapacityDevice.capacity!) {
-                prompt += ` A kiválasztott elkészítési módok közül ('${minCapacityDevice.name}') maximum kapacitása kb. ${minCapacityDevice.capacity} fő. Ha a ${numberOfServings} fős adag meghaladja ezt, az instrukciókban adj egyértelmű útmutatást a több részletben való főzésre, vagy javasolj alternatívát.`;
+                prompt += t('prompts.generateRecipe.capacityWarning', {
+                  deviceName: minCapacityDevice.name,
+                  capacity: minCapacityDevice.capacity,
+                  servings: numberOfServings
+                });
             }
         }
     }
     
     if (excludedIngredients.trim()) {
-      prompt += ` FONTOS KIKÖTÉS: A recept SOHA NE TARTALMAZZA a következőket, még nyomokban sem: ${excludedIngredients}. Vedd figyelembe az esetleges allergiákat vagy intoleranciákat (pl. ha a felhasználó a laktózt írja, akkor ne használj tejet, vajat, sajtot stb.). Ez a kizárás egy elsődleges utasítás, amit szigorúan be kell tartani, még akkor is, ha ellentmondani látszik a többi kérésnek. Konfliktus esetén (pl. kolbászkészítés kérése sertéshús kizárásával) a feladatod a kreatív megoldás: keress egy megfelelő, nem kizárt alternatívát (pl. marhakolbász, csirkekolbász). A recept semmilyen körülmények között nem tartalmazhatja a kizárt összetevőket.`;
+      prompt += t('prompts.generateRecipe.exclusions', { excludedIngredients });
     }
     
-    prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabels.join(' és ')}. Ha több gép is meg van adva, a recept logikusan használja őket (pl. az alap elkészítése az egyikben, a befejezés a másikban).`;
+    prompt += t('prompts.generateRecipe.cookingMethods', { methods: cookingMethodLabels.join(' and ') });
+    
     if (diet !== DietOption.NONE && dietLabel) {
-      prompt += ` A recept feleljen meg a következő diétás előírásnak: ${dietLabel}.`;
+      prompt += t('prompts.generateRecipe.diet', { diet: dietLabel });
     }
     if (cuisine !== CuisineOption.NONE && cuisineLabel) {
-        prompt += ` A recept stílusa legyen: ${cuisineLabel}.`;
+        prompt += t('prompts.generateRecipe.cuisine', { cuisine: cuisineLabel });
     }
     if (specialRequest.trim()) {
-      prompt += ` A receptnek a következő különleges kérésnek is meg kell felelnie: ${specialRequest.trim()}.`;
+      prompt += t('prompts.generateRecipe.specialRequest', { specialRequest: specialRequest.trim() });
     }
 
     if (recipePace === RecipePace.QUICK) {
-      prompt += ` Különös hangsúlyt fektess arra, hogy a recept a lehető leggyorsabban elkészíthető legyen (alacsony előkészítési és főzési idő).`;
+      prompt += t('prompts.generateRecipe.paceQuick');
     } else if (recipePace === RecipePace.SIMPLE) {
-      prompt += ` A recept a lehető legkevesebb hozzávalóból álljon, és az elkészítése legyen rendkívül egyszerű.`;
+      prompt += t('prompts.generateRecipe.paceSimple');
     }
 
     if (diet === DietOption.DIABETIC) {
-      prompt += ` Mivel a recept cukorbeteg diétához készül, adj meg egy becsült tápértékadatokat is 100 grammra vetítve: kalória, szénhidrát, fehérje, zsír. Továbbá, add meg a recept becsült glikémiás indexét (Alacsony, Közepes, vagy Magas). Végül, adj egy rövid, hasznos tanácsot cukorbetegeknek a recepthez kapcsolódóan.`;
+      prompt += t('prompts.generateRecipe.diabeticInfo');
     }
 
     if (withCost) {
-      prompt += ` Adj egy becsült teljes költséget a recepthez forintban (Ft).`;
+      prompt += t('prompts.generateRecipe.withCost');
     }
   }
 
@@ -200,6 +209,7 @@ export const generateRecipe = async (
       },
     });
     
+    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
     const json = JSON.parse(response.text);
 
     return {
@@ -269,6 +279,7 @@ export const categorizeIngredients = async (ingredients: string[]): Promise<Cate
             },
         });
         
+        // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
         const json = JSON.parse(response.text);
         
         // Ensure the response matches the expected structure
@@ -315,6 +326,7 @@ export const getRecipeModificationSuggestions = async (ingredients: string, reci
         responseSchema: schema,
       },
     });
+    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
     return JSON.parse(response.text) as RecipeSuggestions;
   } catch (e: any) {
     console.error('Error getting recipe modification suggestions:', e);
@@ -351,6 +363,7 @@ export const interpretAppCommand = async (transcript: string, view: AppView, con
         responseSchema: schema,
       },
     });
+    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
     return JSON.parse(response.text) as AppCommand;
   } catch (e: any) {
     console.error('Error interpreting app command:', e);
@@ -380,6 +393,7 @@ export const interpretFormCommand = async (transcript: string, mealTypes: Option
       contents: prompt,
     });
     
+    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
     let jsonText = response.text.trim();
     // Handle potential markdown code block fences
     if (jsonText.startsWith('```json')) {
@@ -403,6 +417,7 @@ export const suggestMealType = async (ingredientsString: string, specialRequest:
             model: 'gemini-2.5-flash',
             contents: prompt,
         });
+        // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
         return response.text.trim();
     } catch (e: any) {
         console.error('Error suggesting meal type:', e);
@@ -441,6 +456,7 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
         responseSchema: schema,
       },
     });
+    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
     return JSON.parse(response.text) as VoiceCommandResult;
   } catch (e: any) {
     console.error('Error interpreting user command:', e);
@@ -488,6 +504,7 @@ export const calculateRecipeCost = async (recipe: Recipe): Promise<string> => {
       model: 'gemini-2.5-flash',
       contents: prompt,
     });
+    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
     return response.text.trim();
   } catch (e: any) {
     console.error('Error calculating recipe cost:', e);
@@ -507,6 +524,7 @@ export const simplifyRecipe = async (recipe: Recipe): Promise<Recipe> => {
         responseSchema: recipeSchema,
       },
     });
+    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
     const simplified = JSON.parse(response.text);
     return {
       ...recipe, // Keep original meta-data
@@ -580,6 +598,7 @@ A válaszod egy JSON objektum legyen, ami egy "suggestions" kulcsot tartalmaz. E
         responseSchema: schema,
       },
     });
+    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
     const json = JSON.parse(response.text);
     return json as { suggestions: AlternativeRecipeSuggestion[] };
   } catch (e: any) {

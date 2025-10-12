@@ -2,6 +2,10 @@
 
 
 
+
+
+
+
 import React, { useState, useRef } from 'react';
 import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -133,7 +137,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         setExpandedAIGroups(Object.keys(grouped).reduce((acc: Record<string, boolean>, key) => {
             acc[key] = true;
             return acc;
-        }, {}));
+        }, {} as Record<string, boolean>));
 
     } catch (e: any) {
         showNotification(e.message, 'info');
@@ -196,7 +200,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
             {categorizedList ? (
                  <div className="space-y-3">
                     {/* FIX: Explicitly type the destructured array from Object.entries to resolve type errors. */}
-                    {Object.entries(categorizedList).map(([category, items]: [string, ShoppingListItem[]]) => (
+                    {Object.entries(categorizedList).map(([category, items]) => (
                         <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                              <button
                                 onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}

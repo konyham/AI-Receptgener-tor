@@ -210,6 +210,12 @@
     "allergies": "Tiltott (allergia)",
     "notSet": "Nincs megadva"
   },
+  "spinner": {
+    "generating": "Recept generálása..."
+  },
+  "error": {
+    "title": "Hiba történt"
+  },
   "modals": {
     "general": {
       "save": "Mentés",
@@ -345,15 +351,25 @@
     },
     "diets": {
       "none": "Nincs megadva",
+      "none_desc": "Nem követ semmilyen speciális étrendet.",
       "diabetic": "Cukorbeteg",
+      "diabetic_desc": "Célja a vércukorszint stabilizálása, alacsony glikémiás indexű, lassan felszívódó szénhidrátokat részesít előnyben.",
       "vegetarian": "Vegetáriánus",
+      "vegetarian_desc": "Húsmentes étrend, de jellemzően tartalmaz tejtermékeket és tojást.",
       "vegan": "Vegán",
+      "vegan_desc": "Minden állati eredetű terméket (hús, tej, tojás, méz) mellőző étrend.",
       "gluten-free": "Gluténmentes",
+      "gluten-free_desc": "A glutént tartalmazó gabonaféléket (búza, árpa, rozs) és az ezekből készült termékeket kerüli.",
       "ketogenic": "Ketogén",
+      "ketogenic_desc": "Nagyon alacsony szénhidrát-, magas zsír- és mérsékelt fehérjetartalmú diéta, melynek célja a test ketózis állapotba hozása.",
       "paleo": "Paleo",
+      "paleo_desc": "A feldolgozott élelmiszereket, gabonaféléket, hüvelyeseket és tejtermékeket kerüli, a hangsúly a húson, zöldségeken, gyümölcsökön van.",
       "zone": "Zóna",
+      "zone_desc": "A makrotápanyagok (szénhidrát, fehérje, zsír) meghatározott arányára (40-30-30) fókuszál minden étkezésnél.",
       "candida": "Candida",
-      "macrobiotic": "Makrobiotikus"
+      "candida_desc": "Célja a candida gomba elszaporodásának visszaszorítása a cukor, élesztő, finomított szénhidrátok és bizonyos tejtermékek kerülésével.",
+      "macrobiotic": "Makrobiotikus",
+      "macrobiotic_desc": "A jin és jang elvén alapuló, főként teljes kiőrlésű gabonákra, zöldségekre és hüvelyesekre épülő, feldolgozott élelmiszereket kerülő étrend."
     },
     "mealTypes": {
       "breakfast": "Reggeli",
@@ -401,6 +417,28 @@
         "refrigerator": "Hűtő",
         "freezer": "Fagyasztó",
         "all": "Minden"
+    }
+  },
+  "prompts": {
+    "generateRecipe": {
+      "componentRequest": "A felhasználó egy specifikus alapanyag elkészítésére kért receptet. A kérése: \"{{specialRequest}}\". Generálj egy részletes, kezdőbarát receptet PONTOSAN erre a kérésre. A recept fókuszában az alapanyag elkészítése álljon. - A recept neve tükrözze a kérést (pl. \"Házi Füstölt Kolbász\"). - A leírás magyarázza el, miről szól a recept. - Add meg a hozzávalókat pontos mennyiségekkel. - Az elkészítési lépések legyenek részletesek, és egy objektumokból álló tömbként add meg őket, ahol minden objektum egy 'text' kulcsot tartalmaz a lépés leírásával. - Az adag (\"servings\") mezőben add meg, hogy kb. mennyi végtermék (pl. \"kb. 1 kg kolbász\" vagy \"4 adag tészta\") készül a receptből. - Ne vedd figyelembe az eredeti hozzávalókat ({{ingredients}}) vagy az étkezés típusát, mert a kérés felülírja azokat. - A válasz JSON formátumban legyen.",
+      "leftoverBase": "Generálj egy {{mealType}} receptet a következő maradékok kreatív és biztonságos felhasználásával: **{{ingredients}}**. A cél egy teljesen új, ízletes étel létrehozása, nem csak a maradékok egyszerű felmelegítése. A recept pontosan {{servings}} személyre szóljon.",
+      "leftoverSafety": " FONTOS: Az instrukciókban kiemelten kezeld az élelmiszerbiztonságot. Ha főtt húst vagy más kényes alapanyagot tartalmaz a lista, az instrukcióknak tartalmazniuk kell az alapos, gőzölgőre hevítésre vonatkozó utasítást (legalább 75°C belső hőmérséklet). Különböző maradékok (pl. nyers zöldség és főtt hús) kombinálásakor írd le a helyes sorrendet a keresztszennyeződés elkerülése érdekében. A recept legyen logikus és a megadott maradékokhoz illeszkedő.",
+      "standardBase": "Generálj egy {{mealType}} receptet, ami pontosan {{servings}} személyre szól.",
+      "standardWithIngredients": " A recept a következő alapanyagokból készüljön: {{ingredients}}.",
+      "standardSurprise": " Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad. Fontos: bár a hozzávalók meglepetések, a receptnek minden más megadott feltételnek (diéta, elkészítési mód, személyek száma, különleges kérés) szigorúan meg kell felelnie.",
+      "seasonal": " Különös figyelmet fordíts arra, hogy a recept lehetőség szerint friss, helyi és idényjellegű (szezonális) alapanyagokat használjon. Ha a felhasználó adott meg alapanyagokat, egészítsd ki azokat szezonális összetevőkkel, ha pedig nem, akkor a receptet szezonális alapanyagokra építsd.",
+      "seasonalLeftover": " Egészítsd ki a receptet friss, helyi, idényjellegű (szezonális) hozzávalókkal, hogy az étel még ízletesebb és teljesebb legyen.",
+      "capacityWarning": " A kiválasztott elkészítési módok közül ('{{deviceName}}') maximum kapacitása kb. {{capacity}} fő. Ha a {{servings}} fős adag meghaladja ezt, az instrukciókban adj egyértelmű útmutatást a több részletben való főzésre, vagy javasolj alternatívát.",
+      "exclusions": " FONTOS KIKÖTÉS: A recept SOHA NE TARTALMAZZA a következőket, még nyomokban sem: {{excludedIngredients}}. Vedd figyelembe az esetleges allergiákat vagy intoleranciákat (pl. ha a felhasználó a laktózt írja, akkor ne használj tejet, vajat, sajtot stb.). Ez a kizárás egy elsődleges utasítás, amit szigorúan be kell tartani, még akkor is, ha ellentmondani látszik a többi kérésnek. Konfliktus esetén (pl. kolbászkészítés kérése sertéshús kizárásával) a feladatod a kreatív megoldás: keress egy megfelelő, nem kizárt alternatívát (pl. marhakolbász, csirkekolbász). A recept semmilyen körülmények között nem tartalmazhatja a kizárt összetevőket.",
+      "cookingMethods": " A recept elkészítési módja legyen: {{methods}}. Ha több gép is meg van adva, a recept logikusan használja őket (pl. az alap elkészítése az egyikben, a befejezés a másikban).",
+      "diet": " A recept feleljen meg a következő diétás előírásnak: {{diet}}.",
+      "cuisine": " A recept stílusa legyen: {{cuisine}}.",
+      "specialRequest": " A receptnek a következő különleges kérésnek is meg kell felelnie: {{specialRequest}}.",
+      "paceQuick": " Különös hangsúlyt fektess arra, hogy a recept a lehető leggyorsabban elkészíthető legyen (alacsony előkészítési és főzési idő).",
+      "paceSimple": " A recept a lehető legkevesebb hozzávalóból álljon, és az elkészítése legyen rendkívül egyszerű.",
+      "diabeticInfo": " Mivel a recept cukorbeteg diétához készül, adj meg egy becsült tápértékadatokat is 100 grammra vetítve: kalória, szénhidrát, fehérje, zsír. Továbbá, add meg a recept becsült glikémiás indexét (Alacsony, Közepes, vagy Magas). Végül, adj egy rövid, hasznos tanácsot cukorbetegeknek a recepthez kapcsolódóan.",
+      "withCost": " Adj egy becsült teljes költséget a recepthez forintban (Ft)."
     }
   }
 }

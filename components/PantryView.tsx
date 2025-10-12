@@ -2,6 +2,10 @@
 
 
 
+
+
+
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -225,10 +229,10 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         setCategorizedPantry(grouped);
         // FIX: The `reduce` method was using a type-casted empty object, causing type inference issues and an 'unknown index type' error. This has been corrected by explicitly typing the accumulator in the callback, ensuring type safety.
-        setExpandedAIGroups(Object.keys(grouped).reduce((acc: Record<string, boolean>, key) => {
-            acc[key] = true;
+        setExpandedAIGroups(Object.keys(grouped).reduce((acc, key) => {
+            acc[key as keyof typeof acc] = true;
             return acc;
-        }, {}));
+        }, {} as Record<string, boolean>));
 
     } catch (e: any) {
         showNotification(e.message, 'info');
