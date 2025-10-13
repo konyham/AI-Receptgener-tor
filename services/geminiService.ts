@@ -158,7 +158,7 @@ export const generateRecipe = async (
     }
     
     if (cookingMethodLabels.length > 0) {
-        prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabels.join(' and ')}. Ha több gép is meg van adva, a recept logikusan használja őket (pl. az alap elkészítése az egyikben, a befejezés a másikban).`;
+        prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabels.join(' és ')}. Ha több gép is meg van adva, a recept logikusan használja őket (pl. az alap elkészítése az egyikben, a befejezés a másikban). FONTOS: Az elkészítési lépéseknek, beleértve a gépekhez (pl. Thermomixer) tartozó specifikus utasításokat is (hőfok, sebesség, idő), KIZÁRÓLAG magyar nyelven kell lenniük. Ne használj angol kifejezéseket, mint például "Cook", "Set time", "Speed", "Reverse". A teljes válasz legyen magyar.`;
     } else {
         prompt += ` A recept elkészítési módja hagyományos legyen (tűzhelyen vagy sütőben elkészíthető). Ne javasolj speciális konyhai gépet.`;
     }
@@ -454,18 +454,9 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
 };
 
 export const generateRecipeImage = async (recipe: Recipe, cookingMethodLabels: string[]): Promise<string> => {
-  const prompt = `SUBJECT: A professional, ultra-realistic, and highly appetizing food photograph of a finished dish.
-STYLE: Modern food magazine style, bright lighting, clean and simple background, shallow depth of field, close-up shot.
-DISH NAME: "${recipe.recipeName}"
-DISH DESCRIPTION: ${recipe.description}
-KEY INGREDIENTS: ${recipe.ingredients.slice(0, 5).join(', ')}.
-PRESENTATION: The food must be beautifully arranged on a plate or in a bowl, ready to be eaten.
+  const prompt = `A professional, ultra-realistic, and highly appetizing food photograph of a finished dish. The dish is '${recipe.recipeName}'. Style: modern food magazine, bright lighting, clean and simple background, shallow depth of field, close-up shot. The food must be beautifully arranged on a plate or in a bowl, ready to be eaten.
 
-ABSOLUTE MANDATORY RULES:
-1.  **NO TEXT. NO LETTERS. NO WATERMARKS. NO LOGOS.** The final image must be completely clean and contain zero text of any kind. This is the most important rule.
-2.  **THE IMAGE MUST BE OF FOOD ONLY.**
-3.  **DO NOT generate any buildings, houses, landscapes, people, or non-food objects.**
-4.  The final image must be extremely appetizing and look delicious.
+CRITICAL: The final image must be completely clean. It must contain ZERO text, letters, watermarks, or logos. It must NOT contain any people, hands, or non-food objects. The image must ONLY contain the plated food.
 `;
   
   try {
@@ -600,17 +591,9 @@ A válaszod egy JSON objektum legyen, ami egy "suggestions" kulcsot tartalmaz. E
 };
 
 export const generateInstructionImage = async (recipeName: string, instructionText: string, cookingMethodLabels: string[]): Promise<string> => {
-  const prompt = `SUBJECT: A top-down (flat lay), photorealistic image illustrating a single step in a cooking process.
-STYLE: Clean, bright, minimalist. Focus on the ingredients and tools. No human hands.
-RECIPE: "${recipeName}"
-INSTRUCTION TO VISUALIZE: "${instructionText}"
-RELEVANT COOKING METHOD: ${cookingMethodLabels.join(', ')}
+  const prompt = `A top-down (flat lay), photorealistic image illustrating a single step in a cooking process for the recipe '${recipeName}'. The instruction to visualize is: '${instructionText}'. Style: Clean, bright, minimalist. The image must ONLY show the cooking step in progress (ingredients being prepared, mixed in a bowl, or cooking in a pan/pot).
 
-ABSOLUTE MANDATORY RULES:
-1.  **NO TEXT. NO LETTERS. NO WATERMARKS. NO LOGOS.** The final image must be completely clean and contain zero text of any kind. This is the most important rule.
-2.  **The image must ONLY show the cooking step in progress.** Show ingredients being prepared, mixed in a bowl, or cooking in a pan/pot.
-3.  **DO NOT show a finished, plated dish.** This is about the process, not the result.
-4.  **DO NOT include people, hands, or buildings.**
+CRITICAL: The final image must be completely clean. It must contain ZERO text, letters, watermarks, or logos. It must NOT show a finished, plated dish. It must NOT include any people, hands, or buildings.
 `;
   
   try {

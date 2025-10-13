@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Recipe, VoiceCommand, Favorites, UserProfile, InstructionStep, AlternativeRecipeSuggestion, OptionItem, MealType, CuisineOption, CookingMethod } from '../types';
+import { Recipe, VoiceCommand, Favorites, UserProfile, InstructionStep, AlternativeRecipeSuggestion, OptionItem, MealType, CuisineOption, CookingMethod, DietOption } from '../types';
 import { interpretUserCommand, generateRecipeImage, calculateRecipeCost, simplifyRecipe, generateInstructionImage, generateAlternativeRecipeSuggestions } from '../services/geminiService';
 import * as imageStore from '../services/imageStore';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
@@ -9,7 +9,7 @@ import SaveRecipeModal from './SaveToFavoritesModal';
 import ImageDisplayModal from './ImageDisplayModal';
 import ErrorMessage from './ErrorMessage';
 import InstructionCarousel from './InstructionCarousel';
-import { DIET_OPTIONS, MEAL_TYPES, COOKING_METHODS, CUISINE_OPTIONS, MEAL_TYPES_STORAGE_KEY, CUISINE_OPTIONS_STORAGE_KEY, COOKING_METHODS_STORAGE_KEY } from '../constants';
+import { DIET_OPTIONS } from '../constants';
 import ShareFallbackModal from './ShareFallbackModal';
 import { konyhaMikiLogo as konyhaMikiLogoBase64 } from '../assets';
 import StarRating from './StarRating';
@@ -67,7 +67,7 @@ const NutritionalInfo: React.FC<{ recipe: Recipe, isEditing?: boolean, onChange?
         value: recipe[field] as string,
         icon: {
             calories: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM10 18a1 1 0 01.707.293l2.5 2.5a1 1 0 11-1.414 1.414l-2.5-2.5A1 1 0 0110 18zM10 4a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /><path d="M10 18a7.953 7.953 0 01-4.16-1.115l-1.558 1.558a1 1 0 11-1.414-1.414l1.558-1.558A8 8 0 1110 18zm0-2a6 6 0 100-12 6 6 0 000 12z" /></svg>,
-            carbohydrates: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path d="M17 5a2 2 0 10-4 0v.586a1 1 0 01-.293.707l-3.414 3.414a1 1 0 01-1.414 0l-1.414-1.414A1 1 0 017 8.586V7a2 2 0 10-4 0v1.586a1 1 0 01-.293.707l-3.414 3.414a1 1 0 01-1.414 0l-1.414-1.414a1 1 0 010-1.414l3.414-3.414A1 1 0 015 6.586V5a2 2 0 104 0v.586a1 1 0 01.293.707l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 019 10.414V12a2 2 0 104 0v-1.586a1 1 0 01.293-.707l3.414-3.414a1 1 0 01-1.414-1.414L13 8.586V7a2 2 0 10-4 0v.586a1 1 0 01-.293.707L7.293 9.707a1 1 0 01-1.414 0L4.464 8.293A1 1 0 014 7.586V6a2 2 0 10-4 0v1.586a1 1 0 01.293.707l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 01.293 12.414V14a2 2 0 104 0v-.586a1 1 0 01.293-.707l3.414-3.414a1 1 0 011.414 0l1.414 1.414a1 1 0 01.293.707V15a2 2 0 104 0v-1.586a1 1 0 01.293-.707l1.414-1.414a1 1 0 011.414 0l1.414 1.414a1 1 0 01.293.707V17a2 2 0 104 0v-1.586a1 1 0 01-.293-.707l-3.414-3.414a1 1 0 010-1.414l1.414-1.414A1 1 0 0115 8.414V7a2 2 0 10-4 0v.586a1 1 0 01.293.707l1.414 1.414a1 1 0 01-1.414 1.414L9.586 9.414A1 1 0 019 8.586V7a2 2 0 10-4 0v.586a1 1 0 01-.293.707L3.293 9.707a1 1 0 01-1.414 0L.464 8.293A1 1 0 010 7.586V6a2 2 0 104 0v.586a1 1 0 01.293.707l1.414 1.414a1 1 0 011.414 0l1.414-1.414A1 1 0 019 6.586V5a2 2 0 10-4 0v.586a1 1 0 01-.293.707l-1.414 1.414a1 1 0 01-1.414-1.414l1.414-1.414A1 1 0 014.586 5H6a2 2 0 100-4h1.586a1 1 0 01.707.293l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 018.586 6H7a2 2 0 100 4h1.586a1 1 0 01.707.293l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 019.586 15H8a2 2 0 100 4h1.586a1 1 0 01.707-.293l3.414-3.414a1 1 0 011.414 0l1.414 1.414a1 1 0 01.293.707V18a2 2 0 104 0v-1.586a1 1 0 01-.293-.707l-1.414-1.414a1 1 0 010-1.414l1.414-1.414A1 1 0 0115.586 12H17a2 2 0 100-4h-1.586a1 1 0 01-.707-.293l-3.414-3.414a1 1 0 010-1.414l3.414-3.414A1 1 0 0115.414 3H17a2 2 0 100-4h-1.586a1 1 0 01-.707.293l-1.414 1.414a1 1 0 01-1.414 0l-1.414-1.414A1 1 0 019.586 0H8a2 2 0 100 4h.586a1 1 0 01.707.293l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 019.586 8H8a2 2 0 100 4h.586a1 1 0 01.707.293l1.414 1.414a1 1 0 01-1.414 1.414l-1.414-1.414A1 1 0 016.586 13H5a2 2 0 100 4h1.586a1 1 0 01.707.293l1.414 1.414a1 1 0 011.414 0l1.414 1.414A1 1 0 0110.414 19H12a2 2 0 100-4h-.586a1 1 0 01-.707-.293L7.293 11.293a1 1 0 010-1.414L8.707 8.464A1 1 0 019.414 8H11a2 2 0 100-4h-.586a1 1 0 01-.707-.293L8.293 2.293a1 1 0 01-1.414 0L5.464 3.707A1 1 0 014.586 4H3a2 2 0 100-4h.586a1 1 0 01.707.293l1.414 1.414a1 1 0 011.414 0l1.414-1.414A1 1 0 0110.414 0H12a2 2 0 100 4h-.586a1 1 0 01-.707-.293l-1.414-1.414a1 1 0 010-1.414l1.414-1.414A1 1 0 0111.414 0H13a2 2 0 100-4h-.586a1 1 0 01-.707.293L10.293-1.121a1 1 0 01-1.414 0l-1.414 1.414A1 1 0 016.586.293H5a2 2 0 100 4h.586a1 1 0 01.707.293l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 015.586 8H4a2 2 0 100 4h.586a1 1 0 01.707.293l1.414 1.414a1 1 0 011.414 0l1.414-1.414A1 1 0 0110.414 11H12a2 2 0 100-4h-.586a1 1 0 01-.707-.293L9.293 5.293a1 1 0 010-1.414L10.707 2.464A1 1 0 0111.414 2H13a2 2 0 100-4h-.586a1 1 0 01-.707.293L10.293-1.121a1 1 0 01-1.414 0L7.464.293A1 1 0 016.586 1H5a2 2 0 100 4z" /></svg>,
+            carbohydrates: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path d="M17 5a2 2 0 10-4 0v.586a1 1 0 01-.293.707l-3.414 3.414a1 1 0 01-1.414 0l-1.414-1.414A1 1 0 017 8.586V7a2 2 0 10-4 0v1.586a1 1 0 01-.293.707l-3.414 3.414a1 1 0 01-1.414 0l-1.414-1.414a1 1 0 010-1.414l3.414-3.414A1 1 0 015 6.586V5a2 2 0 104 0v.586a1 1 0 01.293.707l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 019 10.414V12a2 2 0 104 0v-1.586a1 1 0 01.293-.707l3.414-3.414a1 1 0 01-1.414-1.414L13 8.586V7a2 2 0 10-4 0v.586a1 1 0 01-.293.707L7.293 9.707a1 1 0 01-1.414 0L4.464 8.293A1 1 0 014 7.586V6a2 2 0 10-4 0v1.586a1 1 0 01.293.707l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 01.293 12.414V14a2 2 0 104 0v-.586a1 1 0 01.293-.707l3.414-3.414a1 1 0 011.414 0l1.414 1.414a1 1 0 01.293.707V15a2 2 0 104 0v-1.586a1 1 0 01.293-.707l1.414-1.414a1 1 0 011.414 0l1.414 1.414a1 1 0 01.293.707V17a2 2 0 104 0v-1.586a1 1 0 01-.293-.707l-3.414-3.414a1 1 0 010-1.414l1.414-1.414A1 1 0 0115 8.414V7a2 2 0 10-4 0v.586a1 1 0 01.293.707l1.414 1.414a1 1 0 01-1.414 1.414L9.586 9.414A1 1 0 019 8.586V7a2 2 0 10-4 0v.586a1 1 0 01-.293.707L3.293 9.707a1 1 0 01-1.414 0L.464 8.293A1 1 0 010 7.586V6a2 2 0 104 0v.586a1 1 0 01.293.707l1.414 1.414a1 1 0 011.414 0l1.414-1.414A1 1 0 019 6.586V5a2 2 0 10-4 0v.586a1 1 0 01-.293.707l-1.414 1.414a1 1 0 01-1.414-1.414l1.414-1.414A1 1 0 014.586 5H6a2 2 0 100-4h1.586a1 1 0 01.707.293l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 018.586 6H7a2 2 0 100 4h1.586a1 1 0 01.707.293l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 019.586 15H8a2 2 0 100 4h1.586a1 1 0 01.707-.293l3.414-3.414a1 1 0 011.414 0l1.414 1.414a1 1 0 01.293.707V18a2 2 0 104 0v-1.586a1 1 0 01-.293-.707l-1.414-1.414a1 1 0 010-1.414l1.414-1.414A1 1 0 0115.586 12H17a2 2 0 100-4h-1.586a1 1 0 01-.707-.293l-3.414-3.414a1 1 0 010-1.414l3.414-3.414A1 1 0 0115.414 3H17a2 2 0 100-4h-1.586a1 1 0 01-.707.293l-1.414 1.414a1 1 0 01-1.414 0l-1.414-1.414A1 1 0 019.586 0H8a2 2 0 100 4h.586a1 1 0 01.707.293l1.414 1.414a1 1 0 010 1.414l-1.414 1.414A1 1 0 019.586 8H8a2 2 0 100 4h.586a1 1 0 01.707.293l1.414 1.414a1 1 0 01-1.414 1.414l-1.414-1.414A1 1 0 016.586 13H5a2 2 0 100 4h1.586a1 1 0 01.707.293l1.414 1.414a1 1 0 011.414 0l1.414 1.414A1 1 0 0110.414 19H12a2 2 0 100-4h-.586a1 1 0 01-.707-.293L7.293 11.293a1 1 0 010-1.414L8.707 8.464A1 1 0 019.414 8H11a2 2 0 100-4h-.586a1 1 0 01-.707-.293L8.293 2.293a1 1 0 01-1.414 0L5.464 3.707A1 1 0 014.586 4H3a2 2 0 100-4h.586a1 1 0 01.707.293l1.414 1.414a1 1 0 011.414 0l1.414-1.414A1 1 0 0110.414 0H12a2 2 0 100 4h-.586a1 1 0 01-.707-.293l-1.414-1.414a1 1 0 010-1.414l1.414-1.414A1 1 0 0111.414 0H13a2 2 0 100-4h-.586a1 1 0 01-.707.293L10.293-1.121a1 1 0 01-1.414 0L7.464.293A1 1 0 016.586 1H5a2 2 0 100 4z" /></svg>,
             protein: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a1 1 0 00-1 1v1a1 1 0 002 0V3a1 1 0 00-1-1zM4 6a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zm1 3a1 1 0 000 2h8a1 1 0 100-2H5z" /><path fillRule="evenodd" d="M2 10a2 2 0 012-2h12a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2v-6zm2-1a1 1 0 00-1 1v6a1 1 0 001 1h12a1 1 0 001-1v-6a1 1 0 00-1-1H4z" clipRule="evenodd" /></svg>,
             fat: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 4a3 3 0 00-3 3v6a3 3 0 003 3h10a3 3 0 003-3V7a3 3 0 00-3-3H5zm-1 9a1 1 0 000 2h12a1 1 0 100-2H4z" clipRule="evenodd" /></svg>,
             glycemicIndex: <svg xmlns="http://www.w3.org/2000/svg" className="h-full w-full" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" /></svg>,
@@ -105,7 +105,7 @@ const NutritionalInfo: React.FC<{ recipe: Recipe, isEditing?: boolean, onChange?
     );
 };
 
-const addWatermark = (imageUrl: string, recipe: Recipe): Promise<string> => {
+const addWatermark = (imageUrl: string, recipe: Recipe, allMealTypes: OptionItem[], allCookingMethods: OptionItem[]): Promise<string> => {
     return new Promise((resolve, reject) => {
         const image = new Image();
         image.crossOrigin = 'anonymous';
@@ -113,64 +113,172 @@ const addWatermark = (imageUrl: string, recipe: Recipe): Promise<string> => {
 
         image.onload = () => {
             const canvas = document.createElement('canvas');
-            const targetWidth = 1024;
-            canvas.width = targetWidth;
-            canvas.height = (image.height / image.width) * targetWidth;
+            const canvasWidth = 1280;
+            const canvasHeight = 896;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
             const ctx = canvas.getContext('2d');
             if (!ctx) return reject(new Error('A vászon kontextus nem elérhető.'));
 
-            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+            // 1. Draw image with center crop to fit the 1280x896 canvas
+            const canvasAspect = canvasWidth / canvasHeight;
+            const imageAspect = image.width / image.height;
+            let sx, sy, sWidth, sHeight;
 
-            const overlayHeight = 120;
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            ctx.fillRect(0, canvas.height - overlayHeight, canvas.width, overlayHeight);
-            
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 28px "Trebuchet MS", Arial, sans-serif';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'bottom';
-            
-            const wrapText = (context: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) => {
+            if (imageAspect > canvasAspect) {
+                sHeight = image.height;
+                sWidth = sHeight * canvasAspect;
+                sx = (image.width - sWidth) / 2;
+                sy = 0;
+            } else {
+                sWidth = image.width;
+                sHeight = sWidth / canvasAspect;
+                sx = 0;
+                sy = (image.height - sHeight) / 2;
+            }
+            ctx.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, canvasWidth, canvasHeight);
+
+            // --- Helper function for text with a more pronounced shadow ---
+            const drawTextWithShadow = (text: string, x: number, y: number, font: string, color: string, align: 'left' | 'right' | 'center') => {
+                ctx.font = font;
+                ctx.fillStyle = color;
+                ctx.textAlign = align;
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+                ctx.shadowBlur = 12;
+                ctx.shadowOffsetX = 5;
+                ctx.shadowOffsetY = 5;
+                ctx.fillText(text, x, y);
+                // Reset shadow
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+            };
+
+            const padding = 35;
+            const cornerFont = 'bold 32px Arial, sans-serif';
+            const cornerLineHeight = 40;
+
+            // --- 2. Top-Left Text Block ---
+            let topLeftY = padding + 32; // Start Y for top-left (font size)
+
+            drawTextWithShadow('Elkészítés:', padding, topLeftY, cornerFont, 'white', 'left');
+            topLeftY += cornerLineHeight;
+
+            const cookingMethodLabels = recipe.cookingMethods
+                .map(cmValue => allCookingMethods.find(opt => opt.value === cmValue)?.label)
+                .filter((label): label is string => !!label);
+
+            if (cookingMethodLabels.length > 0 && !(cookingMethodLabels.length === 1 && cookingMethodLabels[0] === 'Hagyományos')) {
+                cookingMethodLabels.forEach(label => {
+                    drawTextWithShadow(`• ${label}`, padding, topLeftY, cornerFont, 'white', 'left');
+                    topLeftY += cornerLineHeight;
+                });
+            }
+
+            topLeftY += cornerLineHeight / 2;
+
+            const mealTypeLabel = allMealTypes.find(mt => mt.value === recipe.mealType)?.label || 'Nincs megadva';
+            drawTextWithShadow(`Étkezés: ${mealTypeLabel}`, padding, topLeftY, cornerFont, 'white', 'left');
+            topLeftY += cornerLineHeight;
+
+            const dietLabel = DIET_OPTIONS.find(d => d.value === recipe.diet)?.label || 'Nincs megadva';
+            drawTextWithShadow(`Diéta: ${dietLabel}`, padding, topLeftY, cornerFont, 'white', 'left');
+            topLeftY += cornerLineHeight;
+
+            topLeftY += cornerLineHeight / 2;
+
+            drawTextWithShadow('AI-val készítette Konyha Miki', padding, topLeftY, cornerFont, 'white', 'left');
+
+
+            // --- 3. Top-Right Text Block (Nutritional Info) ---
+            let topRightY = padding + 32;
+
+            if (recipe.calories) {
+                drawTextWithShadow(`Kalória: ${recipe.calories}`, canvas.width - padding, topRightY, cornerFont, 'white', 'right');
+                topRightY += cornerLineHeight;
+            }
+            if (recipe.carbohydrates) {
+                drawTextWithShadow(`Szénhidrát: ${recipe.carbohydrates}`, canvas.width - padding, topRightY, cornerFont, 'white', 'right');
+                topRightY += cornerLineHeight;
+            }
+            if (recipe.protein) {
+                drawTextWithShadow(`Fehérje: ${recipe.protein}`, canvas.width - padding, topRightY, cornerFont, 'white', 'right');
+                topRightY += cornerLineHeight;
+            }
+            if (recipe.fat) {
+                drawTextWithShadow(`Zsír: ${recipe.fat}`, canvas.width - padding, topRightY, cornerFont, 'white', 'right');
+            }
+
+
+            // --- 4. Bottom Bar ---
+            const wrapText = (context: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number, draw: boolean = true) => {
                 const words = text.split(' ');
                 let line = '';
+                let lineCount = 1;
+                let currentY = y;
+
                 for (let n = 0; n < words.length; n++) {
                     const testLine = line + words[n] + ' ';
                     const metrics = context.measureText(testLine);
-                    const testWidth = metrics.width;
-                    if (testWidth > maxWidth && n > 0) {
-                        context.fillText(line, x, y);
+                    if (metrics.width > maxWidth && n > 0) {
+                        if (draw) context.fillText(line.trim(), x, currentY);
                         line = words[n] + ' ';
-                        y += lineHeight;
+                        currentY += lineHeight;
+                        lineCount++;
                     } else {
                         line = testLine;
                     }
                 }
-                context.fillText(line, x, y);
+                if (draw) context.fillText(line.trim(), x, currentY);
+                return { height: lineCount * lineHeight };
             }
-            wrapText(ctx, recipe.recipeName, 20, canvas.height - 65, canvas.width - 150, 32);
-
-            ctx.font = '18px "Trebuchet MS", Arial, sans-serif';
-            const details = [
-                `Előkészítés: ${recipe.prepTime}`,
-                `Főzés: ${recipe.cookTime}`,
-                `Adag: ${recipe.servings}`
-            ].join('  |  ');
-            ctx.fillText(details, 20, canvas.height - 25);
-
+            
             const logo = new Image();
             logo.src = konyhaMikiLogoBase64;
             logo.onload = () => {
-                const logoHeight = 60;
-                const logoWidth = (logo.width / logo.height) * logoHeight;
-                ctx.drawImage(logo, canvas.width - logoWidth - 20, canvas.height - overlayHeight/2 - logoHeight/2, logoWidth, logoHeight);
+                // --- Title and bar calculation ---
+                const titleFont = 'bold 45px Arial, sans-serif';
+                const titleLineHeight = 50;
+                const logoDisplayWidth = 375;
+                const logoAreaWidth = logoDisplayWidth + padding;
+                const recipeNameMaxWidth = canvas.width - logoAreaWidth - padding;
+                
+                // Measure text height to determine bar height
+                ctx.font = titleFont;
+                const { height: titleHeight } = wrapText(ctx, recipe.recipeName, 0, 0, recipeNameMaxWidth, titleLineHeight, false);
+                
+                const verticalPadding = 25;
+                const minBarHeight = 125;
+                const bottomBarHeight = Math.max(minBarHeight, titleHeight + (verticalPadding * 2));
+
+                // Draw bottom bar
+                ctx.fillStyle = 'rgba(30, 30, 30, 0.8)'; // Darker, more neutral bar
+                ctx.fillRect(0, canvas.height - bottomBarHeight, canvas.width, bottomBarHeight);
+
+                // Draw Logo
+                const logoAspectRatio = logo.height / logo.width;
+                const logoDisplayHeight = logoDisplayWidth * logoAspectRatio;
+                const logoY = canvas.height - bottomBarHeight / 2 - logoDisplayHeight / 2;
+                ctx.drawImage(logo, padding / 2, logoY, logoDisplayWidth, logoDisplayHeight);
+
+                // Draw title text (vertically centered)
+                ctx.fillStyle = 'white';
+                ctx.font = titleFont;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                const startY = canvas.height - bottomBarHeight + (bottomBarHeight - titleHeight) / 2;
+                wrapText(ctx, recipe.recipeName, logoAreaWidth, startY, recipeNameMaxWidth, titleLineHeight, true);
+
                 resolve(canvas.toDataURL('image/jpeg', 0.9));
             };
-            logo.onerror = () => {
-                console.warn("A logó nem tölthető be a vízjelhez.");
-                resolve(canvas.toDataURL('image/jpeg', 0.9));
+            logo.onerror = (e) => {
+                console.error("Logo failed to load for watermarking:", e);
+                reject(new Error("A logókép nem töltődött be a vízjelhez."));
             };
         };
-        image.onerror = () => {
+        image.onerror = (e) => {
+            console.error("Main image failed to load for watermarking:", e);
             reject(new Error('A kép betöltése sikertelen a vízjelezéshez.'));
         };
     });
@@ -362,10 +470,9 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
         setImageLoaded(false);
 
         try {
-            const cookingMethodLabels = editableRecipe.cookingMethods.map(cm => cookingMethodsList.find(c => c.value === cm)?.label || '').filter(Boolean);
-            const imageBytes = await generateRecipeImage(editableRecipe, cookingMethodLabels);
+            const imageBytes = await generateRecipeImage(editableRecipe, []);
             const rawImageUrl = `data:image/jpeg;base64,${imageBytes}`;
-            const watermarkedImageUrl = await addWatermark(rawImageUrl, editableRecipe);
+            const watermarkedImageUrl = await addWatermark(rawImageUrl, editableRecipe, mealTypes, cookingMethodsList);
             
             const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
             await imageStore.saveImage(imageId, watermarkedImageUrl);
@@ -380,7 +487,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
         } finally {
             setIsGeneratingImage(false);
         }
-    }, [editableRecipe, onRecipeUpdate, isFromFavorites, cookingMethodsList]);
+    }, [editableRecipe, onRecipeUpdate, isFromFavorites, mealTypes, cookingMethodsList]);
 
     useEffect(() => {
         if (shouldGenerateImageInitially && !recipe.imageUrl) {
@@ -404,7 +511,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
             setImageLoaded(false);
             try {
                 const imageDataUrl = e.target?.result as string;
-                const watermarkedImageUrl = await addWatermark(imageDataUrl, editableRecipe);
+                const watermarkedImageUrl = await addWatermark(imageDataUrl, editableRecipe, mealTypes, cookingMethodsList);
     
                 const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
                 await imageStore.saveImage(imageId, watermarkedImageUrl);

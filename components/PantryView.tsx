@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -221,9 +220,7 @@ const PantryView: React.FC<PantryViewProps> = ({
         });
 
         setCategorizedPantry(grouped);
-        // FIX: The `reduce` method was using a type-casted empty object, causing type inference issues and an 'unknown index type' error. This has been corrected by explicitly typing the accumulator in the callback, ensuring type safety.
-        // FIX: Explicitly type acc and key in reduce callback to fix 'unknown' index type error.
-        // FIX: Explicitly type acc and key in reduce callback to fix 'unknown' index type error.
+        // FIX: Explicitly type the accumulator in the reduce function to resolve the 'unknown index type' error.
         setExpandedAIGroups(Object.keys(grouped).reduce((acc: Record<string, boolean>, key: string) => {
             acc[key] = true;
             return acc;
@@ -322,7 +319,8 @@ const PantryView: React.FC<PantryViewProps> = ({
   
   const renderItemList = (items: PantryItemWithIndex[]) => (
      <ul className="divide-y divide-gray-200">
-        {items.map((item) => {
+        {/* FIX: Explicitly type the 'item' parameter in the map callback to resolve type inference issue. */}
+        {items.map((item: PantryItemWithIndex) => {
           const urgency = getUrgency(item);
           const isSelected = selectedItems[activeLocation].has(item.originalIndex);
 
@@ -492,7 +490,6 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {/* FIX: Explicitly type the destructured array from Object.entries to resolve type errors. */}
               {Object.entries(categorizedPantry).map(([category, items]: [string, PantryItemWithIndex[]]) => (
                   <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                       <button
