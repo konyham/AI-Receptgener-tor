@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { Favorites, Recipe, SortOption, UserProfile, OptionItem } from '../types';
 import StarRating from './StarRating';
@@ -278,136 +279,136 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                   >
                     <div className="flex items-center gap-3">
                       <span className="font-bold text-lg text-primary-700">{category}</span>
-                      <span className="text-sm bg-primary-100 text-primary-800 font-semibold px-2 py-0.5 rounded-full">
-                        {displayedRecipes.length} recept
-                      </span>
+                      <span className="text-sm bg-primary-100 text-primary-800 font-semibold px-2.5 py-0.5 rounded-full">{sortedRecipes.length} recept</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button 
-                            onClick={(e) => { 
-                                e.stopPropagation(); 
-                                setItemToDelete({ recipeName: '', category: category });
-                                setIsDeleteConfirmOpen(true);
-                            }} 
-                            className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100"
-                            aria-label={`'${category}' kategória törlése`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                        </button>
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 text-gray-500 transform transition-transform ${expandedCategories[category] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Biztosan törli a(z) "${category}" kategóriát és az összes benne lévő receptet? Ez a művelet nem vonható vissza.`)) {
+                            onDeleteCategory(category);
+                          }
+                        }}
+                        className="text-gray-400 hover:text-red-600"
+                        aria-label={`'${category}' kategória törlése`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                         </svg>
+                      </button>
+                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 text-gray-500 transform transition-transform ${expandedCategories[category] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
                     </div>
                   </button>
                   {expandedCategories[category] && (
-                    <ul className="divide-y divide-gray-200 bg-white">
+                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {sortedRecipes.map((recipe) => (
-                        <li key={recipe.recipeName} className="p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3 flex-grow min-w-0">
+                        <div key={recipe.recipeName} className="border border-gray-200 rounded-lg p-4 bg-white flex flex-col justify-between">
+                          <div>
+                            <h4 className="font-bold text-primary-800">{recipe.recipeName}</h4>
+                            <p className="text-sm text-gray-500 mt-1 line-clamp-2">{recipe.description}</p>
+                            <div className="mt-2">
+                                <StarRating rating={recipe.rating} readOnly={true} />
+                            </div>
+                          </div>
+                           <div className="mt-4 flex flex-col gap-2">
+                             <button
+                                onClick={() => onViewRecipe(recipe)}
+                                className="w-full bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-primary-700"
+                              >
+                                Megtekintés
+                              </button>
+                              <div className="flex gap-2">
                                 <button 
-                                  onClick={() => setStatusModalState({ recipe, category })} 
-                                  className="text-2xl transition-transform hover:scale-125 focus:outline-none flex-shrink-0"
-                                  aria-label="Kedvenc állapot módosítása"
+                                  onClick={() => setStatusModalState({ recipe, category })}
+                                  className="flex-1 bg-yellow-500 text-white font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-yellow-600 flex items-center justify-center gap-1.5"
                                 >
-                                  {(recipe.favoritedBy && recipe.favoritedBy.length > 0) ? 
-                                      <span className="text-red-500">♥</span> : 
-                                      <span className="text-gray-400">♡</span>
-                                  }
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                                  </svg>
+                                  ({(recipe.favoritedBy || []).length})
                                 </button>
                                 <button 
                                   onClick={() => setActionMenuRecipe({ recipe, category })}
-                                  className="font-medium text-gray-800 text-left break-words w-full hover:text-primary-600 focus:outline-none focus:ring-1 focus:ring-primary-300 rounded"
+                                  className="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300"
                                 >
-                                    {recipe.recipeName}
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
+                                  </svg>
                                 </button>
-                            </div>
-                            <div className="flex-shrink-0 ml-2">
-                                {recipe.rating && recipe.rating > 0 && <StarRating rating={recipe.rating} readOnly />}
-                            </div>
-                          </div>
-                        </li>
+                              </div>
+                           </div>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   )}
                 </div>
-              )
+              );
             })}
 
             {!hasAnyResults && (
                 <div className="text-center py-12">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <h3 className="mt-2 text-lg font-medium text-gray-900">Nincs a szűrésnek megfelelő recept</h3>
-                    <p className="mt-1 text-sm text-gray-500">Próbáljon más keresési vagy szűrési feltételt beállítani.</p>
+                     <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <h3 className="mt-4 text-lg font-medium text-gray-900">Nincs találat</h3>
+                    <p className="mt-1 text-sm text-gray-500">Módosítsa a keresési vagy szűrési feltételeket.</p>
                 </div>
             )}
           </>
         )}
-       
-       {movingRecipe && (
-        <MoveRecipeModal
-          isOpen={!!movingRecipe}
-          onClose={() => setMovingRecipe(null)}
-          onMove={handleMoveRecipe}
-          existingCategories={categories}
-          recipeName={movingRecipe.recipe.recipeName}
-          sourceCategory={movingRecipe.fromCategory}
-        />
-      )}
-       {statusModalState && (
-        <FavoriteStatusModal
-          isOpen={!!statusModalState}
-          onClose={() => setStatusModalState(null)}
-          onSave={(ids) => {
-            onUpdateFavoriteStatus(statusModalState.recipe.recipeName, statusModalState.category, ids);
-            setStatusModalState(null);
-          }}
-          users={users}
-          initialFavoritedByIds={statusModalState.recipe.favoritedBy || []}
-          recipeName={statusModalState.recipe.recipeName}
-        />
-      )}
-      {actionMenuRecipe && (
-        <FavoriteActionModal
-            isOpen={!!actionMenuRecipe}
-            onClose={() => setActionMenuRecipe(null)}
-            recipe={actionMenuRecipe.recipe}
-            onView={() => {
-                onViewRecipe(actionMenuRecipe.recipe);
-                setActionMenuRecipe(null);
-            }}
-            onMove={() => {
-                setMovingRecipe({ recipe: actionMenuRecipe.recipe, fromCategory: actionMenuRecipe.category });
-                setActionMenuRecipe(null);
-            }}
-            onDelete={handleDeleteRequest}
-        />
-      )}
-      <ConfirmationModal
-        isOpen={isDeleteConfirmOpen}
-        onClose={() => {
-            setIsDeleteConfirmOpen(false);
-            setItemToDelete(null);
-        }}
-        onConfirm={() => {
-            if (itemToDelete?.recipeName === '') { // This is a category delete request
-                onDeleteCategory(itemToDelete.category);
-                setIsDeleteConfirmOpen(false);
-                setItemToDelete(null);
-            } else {
-                handleConfirmDelete();
-            }
-        }}
-        title={itemToDelete?.recipeName === '' ? "Kategória törlése" : "Recept törlése"}
-        message={
-            itemToDelete?.recipeName === ''
-            ? `Biztosan törli a(z) "${itemToDelete?.category}" kategóriát és az összes benne lévő receptet? Ez a művelet nem vonható vissza.`
-            : `Biztosan törli a következő receptet: "${itemToDelete?.recipeName}"?`
-        }
-        isConfirming={isProcessingDelete}
-      />
+        {movingRecipe && (
+            <MoveRecipeModal
+                isOpen={!!movingRecipe}
+                onClose={() => setMovingRecipe(null)}
+                onMove={handleMoveRecipe}
+                existingCategories={categories}
+                recipeName={movingRecipe.recipe.recipeName}
+                sourceCategory={movingRecipe.fromCategory}
+            />
+        )}
+        {statusModalState && (
+            <FavoriteStatusModal
+                isOpen={!!statusModalState}
+                onClose={() => setStatusModalState(null)}
+                onSave={(ids) => {
+                    onUpdateFavoriteStatus(statusModalState.recipe.recipeName, statusModalState.category, ids);
+                    setStatusModalState(null);
+                }}
+                users={users}
+                initialFavoritedByIds={statusModalState.recipe.favoritedBy || []}
+                recipeName={statusModalState.recipe.recipeName}
+            />
+        )}
+        {actionMenuRecipe && (
+            <FavoriteActionModal
+                isOpen={!!actionMenuRecipe}
+                onClose={() => setActionMenuRecipe(null)}
+                recipe={actionMenuRecipe.recipe}
+                onView={() => {
+                    onViewRecipe(actionMenuRecipe.recipe);
+                    setActionMenuRecipe(null);
+                }}
+                onMove={() => {
+                    setMovingRecipe({ recipe: actionMenuRecipe.recipe, fromCategory: actionMenuRecipe.category });
+                    setActionMenuRecipe(null);
+                }}
+                onDelete={handleDeleteRequest}
+            />
+        )}
+        {isDeleteConfirmOpen && itemToDelete && (
+            <ConfirmationModal
+                isOpen={isDeleteConfirmOpen}
+                onClose={() => setIsDeleteConfirmOpen(false)}
+                onConfirm={handleConfirmDelete}
+                title="Recept törlése"
+                message={`Biztosan törli a(z) "${itemToDelete.recipeName}" receptet? Ez a művelet nem vonható vissza.`}
+                isConfirming={isProcessingDelete}
+            />
+        )}
     </div>
   );
 };
-
+// FIX: Added default export to fix import error in App.tsx.
 export default FavoritesView;

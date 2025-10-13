@@ -1,11 +1,4 @@
 
-
-
-
-
-
-
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -229,10 +222,12 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         setCategorizedPantry(grouped);
         // FIX: The `reduce` method was using a type-casted empty object, causing type inference issues and an 'unknown index type' error. This has been corrected by explicitly typing the accumulator in the callback, ensuring type safety.
-        setExpandedAIGroups(Object.keys(grouped).reduce((acc, key) => {
-            acc[key as keyof typeof acc] = true;
+        // FIX: Explicitly type acc and key in reduce callback to fix 'unknown' index type error.
+        // FIX: Explicitly type acc and key in reduce callback to fix 'unknown' index type error.
+        setExpandedAIGroups(Object.keys(grouped).reduce((acc: Record<string, boolean>, key: string) => {
+            acc[key] = true;
             return acc;
-        }, {} as Record<string, boolean>));
+        }, {}));
 
     } catch (e: any) {
         showNotification(e.message, 'info');
@@ -431,39 +426,43 @@ const PantryView: React.FC<PantryViewProps> = ({
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
                 onClick={onGenerateFromPantryRequest}
-                className="flex-1 bg-purple-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition"
+                className="flex-1 bg-purple-600 text-white font-semibold py-3 px-4 rounded-lg shadow-sm hover:bg-purple-700"
             >
-                Meglepetés recept a kamrából
+                Főzés a legrégebbi alapanyagokból
             </button>
             <button
-                onClick={handleGenerateFromSelected}
-                disabled={selectedItems[activeLocation].size === 0}
-                className="flex-1 bg-green-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                onClick={onMoveCheckedToPantryRequest}
+                disabled={shoppingListItems.filter(i => i.checked).length === 0}
+                className="flex-1 bg-green-600 text-white font-semibold py-3 px-4 rounded-lg shadow-sm hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-                Recept a kijelöltekből ({selectedItems[activeLocation].size})
+                Kipipáltak áthelyezése a kamrába
             </button>
         </div>
-         <button 
-            onClick={onMoveCheckedToPantryRequest}
-            disabled={shoppingListItems.filter(item => item.checked).length === 0}
-            className="w-full bg-blue-600 text-white font-semibold py-3 px-5 rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-        >
-            Kipipáltak áthelyezése a bevásárlólistáról ide
-        </button>
-      </div>
 
-       <div className="space-y-4">
+        <div className="p-4 bg-gray-50 border rounded-lg space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Szűrés név alapján..."
+                className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
+              />
+              <select 
+                value={storageFilter}
+                onChange={e => setStorageFilter(e.target.value as StorageType | 'all')}
+                className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
+              >
+                  {filterOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+          </div>
+          {filteredAndSortedPantry.length > 0 && (
              <div className="flex flex-col sm:flex-row gap-2">
                 <button
                     onClick={handleCategorize}
-                    disabled={isCategorizing || filteredAndSortedPantry.length === 0}
+                    disabled={isCategorizing}
                     className="flex-1 bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-purple-700 transition disabled:bg-gray-400 flex items-center justify-center gap-2"
                 >
-                    {isCategorizing ? (
-                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 7.373 11.627 2 5 2a1 1 0 00-1 1z" /><path d="M13 5a1 1 0 00-1-1C6.477 4 2 8.477 2 14a1 1 0 102 0c0-4.418 3.582-8 8-8a1 1 0 001-1z" /><path d="M5 9a1 1 0 011-1h2a1 1 0 110 2H6a1 1 0 01-1-1zm8 2a1 1 0 00-1 1v2a1 1 0 102 0v-2a1 1 0 00-1-1z" /></svg>
-                    )}
                     {isCategorizing ? 'Kategorizálás...' : 'AI-alapú kategorizálás'}
                 </button>
                 {categorizedPantry && (
@@ -475,85 +474,59 @@ const PantryView: React.FC<PantryViewProps> = ({
                     </button>
                 )}
             </div>
-            <div className="flex flex-wrap items-center gap-2 rounded-lg p-2 bg-gray-100">
-                <span className="text-sm font-semibold text-gray-600 mr-2">Szűrés:</span>
-                {filterOptions.map(opt => (
-                    <button
-                        key={opt.value}
-                        onClick={() => setStorageFilter(opt.value)}
-                        className={`flex-1 sm:flex-auto py-2 px-4 rounded-md font-semibold transition-colors text-sm ${storageFilter === opt.value ? 'bg-primary-600 text-white shadow' : 'bg-white text-gray-600 hover:bg-primary-50'}`}
-                    >
-                        {opt.label}
-                    </button>
-                ))}
-            </div>
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Keresés a listában..."
-              className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
-              aria-label="Keresés a kamra tételei között"
-            />
-       </div>
-      
-      {pantry[activeLocation]?.length > 0 ? (
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2 justify-between items-center">
-            <div className="flex gap-2">
-                <button onClick={handleSelectAll} className="text-sm font-semibold text-primary-600 hover:underline">Összes kijelölése</button>
-                <button onClick={handleDeselectAll} disabled={selectedItems[activeLocation].size === 0} className="text-sm font-semibold text-primary-600 hover:underline disabled:text-gray-400 disabled:cursor-not-allowed">Kijelölés törlése</button>
-            </div>
-            {PANTRY_LOCATIONS.length > 1 && (
-                <button onClick={handleMoveSelected} disabled={selectedItems[activeLocation].size === 0} className="text-sm font-semibold text-blue-600 hover:underline disabled:text-gray-400 disabled:cursor-not-allowed">
-                    Kijelöltek áthelyezése
-                </button>
-            )}
-          </div>
-          {categorizedPantry ? (
-              <div className="space-y-3">
-                {/* FIX: Explicitly type the destructured array from Object.entries to resolve type errors. */}
-                {Object.entries(categorizedPantry).map(([category, items]: [string, PantryItemWithIndex[]]) => (
-                    <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-                        <button
-                            onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
-                            className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100"
-                            aria-expanded={!!expandedAIGroups[category]}
-                        >
-                            <span className="font-bold text-primary-700">{category}</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${expandedAIGroups[category] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                        </button>
-                        {expandedAIGroups[category] && (
-                           renderItemList(items)
-                        )}
-                    </div>
-                ))}
-             </div>
-          ) : (
-            renderItemList(filteredAndSortedPantry)
           )}
-          <div className="pt-4 flex flex-col sm:flex-row gap-2 justify-end">
-            <button
-              onClick={() => {
-                if(window.confirm(`Biztosan törli a(z) "${activeLocation}" kamra teljes tartalmát?`)) {
-                  onClearAll(activeLocation);
-                }
-              }}
-              className="text-sm bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors"
-            >
-              Teljes kamra ürítése ({activeLocation})
-            </button>
+        </div>
+
+        {filteredAndSortedPantry.length > 0 && (
+          <div className="flex flex-col sm:flex-row gap-2 justify-between">
+              <div className="flex gap-2">
+                <button onClick={handleSelectAll} className="text-sm font-medium text-primary-600 hover:underline">Összes kijelölése</button>
+                <button onClick={handleDeselectAll} disabled={selectedItems[activeLocation].size === 0} className="text-sm font-medium text-primary-600 hover:underline disabled:text-gray-400 disabled:no-underline">Kijelölés törlése</button>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleMoveSelected} disabled={selectedItems[activeLocation].size === 0} className="text-sm font-medium text-blue-600 hover:underline disabled:text-gray-400 disabled:no-underline">Kijelöltek áthelyezése...</button>
+                <button onClick={handleGenerateFromSelected} disabled={selectedItems[activeLocation].size === 0} className="text-sm font-medium text-purple-600 hover:underline disabled:text-gray-400 disabled:no-underline">Főzés a kijelöltekből</button>
+              </div>
           </div>
-        </div>
-      ) : (
-        <div className="text-center py-12">
-            <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-            </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">A kamrád üres vagy a szűrő nem ad eredményt</h3>
-            <p className="mt-1 text-sm text-gray-500">Adj hozzá tételeket, vagy módosítsd a keresési/szűrési feltételeket.</p>
-        </div>
-      )}
+        )}
+
+        {categorizedPantry ? (
+          <div className="space-y-3">
+              {/* FIX: Explicitly type the destructured array from Object.entries to resolve type errors. */}
+              {Object.entries(categorizedPantry).map(([category, items]: [string, PantryItemWithIndex[]]) => (
+                  <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                      <button
+                          onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
+                          className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100"
+                          aria-expanded={!!expandedAIGroups[category]}
+                      >
+                          <span className="font-bold text-primary-700">{category}</span>
+                          <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${expandedAIGroups[category] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      </button>
+                      {expandedAIGroups[category] && (
+                          renderItemList(items)
+                      )}
+                  </div>
+              ))}
+          </div>
+        ) : (
+          filteredAndSortedPantry.length > 0 ? (
+            <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+              {renderItemList(filteredAndSortedPantry)}
+            </div>
+          ) : (
+             <p className="text-center text-gray-500 py-8">Nincs a szűrésnek megfelelő tétel a kamrában.</p>
+          )
+        )}
+      </div>
+
+      <button
+        onClick={() => onClearAll(activeLocation)}
+        disabled={(pantry[activeLocation] || []).length === 0}
+        className="w-full bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors disabled:bg-gray-300"
+      >
+        Teljes kamra ({activeLocation}) törlése
+      </button>
 
       {editingItem && (
         <EditPantryItemModal
@@ -562,7 +535,6 @@ const PantryView: React.FC<PantryViewProps> = ({
           onSave={handleEditSave}
         />
       )}
-      
       <MoveItemsModal
         isOpen={isMoveModalOpen}
         onClose={() => setIsMoveModalOpen(false)}

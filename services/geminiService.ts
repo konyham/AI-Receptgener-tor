@@ -97,8 +97,7 @@ export const generateRecipe = async (
   customMealTypes: OptionItem[],
   customCuisineOptions: OptionItem[],
   customCookingMethods: OptionItem[],
-  customCookingMethodCapacities: Record<string, number | null>,
-  t: (key: string, options?: Record<string, any>) => string
+  customCookingMethodCapacities: Record<string, number | null>
 ): Promise<Recipe> => {
   const dietLabel = DIET_OPTIONS.find((d) => d.value === diet)?.label || '';
   const mealTypeLabel =
@@ -114,39 +113,29 @@ export const generateRecipe = async (
 
   // Check if the special request is about making a component (like sausage, pasta, etc.)
   if (componentRequestKeywords.some(keyword => specialRequestLower.includes(keyword))) {
-      prompt = t('prompts.generateRecipe.componentRequest', {
-        specialRequest: specialRequest,
-        ingredients: ingredients
-      });
+      prompt = `A felhasználó egy specifikus alapanyag elkészítésére kért receptet. A kérése: "${specialRequest}". Generálj egy részletes, kezdőbarát receptet PONTOSAN erre a kérésre. A recept fókuszában az alapanyag elkészítése álljon. - A recept neve tükrözze a kérést (pl. "Házi Füstölt Kolbász"). - A leírás magyarázza el, miről szól a recept. - Add meg a hozzávalókat pontos mennyiségekkel. - Az elkészítési lépések legyenek részletesek, és egy objektumokból álló tömbként add meg őket, ahol minden objektum egy 'text' kulcsot tartalmaz a lépés leírásával. - Az adag ("servings") mezőben add meg, hogy kb. mennyi végtermék (pl. "kb. 1 kg kolbász" vagy "4 adag tészta") készül a receptből. - Ne vedd figyelembe az eredeti hozzávalókat (${ingredients}) vagy az étkezés típusát, mert a kérés felülírja azokat. - A válasz JSON formátumban legyen.`;
   } else {
     // Main recipe generation logic
     if (mode === 'leftover') {
         if (!ingredients.trim()) {
             throw new Error('A maradékokból való főzéshez kérjük, adja meg a rendelkezésre álló maradékokat.');
         }
-        prompt = t('prompts.generateRecipe.leftoverBase', {
-          mealType: mealTypeLabel,
-          ingredients: ingredients,
-          servings: numberOfServings
-        });
+        prompt = `Generálj egy ${mealTypeLabel} receptet a következő maradékok kreatív és biztonságos felhasználásával: **${ingredients}**. A cél egy teljesen új, ízletes étel létrehozása, nem csak a maradékok egyszerű felmelegítése. A recept pontosan ${numberOfServings} személyre szóljon.`;
         if (useSeasonalIngredients) {
-            prompt += t('prompts.generateRecipe.seasonalLeftover');
+            prompt += ` Egészítsd ki a receptet friss, helyi, idényjellegű (szezonális) hozzávalókkal, hogy az étel még ízletesebb és teljesebb legyen.`;
         }
-        prompt += t('prompts.generateRecipe.leftoverSafety');
+        prompt += ` FONTOS: Az instrukciókban kiemelten kezeld az élelmiszerbiztonságot. Ha főtt húst vagy más kényes alapanyagot tartalmaz a lista, az instrukcióknak tartalmazniuk kell az alapos, gőzölgőre hevítésre vonatkozó utasítást (legalább 75°C belső hőmérséklet). Különböző maradékok (pl. nyers zöldség és főtt hús) kombinálásakor írd le a helyes sorrendet a keresztszennyeződés elkerülése érdekében. A recept legyen logikus és a megadott maradékokhoz illeszkedő.`;
 
     } else { // Standard mode
-        prompt = t('prompts.generateRecipe.standardBase', {
-          mealType: mealTypeLabel,
-          servings: numberOfServings
-        });
+        prompt = `Generálj egy ${mealTypeLabel} receptet, ami pontosan ${numberOfServings} személyre szól.`;
 
         if (ingredients.trim()) {
-            prompt += t('prompts.generateRecipe.standardWithIngredients', { ingredients });
+            prompt += ` A recept a következő alapanyagokból készüljön: ${ingredients}.`;
         } else {
-            prompt += t('prompts.generateRecipe.standardSurprise');
+            prompt += ` Válassz 3 véletlenszerű, gyakori háztartási alapanyagot, és készíts belőlük egy receptet. A recept leírásában említsd meg, hogy melyik 3 alapanyagot választottad. Fontos: bár a hozzávalók meglepetések, a receptnek minden más megadott feltételnek (diéta, elkészítési mód, személyek száma, különleges kérés) szigorúan meg kell felelnie.`;
         }
         if (useSeasonalIngredients) {
-            prompt += t('prompts.generateRecipe.seasonal');
+            prompt += ` Különös figyelmet fordíts arra, hogy a recept lehetőség szerint friss, helyi és idényjellegű (szezonális) alapanyagokat használjon. Ha a felhasználó adott meg alapanyagokat, egészítsd ki azokat szezonális összetevőkkel, ha pedig nem, akkor a receptet szezonális alapanyagokra építsd.`;
         }
     }
 
@@ -159,43 +148,43 @@ export const generateRecipe = async (
         if (capacities.length > 0) {
             const minCapacityDevice = capacities.reduce((min, current) => (current.capacity! < min.capacity! ? current : min), capacities[0]);
             if (numberOfServings > minCapacityDevice.capacity!) {
-                prompt += t('prompts.generateRecipe.capacityWarning', {
-                  deviceName: minCapacityDevice.name,
-                  capacity: minCapacityDevice.capacity,
-                  servings: numberOfServings
-                });
+                prompt += ` A kiválasztott elkészítési módok közül ('${minCapacityDevice.name}') maximum kapacitása kb. ${minCapacityDevice.capacity} fő. Ha a ${numberOfServings} fős adag meghaladja ezt, az instrukciókban adj egyértelmű útmutatást a több részletben való főzésre, vagy javasolj alternatívát.`;
             }
         }
     }
     
     if (excludedIngredients.trim()) {
-      prompt += t('prompts.generateRecipe.exclusions', { excludedIngredients });
+      prompt += ` FONTOS KIKÖTÉS: A recept SOHA NE TARTALMAZZA a következőket, még nyomokban sem: ${excludedIngredients}. Vedd figyelembe az esetleges allergiákat vagy intoleranciákat (pl. ha a felhasználó a laktózt írja, akkor ne használj tejet, vajat, sajtot stb.). Ez a kizárás egy elsődleges utasítás, amit szigorúan be kell tartani, még akkor is, ha ellentmondani látszik a többi kérésnek. Konfliktus esetén (pl. kolbászkészítés kérése sertéshús kizárásával) a feladatod a kreatív megoldás: keress egy megfelelő, nem kizárt alternatívát (pl. marhakolbász, csirkekolbász). A recept semmilyen körülmények között nem tartalmazhatja a kizárt összetevőket.`;
     }
     
-    prompt += t('prompts.generateRecipe.cookingMethods', { methods: cookingMethodLabels.join(' and ') });
+    if (cookingMethodLabels.length > 0) {
+        prompt += ` A recept elkészítési módja legyen: ${cookingMethodLabels.join(' and ')}. Ha több gép is meg van adva, a recept logikusan használja őket (pl. az alap elkészítése az egyikben, a befejezés a másikban).`;
+    } else {
+        prompt += ` A recept elkészítési módja hagyományos legyen (tűzhelyen vagy sütőben elkészíthető). Ne javasolj speciális konyhai gépet.`;
+    }
     
     if (diet !== DietOption.NONE && dietLabel) {
-      prompt += t('prompts.generateRecipe.diet', { diet: dietLabel });
+      prompt += ` A recept feleljen meg a következő diétás előírásnak: ${dietLabel}.`;
     }
     if (cuisine !== CuisineOption.NONE && cuisineLabel) {
-        prompt += t('prompts.generateRecipe.cuisine', { cuisine: cuisineLabel });
+        prompt += ` A recept stílusa legyen: ${cuisineLabel}.`;
     }
     if (specialRequest.trim()) {
-      prompt += t('prompts.generateRecipe.specialRequest', { specialRequest: specialRequest.trim() });
+      prompt += ` A receptnek a következő különleges kérésnek is meg kell felelnie: ${specialRequest.trim()}.`;
     }
 
     if (recipePace === RecipePace.QUICK) {
-      prompt += t('prompts.generateRecipe.paceQuick');
+      prompt += ` Különös hangsúlyt fektess arra, hogy a recept a lehető leggyorsabban elkészíthető legyen (alacsony előkészítési és főzési idő).`;
     } else if (recipePace === RecipePace.SIMPLE) {
-      prompt += t('prompts.generateRecipe.paceSimple');
+      prompt += ` A recept a lehető legkevesebb hozzávalóból álljon, és az elkészítése legyen rendkívül egyszerű.`;
     }
 
     if (diet === DietOption.DIABETIC) {
-      prompt += t('prompts.generateRecipe.diabeticInfo');
+      prompt += ` Mivel a recept cukorbeteg diétához készül, adj meg egy becsült tápértékadatokat is 100 grammra vetítve: kalória, szénhidrát, fehérje, zsír. Továbbá, add meg a recept becsült glikémiás indexét (Alacsony, Közepes, vagy Magas). Végül, adj egy rövid, hasznos tanácsot cukorbetegeknek a recepthez kapcsolódóan.`;
     }
 
     if (withCost) {
-      prompt += t('prompts.generateRecipe.withCost');
+      prompt += ` Adj egy becsült teljes költséget a recepthez forintban (Ft).`;
     }
   }
 
@@ -492,6 +481,9 @@ ABSOLUTE MANDATORY RULES:
     return response.generatedImages[0].image.imageBytes;
   } catch (e: any) {
     console.error('Error generating recipe image:', e);
+    if (e && e.message && (e.message.includes('429') || e.message.toLowerCase().includes('quota'))) {
+        throw new Error('Elérte a percenkénti kép-generálási korlátot. Kérjük, várjon egy percet, majd próbálja újra.');
+    }
     throw new Error('Hiba történt az ételfotó generálása közben.');
   }
 };
@@ -634,6 +626,9 @@ ABSOLUTE MANDATORY RULES:
     return response.generatedImages[0].image.imageBytes;
   } catch (e: any) {
     console.error('Error generating instruction image:', e);
+    if (e && e.message && (e.message.includes('429') || e.message.toLowerCase().includes('quota'))) {
+        throw new Error('Elérte a percenkénti kép-generálási korlátot. Kérjük, várjon egy percet, majd próbálja újra.');
+    }
     throw new Error('Hiba történt az illusztráció generálása közben.');
   }
 };

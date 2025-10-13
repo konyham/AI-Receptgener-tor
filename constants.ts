@@ -54,28 +54,10 @@ export const CUISINE_OPTIONS: { value: CuisineOption; label: string }[] = [
 
 export const COOKING_METHODS: { value: CookingMethod; label: string }[] = [
   { value: CookingMethod.TRADITIONAL, label: 'Hagyományos' },
-  { value: CookingMethod.SMART_COOKER, label: 'Westinghouse WKCPPC100 okoskukta (angolmenüs)' },
-  { value: CookingMethod.THERMOMIXER, label: 'Monsieur Cuisine Connect termomixer' },
-  { value: CookingMethod.THERMOMIXER_PLUS, label: 'Monsieur Cuisine Plus termomixer' },
-  { value: CookingMethod.CUCKOO_RICE_COOKER, label: 'CUCKOO CRP-M1001SK okos rizsfőző (kínai menüs)' },
-  { value: CookingMethod.CROCK_POT_SLOW_COOKER, label: 'CROCK-POT SCCPRC507B-60 lassúfőző' },
-  { value: CookingMethod.UNOLD_ICE_CREAM_MAKER, label: 'Unold 48808 fagylaltgép (német menüs)' },
-  { value: CookingMethod.REDMOND_SMART_COOKER, label: 'REDMOND RMC-M70 okosfőző (orosz menüs)' },
-  { value: CookingMethod.GARDEN_GRILL, label: 'Kerti grill' },
-  { value: CookingMethod.BOGRACS, label: 'Bogrács' },
 ];
 
 export const COOKING_METHOD_CAPACITIES: Record<string, number | null> = {
   [CookingMethod.TRADITIONAL]: null, // Nincs gyakorlati korlát
-  [CookingMethod.SMART_COOKER]: 8,
-  [CookingMethod.THERMOMIXER]: 6,
-  [CookingMethod.THERMOMIXER_PLUS]: 6,
-  [CookingMethod.CUCKOO_RICE_COOKER]: 6,
-  [CookingMethod.CROCK_POT_SLOW_COOKER]: 6,
-  [CookingMethod.UNOLD_ICE_CREAM_MAKER]: 8,
-  [CookingMethod.REDMOND_SMART_COOKER]: 10,
-  [CookingMethod.GARDEN_GRILL]: null,
-  [CookingMethod.BOGRACS]: null,
 };
 
 export const RECIPE_PACE_OPTIONS: { value: RecipePace; label: string; description: string }[] = [

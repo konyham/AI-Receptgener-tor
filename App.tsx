@@ -11,6 +11,7 @@ import AppVoiceControl from './components/AppVoiceControl';
 // FIX: The imported module was missing a default export. This has been fixed in the component file.
 import LocationPromptModal from './components/LocationPromptModal';
 import LoadOnStartModal from './components/LoadOnStartModal';
+import OptionsEditPanel from './components/OptionsEditPanel';
 import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
@@ -18,7 +19,6 @@ import * as pantryService from './services/pantryService';
 import * as userService from './services/userService';
 import { useNotification } from './contexts/NotificationContext';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
-import { useTranslation } from './hooks/useTranslation';
 import {
   Recipe,
   DietOption,
@@ -57,6 +57,7 @@ import { safeSetLocalStorage } from './utils/storage';
 import { konyhaMikiLogo } from './assets';
 import * as imageStore from './services/imageStore';
 import DataManagementControls from './components/DataManagementControls';
+import { reorderList as reorderShoppingList } from './services/shoppingListService';
 
 const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
     try {
@@ -73,7 +74,6 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 
 
 const App: React.FC = () => {
-  const { t, language, setLanguage } = useTranslation();
   const [view, setView] = useState<AppView>('generator');
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -102,11 +102,14 @@ const App: React.FC = () => {
   const [mealTypes, setMealTypes] = useState<OptionItem[]>(() => loadFromLocalStorage(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES));
   const [cuisineOptions, setCuisineOptions] = useState<OptionItem[]>(() => loadFromLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, CUISINE_OPTIONS));
   const [cookingMethodsList, setCookingMethodsList] = useState<OptionItem[]>(() => loadFromLocalStorage(COOKING_METHODS_STORAGE_KEY, COOKING_METHODS));
+  // FIX: Corrected typo in the constant name for the storage key.
   const [cookingMethodCapacities, setCookingMethodCapacities] = useState<Record<string, number | null>>(() => loadFromLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, COOKING_METHOD_CAPACITIES));
   
   const [orderedMealTypes, setOrderedMealTypes] = useState<OptionItem[]>([]);
   const [orderedCookingMethods, setOrderedCookingMethods] = useState<OptionItem[]>([]);
   const [orderedCuisineOptions, setOrderedCuisineOptions] = useState<OptionItem[]>([]);
+
+  const [isOptionsEditorOpen, setIsOptionsEditorOpen] = useState(false);
 
 
   const { showNotification } = useNotification();
@@ -114,9 +117,9 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    document.documentElement.lang = language;
-    document.title = t('app.documentTitle');
-  }, [language, t]);
+    document.documentElement.lang = 'hu';
+    document.title = 'AI recept generátor - Konyha Miki módra';
+  }, []);
 
   const loadData = useCallback(() => {
     try {
@@ -193,23 +196,6 @@ const App: React.FC = () => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, []);
-
-    // Effect to re-translate option labels when language changes
-    useEffect(() => {
-        const retranslate = (options: OptionItem[], prefix: string): OptionItem[] => {
-            return options.map(item => {
-                // Custom items are not translated, their label is their definition
-                if (item.value.startsWith('custom_')) {
-                    return item;
-                }
-                return { ...item, label: t(`${prefix}.${item.value}`) };
-            });
-        };
-
-        setMealTypes(prev => retranslate(prev, 'options.mealTypes'));
-        setCuisineOptions(prev => retranslate(prev, 'options.cuisineOptions'));
-        setCookingMethodsList(prev => retranslate(prev, 'options.cookingMethods'));
-    }, [language, t]);
 
 
   // Effects to sync ordered lists (lifted from RecipeInputForm)
@@ -294,8 +280,7 @@ const App: React.FC = () => {
         mealTypes,
         cuisineOptions,
         cookingMethodsList,
-        cookingMethodCapacities,
-        t
+        cookingMethodCapacities
       );
       setRecipe(generatedRecipe);
       setShouldGenerateImage(params.withImage);
@@ -500,6 +485,11 @@ const App: React.FC = () => {
   const handleClearAllShoppingList = () => {
     setShoppingList(shoppingListService.clearAll());
   };
+
+  const handleReorderShoppingList = (reorderedList: ShoppingListItem[]) => {
+    setShoppingList(reorderShoppingList(reorderedList));
+    showNotification('Bevásárlólista sorrendje frissítve.', 'success');
+  };
   
   // Pantry handlers
   const handleAddItemsToPantry = (items: string[], location: PantryLocation, date: string | null, storageType: StorageType) => {
@@ -629,7 +619,7 @@ const App: React.FC = () => {
         diet: DietOption.DIABETIC,
         mealType: MealType.LUNCH,
         cuisine: CuisineOption.NONE,
-        cookingMethods: [CookingMethod.TRADITIONAL],
+        cookingMethods: [],
         specialRequest: 'Készíts egy finom ételt a kamrában legrégebben tárolt alapanyagokból.',
         withCost: false,
         withImage: false,
@@ -662,7 +652,7 @@ const App: React.FC = () => {
         diet: DietOption.DIABETIC,
         mealType: MealType.LUNCH,
         cuisine: CuisineOption.NONE,
-        cookingMethods: [CookingMethod.TRADITIONAL],
+        cookingMethods: [],
         specialRequest: 'Készíts egy finom ételt a kamrából kiválasztott alapanyagokból.',
         withCost: false,
         withImage: false,
@@ -706,6 +696,31 @@ const App: React.FC = () => {
             showNotification('Felhasználó törölve.', 'success');
         }
     };
+
+  const handleSaveOptions = (
+      newMealTypes: OptionItem[],
+      newCuisines: OptionItem[],
+      newMethods: OptionItem[],
+      newCapacities: Record<string, number | null>
+  ) => {
+      setMealTypes(newMealTypes);
+      safeSetLocalStorage(MEAL_TYPES_STORAGE_KEY, newMealTypes);
+      safeSetLocalStorage(MEAL_TYPES_ORDER_KEY, newMealTypes.map(o => o.value));
+
+      setCuisineOptions(newCuisines);
+      safeSetLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, newCuisines);
+      safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, newCuisines.map(o => o.value));
+
+      setCookingMethodsList(newMethods);
+      safeSetLocalStorage(COOKING_METHODS_STORAGE_KEY, newMethods);
+      safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, newMethods.map(o => o.value));
+
+      setCookingMethodCapacities(newCapacities);
+      safeSetLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, newCapacities);
+      
+      showNotification('A beállítások sikeresen mentve.', 'success');
+      setIsOptionsEditorOpen(false);
+  };
 
 
   // Import/Export
@@ -782,15 +797,15 @@ const App: React.FC = () => {
       // Handle custom options import with MERGE logic
       let optionsMessage = '';
       if (data.mealTypes && Array.isArray(data.mealTypes)) {
-          const optionMap = new Map(mealTypes.map(opt => [opt.value, opt]));
-          (data.mealTypes as OptionItem[]).forEach(opt => optionMap.set(opt.value, opt));
+          const optionMap = new Map<string, OptionItem>();
+          mealTypes.forEach(opt => optionMap.set(opt.label.toLowerCase().trim(), opt));
+          (data.mealTypes as OptionItem[]).forEach(opt => optionMap.set(opt.label.toLowerCase().trim(), opt));
           const mergedOptions = Array.from(optionMap.values());
 
           setMealTypes(mergedOptions);
           safeSetLocalStorage(MEAL_TYPES_STORAGE_KEY, mergedOptions);
           if (data.mealTypesOrder) {
               const importedOrderSet = new Set(data.mealTypesOrder);
-              // FIX: Explicitly type `opt` as `OptionItem` to resolve error when accessing `opt.value`.
               const newItems = mergedOptions.filter((opt: OptionItem) => !importedOrderSet.has(opt.value)).map((opt: OptionItem) => opt.value);
               const finalOrder = [...data.mealTypesOrder, ...newItems];
               safeSetLocalStorage(MEAL_TYPES_ORDER_KEY, finalOrder);
@@ -798,15 +813,15 @@ const App: React.FC = () => {
           optionsMessage += ' Étkezés típusok,';
       }
       if (data.cuisineOptions && Array.isArray(data.cuisineOptions)) {
-          const optionMap = new Map(cuisineOptions.map(opt => [opt.value, opt]));
-          (data.cuisineOptions as OptionItem[]).forEach(opt => optionMap.set(opt.value, opt));
+          const optionMap = new Map<string, OptionItem>();
+          cuisineOptions.forEach(opt => optionMap.set(opt.label.toLowerCase().trim(), opt));
+          (data.cuisineOptions as OptionItem[]).forEach(opt => optionMap.set(opt.label.toLowerCase().trim(), opt));
           const mergedOptions = Array.from(optionMap.values());
 
           setCuisineOptions(mergedOptions);
           safeSetLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, mergedOptions);
           if (data.cuisineOptionsOrder) {
               const importedOrderSet = new Set(data.cuisineOptionsOrder);
-              // FIX: Explicitly type `opt` as `OptionItem` to resolve error when accessing `opt.value`.
               const newItems = mergedOptions.filter((opt: OptionItem) => !importedOrderSet.has(opt.value)).map((opt: OptionItem) => opt.value);
               const finalOrder = [...data.cuisineOptionsOrder, ...newItems];
               safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, finalOrder);
@@ -814,21 +829,27 @@ const App: React.FC = () => {
           optionsMessage += ' konyhák,';
       }
       if (data.cookingMethods && Array.isArray(data.cookingMethods)) {
-          const optionMap = new Map(cookingMethodsList.map(opt => [opt.value, opt]));
-          (data.cookingMethods as OptionItem[]).forEach(opt => optionMap.set(opt.value, opt));
+          const optionMap = new Map<string, OptionItem>();
+          cookingMethodsList.forEach(opt => optionMap.set(opt.label.toLowerCase().trim(), opt));
+          (data.cookingMethods as OptionItem[]).forEach(opt => optionMap.set(opt.label.toLowerCase().trim(), opt));
           const mergedOptions = Array.from(optionMap.values());
           
           setCookingMethodsList(mergedOptions);
           safeSetLocalStorage(COOKING_METHODS_STORAGE_KEY, mergedOptions);
 
-          if (data.cookingMethodCapacities) {
-              const mergedCaps = { ...cookingMethodCapacities, ...data.cookingMethodCapacities };
-              setCookingMethodCapacities(mergedCaps);
-              safeSetLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, mergedCaps);
+          if (data.cookingMethodCapacities || Object.keys(cookingMethodCapacities).length > 0) {
+              const allCaps = { ...cookingMethodCapacities, ...(data.cookingMethodCapacities || {}) };
+              const newCaps: Record<string, number | null> = {};
+              mergedOptions.forEach(opt => {
+                  if (allCaps.hasOwnProperty(opt.value)) {
+                      newCaps[opt.value] = allCaps[opt.value];
+                  }
+              });
+              setCookingMethodCapacities(newCaps);
+              safeSetLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, newCaps);
           }
           if (data.cookingMethodsOrder) {
               const importedOrderSet = new Set(data.cookingMethodsOrder);
-              // FIX: Explicitly type `opt` as `OptionItem` to resolve error when accessing `opt.value`.
               const newItems = mergedOptions.filter((opt: OptionItem) => !importedOrderSet.has(opt.value)).map((opt: OptionItem) => opt.value);
               const finalOrder = [...data.cookingMethodsOrder, ...newItems];
               safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, finalOrder);
@@ -1064,6 +1085,7 @@ const App: React.FC = () => {
             onClearChecked={handleClearCheckedShoppingList}
             onClearAll={handleClearAllShoppingList}
             onMoveItemToPantryRequest={handleMoveShoppingListItemToPantryRequest}
+            onReorder={handleReorderShoppingList}
           />
         );
       case 'pantry':
@@ -1093,8 +1115,8 @@ const App: React.FC = () => {
       default:
         return (
           <>
-            <h1 className="text-3xl font-bold text-center text-primary-800">{t('app.title')}</h1>
-            <p className="text-center text-gray-600 mb-6">{t('app.subtitle')}</p>
+            <h1 className="text-3xl font-bold text-center text-primary-800">Konyha Miki, az Ön mesterséges intelligencia konyhafőnöke</h1>
+            <p className="text-center text-gray-600 mb-6">Mondja el, miből főzne, és én segítek!</p>
             {isLoading && <LoadingSpinner />}
             {error && <ErrorMessage message={error} />}
             {!isLoading && !error && (
@@ -1106,19 +1128,13 @@ const App: React.FC = () => {
                 suggestions={recipeSuggestions}
                 users={users}
                 mealTypes={mealTypes}
-                setMealTypes={setMealTypes}
                 cuisineOptions={cuisineOptions}
-                setCuisineOptions={setCuisineOptions}
                 cookingMethodsList={cookingMethodsList}
-                setCookingMethodsList={setCookingMethodsList}
                 cookingMethodCapacities={cookingMethodCapacities}
-                setCookingMethodCapacities={setCookingMethodCapacities}
                 orderedMealTypes={orderedMealTypes}
-                setOrderedMealTypes={setOrderedMealTypes}
                 orderedCookingMethods={orderedCookingMethods}
-                setOrderedCookingMethods={setOrderedCookingMethods}
                 orderedCuisineOptions={orderedCuisineOptions}
-                setOrderedCuisineOptions={setOrderedCuisineOptions}
+                onOpenOptionsEditor={() => setIsOptionsEditorOpen(true)}
               />
             )}
           </>
@@ -1127,11 +1143,11 @@ const App: React.FC = () => {
   };
 
   const navItems: { id: AppView; label: string }[] = [
-    { id: 'generator', label: t('nav.generator') },
-    { id: 'favorites', label: t('nav.favorites') },
-    { id: 'pantry', label: t('nav.pantry') },
-    { id: 'shopping-list', label: t('nav.shoppingList') },
-    { id: 'users', label: t('nav.users') },
+    { id: 'generator', label: 'Receptgenerátor' },
+    { id: 'favorites', label: 'Mentett Receptek' },
+    { id: 'pantry', label: 'Kamra' },
+    { id: 'shopping-list', label: 'Bevásárlólista' },
+    { id: 'users', label: 'Felhasználók' },
   ];
 
   return (
@@ -1141,50 +1157,50 @@ const App: React.FC = () => {
           <div className="flex items-center gap-3">
              <img src={konyhaMikiLogo} alt="Konyha Miki Logó" className="h-12" />
           </div>
-           <div className="flex items-center gap-4">
-            <button onClick={() => setLanguage('hu')} className={`text-sm font-semibold ${language === 'hu' ? 'text-primary-700 underline' : 'text-gray-500 hover:text-primary-600'}`}>Magyar</button>
-            <button onClick={() => setLanguage('en')} className={`text-sm font-semibold ${language === 'en' ? 'text-primary-700 underline' : 'text-gray-500 hover:text-primary-600'}`}>English</button>
-          </div>
         </div>
       </header>
       
       <main className="container mx-auto p-4 md:p-6">
-          <DataManagementControls
-            onExport={handleExport}
-            onImportClick={handleImportClick}
-            onFileChange={handleFileChange}
-            fileInputRef={fileInputRef}
-            hasAnyData={hasAnyData}
-          />
-          <nav className="mb-6">
-              <ul className="flex flex-wrap border-b border-gray-200">
-                  {navItems.map(item => (
-                      <li key={item.id} className="-mb-px mr-1">
-                          <button
-                              onClick={() => {
-                                setView(item.id);
-                              }}
-                              className={`inline-block py-3 px-4 font-semibold rounded-t-lg transition-colors text-sm sm:text-base ${
-                                  view === item.id 
-                                  ? 'border-l border-t border-r border-gray-200 bg-white text-primary-600'
-                                  : 'text-gray-500 hover:text-primary-600 hover:bg-gray-100'
-                              }`}
-                          >
-                              {item.label}
-                          </button>
-                      </li>
-                  ))}
-              </ul>
-          </nav>
-        
-        <AppVoiceControl
-            isSupported={isSupported}
-            isListening={isListening}
-            isProcessing={isProcessingVoiceCommandRef.current}
-            onClick={() => isListening ? stopListening() : startListening()}
-            permissionState={permissionState as any} // Cast because our enum is more specific
-            isRateLimited={false} // This feature is not implemented for app-wide control yet
-        />
+          <div>
+            <DataManagementControls
+              onExport={handleExport}
+              onImportClick={handleImportClick}
+              onFileChange={handleFileChange}
+              fileInputRef={fileInputRef}
+              hasAnyData={hasAnyData}
+            />
+            <nav className="mb-6">
+                <ul className="flex flex-wrap border-b border-gray-200">
+                    {navItems.map(item => (
+                        <li key={item.id} className="-mb-px mr-1">
+                            <button
+                                onClick={() => {
+                                  setView(item.id);
+                                }}
+                                className={`inline-block py-3 px-4 font-semibold rounded-t-lg transition-colors text-sm sm:text-base ${
+                                    view === item.id 
+                                    ? 'border-l border-t border-r border-gray-200 bg-white text-primary-600'
+                                    : 'text-gray-500 hover:text-primary-600 hover:bg-gray-100'
+                                }`}
+                            >
+                                {item.label}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            </nav>
+          
+            <div>
+              <AppVoiceControl
+                  isSupported={isSupported}
+                  isListening={isListening}
+                  isProcessing={isProcessingVoiceCommandRef.current}
+                  onClick={() => isListening ? stopListening() : startListening()}
+                  permissionState={permissionState as any} // Cast because our enum is more specific
+                  isRateLimited={false} // This feature is not implemented for app-wide control yet
+              />
+            </div>
+          </div>
         
         <div className="bg-white p-4 md:p-8 rounded-lg shadow-lg">
           {renderView()}
@@ -1192,7 +1208,7 @@ const App: React.FC = () => {
       </main>
       
       <footer className="text-center py-6 text-sm text-gray-500">
-          <p>{t('app.footer', { year: new Date().getFullYear() })}</p>
+          <p>{`© ${new Date().getFullYear()} Konyha Miki. Minden jog fenntartva.`}</p>
       </footer>
       <LocationPromptModal
         isOpen={isLocationPromptOpen}
@@ -1206,6 +1222,15 @@ const App: React.FC = () => {
         isOpen={isLoadOnStartModalOpen}
         onClose={() => setIsLoadOnStartModalOpen(false)}
         onLoad={handleImportClick}
+      />
+      <OptionsEditPanel
+        isOpen={isOptionsEditorOpen}
+        onClose={() => setIsOptionsEditorOpen(false)}
+        onSave={handleSaveOptions}
+        initialMealTypes={orderedMealTypes}
+        initialCuisineOptions={orderedCuisineOptions}
+        initialCookingMethods={orderedCookingMethods}
+        initialCapacities={cookingMethodCapacities}
       />
     </div>
   );

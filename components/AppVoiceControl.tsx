@@ -1,5 +1,4 @@
 import React from 'react';
-import { useTranslation } from '../hooks/useTranslation';
 
 type PermissionState = 'prompt' | 'granted' | 'denied' | 'checking';
 
@@ -20,18 +19,17 @@ const AppVoiceControl: React.FC<AppVoiceControlProps> = ({
   permissionState,
   isRateLimited,
 }) => {
-  const { t } = useTranslation();
   if (!isSupported) {
     return null;
   }
 
-  let statusText = t('voiceControl.appTitle');
-  if (isRateLimited) statusText = t('voiceControl.rateLimit');
-  else if (isProcessing) statusText = t('voiceControl.processing');
-  else if (isListening) statusText = t('voiceControl.listening');
+  let statusText = 'Alkalmazás hangvezérlése';
+  if (isRateLimited) statusText = 'Pihenés... (15s)';
+  else if (isProcessing) statusText = 'Értelmezés...';
+  else if (isListening) statusText = 'Hallgatom...';
 
   if (permissionState === 'denied') {
-    statusText = t('voiceControl.micDisabled');
+    statusText = 'Mikrofon letiltva';
   }
 
   return (
@@ -47,7 +45,7 @@ const AppVoiceControl: React.FC<AppVoiceControlProps> = ({
             ? 'bg-yellow-50 border-yellow-300 cursor-not-allowed'
             : 'bg-primary-100 border-primary-200 hover:bg-primary-200'
         }`}
-        aria-label={t('voiceControl.appTitle')}
+        aria-label="Alkalmazás hangvezérlése"
       >
         <div className="flex justify-center items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${permissionState === 'denied' ? 'text-red-500' : (isListening && !isProcessing ? 'text-red-500 animate-pulse' : 'text-primary-700')}`} viewBox="0 0 20 20" fill="currentColor">
@@ -65,10 +63,10 @@ const AppVoiceControl: React.FC<AppVoiceControlProps> = ({
             </p>
         </div>
         {permissionState === 'denied' ? (
-             <p className="text-sm mt-1 text-red-700">{t('voiceControl.micDisabledHint')}</p>
+             <p className="text-sm mt-1 text-red-700">A hangvezérléshez engedélyezze a mikrofon használatát a böngésző címsorában.</p>
         ) : (
              <p className="text-sm mt-1 text-primary-600">
-                {isRateLimited ? t('voiceControl.rateLimitHint') : t('voiceControl.appHint')}
+                {isRateLimited ? 'Túl sok kérés történt, a funkció átmenetileg szünetel.' : 'Parancsok: "Menj a...", "Adj hozzá...", "Szűrj a..."'}
             </p>
         )}
       </button>

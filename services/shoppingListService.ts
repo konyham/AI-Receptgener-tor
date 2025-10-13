@@ -140,3 +140,8 @@ export const clearChecked = (): ShoppingListItem[] => {
     saveShoppingList(updatedList);
     return updatedList;
 }
+
+export const reorderList = (list: ShoppingListItem[]): ShoppingListItem[] => {
+    saveShoppingList(list);
+    return list;
+};

@@ -1,11 +1,9 @@
-const CACHE_NAME = 'konyha-miki-cache-v1';
+const CACHE_NAME = 'konyha-miki-cache-v2';
 const urlsToCache = [
   '/',
   '/index.html',
   '/index.tsx',
   '/manifest.json',
-  '/locales/hu.json',
-  '/locales/en.json',
   // CDNs from importmap
   'https://cdn.tailwindcss.com',
   'https://aistudiocdn.com/react@^19.2.0',

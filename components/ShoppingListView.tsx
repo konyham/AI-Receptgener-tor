@@ -1,11 +1,3 @@
-
-
-
-
-
-
-
-
 import React, { useState, useRef } from 'react';
 import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation, StorageType, UserProfile, OptionItem } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -21,6 +13,7 @@ interface ShoppingListViewProps {
   onClearChecked: () => void;
   onClearAll: () => void;
   onMoveItemToPantryRequest: (index: number, itemText: string, storageType: StorageType) => void;
+  onReorder: (reorderedList: ShoppingListItem[]) => void;
 }
 
 const ShoppingListView: React.FC<ShoppingListViewProps> = ({
@@ -31,15 +24,19 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   onClearChecked,
   onClearAll,
   onMoveItemToPantryRequest,
+  onReorder,
 }) => {
   const [newItem, setNewItem] = useState('');
   const [actionItem, setActionItem] = useState<{ item: ShoppingListItem; index: number } | null>(null);
   const { showNotification } = useNotification();
   
-  // State for AI categorization
   const [isCategorizing, setIsCategorizing] = useState(false);
   const [categorizedList, setCategorizedList] = useState<Record<string, ShoppingListItem[]> | null>(null);
   const [expandedAIGroups, setExpandedAIGroups] = useState<Record<string, boolean>>({});
+
+  const [editingItem, setEditingItem] = useState<{ index: number; text: string } | null>(null);
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
 
 
   const handleAddItem = (e: React.FormEvent) => {
@@ -49,18 +46,59 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
       if (itemsToAdd.length > 0) {
         onAddItems(itemsToAdd);
         setNewItem('');
-        setCategorizedList(null); // Invalidate categorization when new items are added
+        setCategorizedList(null); 
       }
     }
   };
 
-  const handleToggleCheck = (index: number, originalItem: ShoppingListItem) => {
-    // Find the original index in the main list
-    const originalIndex = list.findIndex(item => item.text === originalItem.text);
+  const handleToggleCheck = (originalIndex: number) => {
     if (originalIndex !== -1) {
         const item = list[originalIndex];
         onUpdateItem(originalIndex, { ...item, checked: !item.checked });
     }
+  };
+
+  const handleEditStart = (originalIndex: number) => {
+    if (categorizedList) {
+        showNotification('A szerkesztés csak a nem kategorizált nézetben lehetséges.', 'info');
+        return;
+    }
+    setEditingItem({ index: originalIndex, text: list[originalIndex].text });
+  };
+  
+  const handleEditSave = () => {
+      if (!editingItem) return;
+      const originalItem = list[editingItem.index];
+      const newText = editingItem.text.trim();
+      if (newText && newText !== originalItem.text) {
+          onUpdateItem(editingItem.index, { ...originalItem, text: newText });
+      }
+      setEditingItem(null);
+  };
+  
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+          handleEditSave();
+      } else if (e.key === 'Escape') {
+          setEditingItem(null);
+      }
+  };
+
+  const handleDragSort = () => {
+    if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
+        dragItem.current = null;
+        dragOverItem.current = null;
+        return;
+    };
+
+    const reorderedList = [...list];
+    const draggedItemContent = reorderedList.splice(dragItem.current, 1)[0];
+    reorderedList.splice(dragOverItem.current, 0, draggedItemContent);
+    
+    dragItem.current = null;
+    dragOverItem.current = null;
+    onReorder(reorderedList);
+    setCategorizedList(null); 
   };
   
   const handleItemAction = (action: StorageType | 'delete') => {
@@ -106,6 +144,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   const handleCategorize = async () => {
     if (isCategorizing || list.length === 0) return;
     setIsCategorizing(true);
+    setEditingItem(null); // Close any open editor
     try {
         const uncheckedItems = list.filter(item => !item.checked);
         const ingredientTexts = uncheckedItems.map(item => item.text);
@@ -132,12 +171,10 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         }
 
         setCategorizedList(grouped);
-        // Expand all categories by default
-        // FIX: The `reduce` method was using a type-casted empty object as an initial value, which can lead to incorrect type inference for the accumulator. This has been corrected by explicitly typing the accumulator in the callback, ensuring type safety.
-        setExpandedAIGroups(Object.keys(grouped).reduce((acc: Record<string, boolean>, key) => {
+        setExpandedAIGroups(Object.keys(grouped).reduce((acc: Record<string, boolean>, key: string) => {
             acc[key] = true;
             return acc;
-        }, {} as Record<string, boolean>));
+        }, {}));
 
     } catch (e: any) {
         showNotification(e.message, 'info');
@@ -148,6 +185,54 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
 
   const checkedCount = list.filter(item => item.checked).length;
   
+  const renderListItem = (item: ShoppingListItem, originalIndex: number) => (
+    <li
+      key={`${item.text}-${originalIndex}`}
+      draggable={!categorizedList}
+      onDragStart={!categorizedList ? () => (dragItem.current = originalIndex) : undefined}
+      onDragEnter={!categorizedList ? () => (dragOverItem.current = originalIndex) : undefined}
+      onDragEnd={handleDragSort}
+      onDragOver={!categorizedList ? (e) => e.preventDefault() : undefined}
+      className={`flex items-center justify-between p-3 gap-2 transition-shadow ${!categorizedList ? 'cursor-grab' : ''} ${dragItem.current === originalIndex ? 'shadow-lg' : ''}`}
+    >
+      <label className="flex items-center gap-3 cursor-pointer flex-grow min-w-0">
+        <input
+          type="checkbox"
+          checked={item.checked}
+          onChange={() => handleToggleCheck(originalIndex)}
+          className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 flex-shrink-0"
+        />
+        {editingItem?.index === originalIndex ? (
+            <input
+                type="text"
+                value={editingItem.text}
+                onChange={(e) => setEditingItem({ ...editingItem, text: e.target.value })}
+                onBlur={handleEditSave}
+                onKeyDown={handleEditKeyDown}
+                className="font-medium text-gray-800 bg-yellow-50 border-b-2 border-primary-500 outline-none w-full"
+                autoFocus
+            />
+        ) : (
+            <span
+              onDoubleClick={() => handleEditStart(originalIndex)}
+              className={`font-medium break-words ${item.checked ? 'text-gray-400 line-through' : 'text-gray-800'}`}
+            >
+              {item.text}
+            </span>
+        )}
+      </label>
+      <button
+        onClick={() => setActionItem({ item, index: originalIndex })}
+        className="text-gray-500 hover:text-primary-600 p-1 rounded-full hover:bg-gray-100 flex-shrink-0"
+        aria-label={`Műveletek a(z) '${item.text}' tétellel`}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
+        </svg>
+      </button>
+    </li>
+  );
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-center text-primary-800">Bevásárlólista</h2>
@@ -197,10 +282,15 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
 
       {list.length > 0 ? (
         <div className="space-y-2">
+            {categorizedList && (
+                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 text-sm text-yellow-800 rounded-r-lg">
+                    A szerkesztés és a sorrend megváltoztatása a kategorizált nézetben nem lehetséges.
+                </div>
+            )}
             {categorizedList ? (
                  <div className="space-y-3">
                     {/* FIX: Explicitly type the destructured array from Object.entries to resolve type errors. */}
-                    {Object.entries(categorizedList).map(([category, items]) => (
+                    {Object.entries(categorizedList).map(([category, items]: [string, ShoppingListItem[]]) => (
                         <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                              <button
                                 onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
@@ -212,30 +302,10 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
                             </button>
                             {expandedAIGroups[category] && (
                                 <ul className="divide-y divide-gray-200">
-                                {items.map((item, index) => (
-                                    <li key={`${item.text}-${index}`} className="flex items-center justify-between p-3 gap-2">
-                                    <label className="flex items-center gap-3 cursor-pointer flex-grow min-w-0">
-                                        <input
-                                        type="checkbox"
-                                        checked={item.checked}
-                                        onChange={() => handleToggleCheck(index, item)}
-                                        className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 flex-shrink-0"
-                                        />
-                                        <span className={`font-medium break-words ${item.checked ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                                        {item.text}
-                                        </span>
-                                    </label>
-                                    <button
-                                        onClick={() => setActionItem({ item, index })}
-                                        className="text-gray-500 hover:text-primary-600 p-1 rounded-full hover:bg-gray-100 flex-shrink-0"
-                                        aria-label={`Műveletek a(z) '${item.text}' tétellel`}
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                            <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
-                                        </svg>
-                                    </button>
-                                    </li>
-                                ))}
+                                {items.map((item) => {
+                                    const originalIndex = list.findIndex(li => li.text === item.text);
+                                    return renderListItem(item, originalIndex);
+                                })}
                                 </ul>
                             )}
                         </div>
@@ -243,30 +313,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
                 </div>
             ) : (
                 <ul className="divide-y divide-gray-200 border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-                {list.map((item, index) => (
-                    <li key={`${item.text}-${index}`} className="flex items-center justify-between p-3 gap-2 bg-white">
-                    <label className="flex items-center gap-3 cursor-pointer flex-grow min-w-0">
-                        <input
-                        type="checkbox"
-                        checked={item.checked}
-                        onChange={() => handleToggleCheck(index, item)}
-                        className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 flex-shrink-0"
-                        />
-                        <span className={`font-medium break-words ${item.checked ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                        {item.text}
-                        </span>
-                    </label>
-                    <button
-                        onClick={() => setActionItem({ item, index })}
-                        className="text-gray-500 hover:text-primary-600 p-1 rounded-full hover:bg-gray-100 flex-shrink-0"
-                        aria-label={`Műveletek a(z) '${item.text}' tétellel`}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
-                        </svg>
-                    </button>
-                    </li>
-                ))}
+                    {list.map((item, index) => renderListItem(item, index))}
                 </ul>
             )}
             <div className="pt-4 flex flex-col sm:flex-row gap-2 justify-between items-center">
@@ -316,5 +363,4 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
   );
 };
 
-// FIX: Added missing default export for the ShoppingListView component.
 export default ShoppingListView;
