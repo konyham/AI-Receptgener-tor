@@ -1,3 +1,5 @@
+// services/favoritesService.ts
+
 import type { Recipe, Favorites } from '../types';
 import { safeSetLocalStorage } from '../utils/storage';
 import * as imageStore from './imageStore';
@@ -404,4 +406,54 @@ export const updateFavoriteStatus = async (recipeName: string, category: string,
     }
   }
   return favorites;
+};
+
+/**
+ * Updates which categories a recipe belongs to.
+ * @param recipe The recipe object to update.
+ * @param newCategories An array of category names the recipe should belong to.
+ * @returns The updated favorites object.
+ */
+export const updateRecipeCategories = async (recipe: Recipe, newCategories: string[]): Promise<Favorites> => {
+    const { favorites } = getFavorites();
+    const recipeToMove = JSON.parse(JSON.stringify(recipe)); // Use a clean copy
+
+    // Find all current categories for the recipe
+    const oldCategories = Object.keys(favorites).filter(cat =>
+        favorites[cat].some(r => r.recipeName === recipeToMove.recipeName)
+    );
+
+    const newCategoriesSet = new Set(newCategories);
+    const oldCategoriesSet = new Set(oldCategories);
+
+    // Determine which categories to add to and remove from
+    const categoriesToAdd = newCategories.filter(cat => !oldCategoriesSet.has(cat));
+    const categoriesToRemove = oldCategories.filter(cat => !newCategoriesSet.has(cat));
+
+    const updatedFavorites = JSON.parse(JSON.stringify(favorites));
+
+    // Add recipe to new categories
+    for (const category of categoriesToAdd) {
+        if (!updatedFavorites[category]) {
+            updatedFavorites[category] = [];
+        }
+        // Prevent accidental duplicates
+        if (!updatedFavorites[category].some((r: Recipe) => r.recipeName === recipeToMove.recipeName)) {
+            updatedFavorites[category].push(recipeToMove);
+        }
+    }
+
+    // Remove recipe from old categories
+    for (const category of categoriesToRemove) {
+        if (updatedFavorites[category]) {
+            updatedFavorites[category] = updatedFavorites[category].filter((r: Recipe) => r.recipeName !== recipeToMove.recipeName);
+            // If category becomes empty after removal, delete it
+            if (updatedFavorites[category].length === 0) {
+                delete updatedFavorites[category];
+            }
+        }
+    }
+
+    saveFavorites(updatedFavorites);
+    return updatedFavorites;
 };

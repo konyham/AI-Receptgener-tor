@@ -589,6 +589,16 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpdateRecipeCategories = async (recipe: Recipe, newCategories: string[]) => {
+    try {
+      const updatedFavorites = await favoritesService.updateRecipeCategories(recipe, newCategories);
+      setFavorites(updatedFavorites);
+      showNotification('Kategóriák sikeresen frissítve!', 'success');
+    } catch (e: any) {
+      showNotification(e.message || 'Hiba történt a kategóriák frissítése közben.', 'info');
+    }
+  };
+
   // Shopping list handlers
   const handleAddItemsToShoppingList = (items: string[]) => {
     const currentList = shoppingListService.getShoppingList().list;
@@ -1252,6 +1262,7 @@ const App: React.FC = () => {
             onSetSortOption={setSortOption}
             onMoveRecipe={handleMoveFavorite}
             onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
+            onUpdateRecipeCategories={handleUpdateRecipeCategories}
             cuisineOptions={orderedCuisineOptions}
           />
         );

@@ -5,6 +5,7 @@ import MoveRecipeModal from './MoveRecipeModal';
 import FavoriteStatusModal from './FavoriteStatusModal';
 import FavoriteActionModal from './FavoriteActionModal';
 import ConfirmationModal from './ConfirmationModal';
+import CategoryEditModal from './CategoryEditModal';
 
 interface FavoritesViewProps {
   favorites: Favorites;
@@ -21,6 +22,7 @@ interface FavoritesViewProps {
   onSetSortOption: (option: SortOption) => void;
   onMoveRecipe: (recipe: Recipe, fromCategory: string, toCategory: string) => void;
   onUpdateFavoriteStatus: (recipeName: string, category: string, favoritedByIds: string[]) => void;
+  onUpdateRecipeCategories: (recipe: Recipe, newCategories: string[]) => void;
   cuisineOptions: OptionItem[];
 }
 
@@ -52,6 +54,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   onSetSortOption,
   onMoveRecipe,
   onUpdateFavoriteStatus,
+  onUpdateRecipeCategories,
   cuisineOptions,
 }) => {
   const categories = Object.keys(favorites);
@@ -68,6 +71,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
   const [menuToDelete, setMenuToDelete] = useState<{ menuName: string; category: string } | null>(null);
   const [isDeleteMenuConfirmOpen, setIsDeleteMenuConfirmOpen] = useState(false);
+  const [isCategoryEditModalOpen, setIsCategoryEditModalOpen] = useState(false);
 
 
   const cuisineLabels = useMemo(() => new Map(cuisineOptions.map(opt => [opt.value, opt.label])), [cuisineOptions]);
@@ -133,6 +137,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
     
     // FIX: Explicitly type the destructured `recipes` variable. This resolves an issue where TypeScript
     // was incorrectly inferring its type as `unknown`, causing a '.filter does not exist' error.
+    // FIX: Explicitly type the destructured `recipes` variable in the `.map` callback. This resolves an issue where TypeScript was incorrectly inferring its type as `unknown`, causing a `.filter does not exist` error.
     const filteredByFavoriteStatus = filteredBySearch.map(([category, recipes]: [string, Recipe[]]) => {
         if (favoriteFilter === 'all') {
             return [category, recipes] as [string, Recipe[]];
@@ -170,6 +175,14 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
 
     return sorted;
   }, [favorites, filterCategory, sortOption, favoriteFilter, searchQuery]);
+
+  const recipeForCatEdit = actionMenuRecipe?.recipe;
+  const initialCategoriesForEdit = useMemo(() => {
+    if (!recipeForCatEdit) return [];
+    return Object.keys(favorites).filter(cat =>
+      favorites[cat].some(r => r.recipeName === recipeForCatEdit.recipeName)
+    );
+  }, [recipeForCatEdit, favorites]);
 
 
   return (
@@ -379,6 +392,25 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
             onView={() => { onViewRecipe(actionMenuRecipe.recipe); setActionMenuRecipe(null); }}
             onMove={() => { setMovingRecipe(actionMenuRecipe); setActionMenuRecipe(null); }}
             onDelete={handleDeleteRequest}
+            onEditCategories={() => setIsCategoryEditModalOpen(true)}
+        />
+      )}
+
+      {isCategoryEditModalOpen && recipeForCatEdit && (
+        <CategoryEditModal
+          isOpen={isCategoryEditModalOpen}
+          onClose={() => {
+            setIsCategoryEditModalOpen(false);
+            setActionMenuRecipe(null);
+          }}
+          onSave={(newCategories) => {
+            onUpdateRecipeCategories(recipeForCatEdit, newCategories);
+            setIsCategoryEditModalOpen(false);
+            setActionMenuRecipe(null);
+          }}
+          recipeName={recipeForCatEdit.recipeName}
+          allCategories={categories}
+          initialCategories={initialCategoriesForEdit}
         />
       )}
 

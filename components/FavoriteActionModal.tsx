@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useRef } from 'react';
 import { Recipe } from '../types';
 
@@ -9,6 +10,7 @@ interface FavoriteActionModalProps {
   onView: () => void;
   onMove: () => void;
   onDelete: () => void;
+  onEditCategories: () => void;
 }
 
 const FavoriteActionModal: React.FC<FavoriteActionModalProps> = ({
@@ -18,6 +20,7 @@ const FavoriteActionModal: React.FC<FavoriteActionModalProps> = ({
   onView,
   onMove,
   onDelete,
+  onEditCategories,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +95,13 @@ const FavoriteActionModal: React.FC<FavoriteActionModalProps> = ({
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>
             Megtekintés
+          </button>
+           <button
+            onClick={onEditCategories}
+            className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v1H5V4zM5 7h10v9a2 2 0 01-2 2H7a2 2 0 01-2-2V7z" /><path d="M15 7H5l1.25 2.5L5 12h10l-1.25-2.5L15 7z" /></svg>
+            Kategóriák kezelése
           </button>
           <button
             onClick={onMove}
