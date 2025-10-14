@@ -1,3 +1,4 @@
+// FIX: This file has been cleaned up to only contain constant definitions, importing its types from the now-correct `types.ts` file. This resolves circular dependencies.
 import { DietOption, MealType, CookingMethod, CuisineOption, RecipePace } from './types';
 
 export const MEAL_TYPES_STORAGE_KEY = 'ai-recipe-generator-meal-types';
@@ -22,6 +23,8 @@ export const DIET_OPTIONS: { value: DietOption; label: string; description: stri
 ];
 
 export const MEAL_TYPES: { value: MealType; label: string }[] = [
+  { value: MealType.MENU, label: 'Teljes Menü (Előétel, Leves, Főétel, Desszert)' },
+  { value: MealType.DAILY_MENU, label: 'Napi menü (Reggeli, Ebéd, Vacsora)' },
   { value: MealType.BREAKFAST, label: 'Reggeli' },
   { value: MealType.ELEVENSES, label: 'Tízórai' },
   { value: MealType.LUNCH, label: 'Ebéd' },

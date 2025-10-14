@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
+import MenuDisplay from './components/MenuDisplay';
+import DailyMenuDisplay from './components/DailyMenuDisplay';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorMessage from './components/ErrorMessage';
 import FavoritesView from './components/FavoritesView';
@@ -12,7 +14,7 @@ import AppVoiceControl from './components/AppVoiceControl';
 import LocationPromptModal from './components/LocationPromptModal';
 import LoadOnStartModal from './components/LoadOnStartModal';
 import OptionsEditPanel from './components/OptionsEditPanel';
-import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand } from './services/geminiService';
+import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
 import * as pantryService from './services/pantryService';
@@ -39,6 +41,8 @@ import {
   UserProfile,
   OptionItem,
   AlternativeRecipeSuggestion,
+  MenuRecipe,
+  DailyMenuRecipe,
 } from './types';
 import {
     MEAL_TYPES,
@@ -75,7 +79,7 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('generator');
-  const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const [recipe, setRecipe] = useState<Recipe | MenuRecipe | DailyMenuRecipe | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<Favorites>({});
@@ -264,25 +268,61 @@ const App: React.FC = () => {
     setView('generator'); // Make sure we are on the generator view
 
     try {
-      const generatedRecipe = await generateRecipe(
-        params.ingredients,
-        params.excludedIngredients,
-        params.diet,
-        params.mealType,
-        params.cuisine,
-        params.cookingMethods,
-        params.specialRequest,
-        params.withCost,
-        params.numberOfServings,
-        params.recipePace,
-        params.mode,
-        params.useSeasonalIngredients,
-        mealTypes,
-        cuisineOptions,
-        cookingMethodsList,
-        cookingMethodCapacities
-      );
-      setRecipe(generatedRecipe);
+       if (params.mealType === MealType.MENU) {
+            const generatedMenu = await generateMenu(
+                params.ingredients,
+                params.excludedIngredients,
+                params.diet,
+                params.cuisine,
+                params.cookingMethods,
+                params.specialRequest,
+                params.withCost,
+                params.numberOfServings,
+                params.recipePace,
+                params.mode,
+                params.useSeasonalIngredients,
+                cuisineOptions,
+                cookingMethodsList
+            );
+            setRecipe(generatedMenu);
+      } else if (params.mealType === MealType.DAILY_MENU) {
+            const generatedDailyMenu = await generateDailyMenu(
+                params.ingredients,
+                params.excludedIngredients,
+                params.diet,
+                params.cuisine,
+                params.cookingMethods,
+                params.specialRequest,
+                params.withCost,
+                params.numberOfServings,
+                params.recipePace,
+                params.mode,
+                params.useSeasonalIngredients,
+                cuisineOptions,
+                cookingMethodsList
+            );
+            setRecipe(generatedDailyMenu);
+      } else {
+          const generatedRecipe = await generateRecipe(
+            params.ingredients,
+            params.excludedIngredients,
+            params.diet,
+            params.mealType,
+            params.cuisine,
+            params.cookingMethods,
+            params.specialRequest,
+            params.withCost,
+            params.numberOfServings,
+            params.recipePace,
+            params.mode,
+            params.useSeasonalIngredients,
+            mealTypes,
+            cuisineOptions,
+            cookingMethodsList,
+            cookingMethodCapacities
+          );
+          setRecipe(generatedRecipe);
+      }
       setShouldGenerateImage(params.withImage);
       setIsFromFavorites(false);
     } catch (err: any) {
@@ -314,6 +354,14 @@ const App: React.FC = () => {
     }
   };
 
+  const handleMenuUpdate = (updatedMenu: MenuRecipe) => {
+    setRecipe(updatedMenu);
+  };
+  
+  const handleDailyMenuUpdate = (updatedMenu: DailyMenuRecipe) => {
+    setRecipe(updatedMenu);
+  };
+
   const handleCloseRecipe = () => {
     setRecipe(null);
     setError(null);
@@ -324,7 +372,7 @@ const App: React.FC = () => {
   };
 
   const handleRefineRecipe = async () => {
-    if (recipe) {
+    if (recipe && 'recipeName' in recipe) {
       setIsLoading(true);
       try {
           const suggestions = await getRecipeModificationSuggestions(recipe.ingredients.join(', '), recipe.recipeName);
@@ -353,7 +401,7 @@ const App: React.FC = () => {
   };
 
   const handleGenerateFromSuggestion = (suggestion: AlternativeRecipeSuggestion) => {
-    if (!recipe) return;
+    if (!recipe || !('recipeName' in recipe)) return;
 
     const baseParams = {
         diet: recipe.diet,
@@ -400,7 +448,80 @@ const App: React.FC = () => {
       showNotification(e.message || 'Hiba történt a mentés közben.', 'info');
     }
   };
+
+  const handleSaveMenu = async (menuName: string) => {
+    if (!recipe || !('menuName' in recipe)) {
+        showNotification('Hiba: A mentendő menü nem található.', 'info');
+        return;
+    }
+
+    const menuToSave = recipe as MenuRecipe;
+    const menuCategory = "Teljes Menü (Előétel, Leves, Főétel, Desszert)";
+
+    try {
+        let currentFavorites = favorites;
+        const courses: { course: Recipe, courseName: 'appetizer' | 'soup' | 'mainCourse' | 'dessert' }[] = [
+            { course: menuToSave.appetizer, courseName: 'appetizer' },
+            { course: menuToSave.soup, courseName: 'soup' },
+            { course: menuToSave.mainCourse, courseName: 'mainCourse' },
+            { course: menuToSave.dessert, courseName: 'dessert' },
+        ];
+
+        for (const { course, courseName } of courses) {
+            if (!course || !course.recipeName) {
+                console.warn(`Skipping empty course: ${courseName}`);
+                continue;
+            }
+            const recipeWithMenuInfo: Recipe = {
+                ...course,
+                menuName: menuName.trim(),
+                menuCourse: courseName,
+            };
+            currentFavorites = await favoritesService.addRecipeToFavorites(recipeWithMenuInfo, menuCategory);
+        }
+        setFavorites(currentFavorites);
+        showNotification(`'${menuName.trim()}' menü sikeresen elmentve.`, 'success');
+    } catch (e: any) {
+        showNotification(e.message || 'Hiba történt a menü mentése közben.', 'info');
+    }
+  };
   
+  const handleSaveDailyMenu = async (menuName: string) => {
+    if (!recipe || !('breakfast' in recipe)) {
+        showNotification('Hiba: A mentendő napi menü nem található.', 'info');
+        return;
+    }
+
+    const menuToSave = recipe as DailyMenuRecipe;
+    const menuCategory = "Napi Menü";
+
+    try {
+        let currentFavorites = favorites;
+        const courses: { course: Recipe, courseName: 'breakfast' | 'lunch' | 'dinner' }[] = [
+            { course: menuToSave.breakfast, courseName: 'breakfast' },
+            { course: menuToSave.lunch, courseName: 'lunch' },
+            { course: menuToSave.dinner, courseName: 'dinner' },
+        ];
+
+        for (const { course, courseName } of courses) {
+            if (!course || !course.recipeName) {
+                console.warn(`Skipping empty course in daily menu: ${courseName}`);
+                continue;
+            }
+            const recipeWithMenuInfo: Recipe = {
+                ...course,
+                menuName: menuName.trim(),
+                menuCourse: courseName,
+            };
+            currentFavorites = await favoritesService.addRecipeToFavorites(recipeWithMenuInfo, menuCategory);
+        }
+        setFavorites(currentFavorites);
+        showNotification(`'${menuName.trim()}' napi menü sikeresen elmentve.`, 'success');
+    } catch (e: any) {
+        showNotification(e.message || 'Hiba történt a napi menü mentése közben.', 'info');
+    }
+  };
+
   const handleViewFavorite = (recipeToView: Recipe) => {
     setRecipe(recipeToView);
     setIsFromFavorites(true);
@@ -417,6 +538,17 @@ const App: React.FC = () => {
         showNotification(`Hiba történt a törlés közben: ${error.message}`, 'info');
         // Re-throw to allow caller to handle UI state
         throw error;
+    }
+  };
+
+  const handleDeleteMenu = async (menuName: string, category: string) => {
+    try {
+        const updatedFavorites = await favoritesService.removeMenuFromFavorites(menuName, category);
+        setFavorites(updatedFavorites);
+        showNotification(`'${menuName}' menü törölve a mentettek közül.`, 'success');
+    } catch (error: any) {
+        console.error("Failed to delete menu:", error);
+        showNotification(`Hiba történt a menü törlése közben: ${error.message}`, 'info');
     }
   };
 
@@ -447,7 +579,7 @@ const App: React.FC = () => {
       const updatedFavorites = await favoritesService.updateFavoriteStatus(recipeName, category, favoritedByIds);
       setFavorites(updatedFavorites);
 
-      if (recipe && recipe.recipeName === recipeName) {
+      if (recipe && 'recipeName' in recipe && recipe.recipeName === recipeName) {
         const updatedRecipe = updatedFavorites[category]?.find(r => r.recipeName === recipeName);
         if (updatedRecipe) setRecipe(updatedRecipe);
       }
@@ -470,6 +602,27 @@ const App: React.FC = () => {
     setView('shopping-list');
   };
   
+    const handleAddMenuToShoppingList = (menu: MenuRecipe) => {
+        const allIngredients = [
+            ...menu.appetizer.ingredients,
+            ...menu.soup.ingredients,
+            ...menu.mainCourse.ingredients,
+            ...menu.dessert.ingredients,
+        ];
+        // The service function handles duplicates
+        handleAddItemsToShoppingList(allIngredients);
+    };
+
+    const handleAddDailyMenuToShoppingList = (menu: DailyMenuRecipe) => {
+        const allIngredients = [
+            ...menu.breakfast.ingredients,
+            ...menu.lunch.ingredients,
+            ...menu.dinner.ingredients,
+        ];
+        handleAddItemsToShoppingList(allIngredients);
+    };
+
+
   const handleUpdateShoppingListItem = (index: number, updatedItem: ShoppingListItem) => {
     setShoppingList(shoppingListService.updateItem(index, updatedItem));
   };
@@ -1034,9 +1187,35 @@ const App: React.FC = () => {
 
   const renderView = () => {
     if (recipe && view === 'generator') {
+      if ('menuName' in recipe) {
+        if ('appetizer' in recipe) {
+          return (
+            <MenuDisplay
+              menu={recipe as MenuRecipe}
+              onClose={handleCloseRecipe}
+              onSave={handleSaveMenu}
+              onAddItemsToShoppingList={handleAddMenuToShoppingList}
+              shouldGenerateImages={shouldGenerateImage}
+              onMenuUpdate={handleMenuUpdate}
+              mealTypes={orderedMealTypes}
+              cookingMethodsList={orderedCookingMethods}
+            />
+          );
+        } else if ('breakfast' in recipe) {
+            return (
+                <DailyMenuDisplay
+                    dailyMenu={recipe as DailyMenuRecipe}
+                    onClose={handleCloseRecipe}
+                    onSave={handleSaveDailyMenu}
+                    onAddItemsToShoppingList={handleAddDailyMenuToShoppingList}
+                    onDailyMenuUpdate={handleDailyMenuUpdate}
+                />
+            );
+        }
+      }
       return (
         <RecipeDisplay
-          recipe={recipe}
+          recipe={recipe as Recipe}
           onClose={handleCloseRecipe}
           onRefine={handleRefineRecipe}
           isFromFavorites={isFromFavorites}
@@ -1064,6 +1243,7 @@ const App: React.FC = () => {
             onViewRecipe={handleViewFavorite}
             onDeleteRecipe={handleDeleteFavorite}
             onDeleteCategory={handleDeleteCategory}
+            onDeleteMenu={handleDeleteMenu}
             expandedCategories={expandedCategories}
             onToggleCategory={(cat) => setExpandedCategories(prev => ({...prev, [cat]: !prev[cat]}))}
             filterCategory={filterCategory}

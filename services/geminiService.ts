@@ -21,6 +21,8 @@ import {
   OptionItem,
   CategorizedIngredient,
   AlternativeRecipeSuggestion,
+  MenuRecipe,
+  DailyMenuRecipe,
 } from '../types';
 
 // FIX: Initialize the GoogleGenAI client with API key from environment variables as per guidelines.
@@ -79,6 +81,31 @@ const recipeSchema = {
     'ingredients',
     'instructions',
   ],
+};
+
+const menuSchema = {
+  type: Type.OBJECT,
+  properties: {
+    menuName: { type: Type.STRING, description: 'A teljes menü fantázianeve, pl. "Vasárnapi Családi Ebéd".' },
+    menuDescription: { type: Type.STRING, description: 'A menü rövid, étvágygerjesztő leírása, bemutatva, hogy az ételek hogyan harmonizálnak.' },
+    appetizer: recipeSchema,
+    soup: recipeSchema,
+    mainCourse: recipeSchema,
+    dessert: recipeSchema,
+  },
+  required: ['menuName', 'menuDescription', 'appetizer', 'soup', 'mainCourse', 'dessert'],
+};
+
+const dailyMenuSchema = {
+  type: Type.OBJECT,
+  properties: {
+    menuName: { type: Type.STRING, description: 'A napi menü fantázianeve, pl. "Könnyed Hétfői Menü".' },
+    menuDescription: { type: Type.STRING, description: 'A napi menü rövid, étvágygerjesztő leírása, bemutatva, hogy a reggeli, ebéd és vacsora hogyan alkot egy egészséges, kiegyensúlyozott napot.' },
+    breakfast: recipeSchema,
+    lunch: recipeSchema,
+    dinner: recipeSchema,
+  },
+  required: ['menuName', 'menuDescription', 'breakfast', 'lunch', 'dinner'],
 };
 
 export const generateRecipe = async (
@@ -220,6 +247,202 @@ export const generateRecipe = async (
     throw new Error(`Hiba történt a recept generálása közben: ${e.message}`);
   }
 };
+
+export const generateMenu = async (
+  ingredients: string,
+  excludedIngredients: string,
+  diet: DietOption,
+  cuisine: CuisineOption,
+  cookingMethods: CookingMethod[],
+  specialRequest: string,
+  withCost: boolean,
+  numberOfServings: number,
+  recipePace: RecipePace,
+  mode: 'standard' | 'leftover',
+  useSeasonalIngredients: boolean,
+  customCuisineOptions: OptionItem[],
+  customCookingMethods: OptionItem[]
+): Promise<MenuRecipe> => {
+  const dietLabel = DIET_OPTIONS.find((d) => d.value === diet)?.label || '';
+  const cuisineLabel = customCuisineOptions.find((c) => c.value === cuisine)?.label || cuisine;
+  const cookingMethodLabels = cookingMethods
+    .map(cm => customCookingMethods.find(c => c.value === cm)?.label || cm)
+    .filter(Boolean);
+
+  let prompt = `Generálj egy teljes, 4 fogásos menüt, ami pontosan ${numberOfServings} személyre szól. A menüsor részei: előétel, leves, főétel, és desszert. Az ételek harmonizáljanak egymással stílusban és ízvilágban. Adj a teljes menünek egy fantázianevet és egy rövid leírást.`;
+
+  if (ingredients.trim()) {
+    prompt += ` A menü legalább részben épüljön a következő alapanyagokra: ${ingredients}.`;
+  }
+  
+  if (useSeasonalIngredients) {
+    prompt += ` Különös figyelmet fordíts arra, hogy a receptek lehetőség szerint friss, helyi és idényjellegű (szezonális) alapanyagokat használjanak.`;
+  }
+
+  if (excludedIngredients.trim()) {
+    prompt += ` FONTOS KIKÖTÉS: Egyik recept SE TARTALMAZZA a következőket: ${excludedIngredients}.`;
+  }
+  
+  if (cookingMethodLabels.length > 0) {
+    prompt += ` Az elkészítési mód legyen: ${cookingMethodLabels.join(' és ')}. FONTOS: Az elkészítési lépéseknek, beleértve a gépekhez (pl. Thermomixer) tartozó specifikus utasításokat is (hőfok, sebesség, idő), KIZÁRÓLAG magyar nyelven kell lenniük. Ne használj angol kifejezéseket, mint például "Cook", "Set time", "Speed", "Reverse". A teljes válasz legyen magyar.`;
+  }
+  
+  if (diet !== DietOption.NONE && dietLabel) {
+    prompt += ` A teljes menü feleljen meg a következő diétás előírásnak: ${dietLabel}.`;
+  }
+  
+  if (cuisine !== CuisineOption.NONE && cuisineLabel) {
+    prompt += ` A menü stílusa legyen: ${cuisineLabel}.`;
+  }
+  
+  if (specialRequest.trim()) {
+    prompt += ` A menünek a következő különleges kérésnek is meg kell felelnie: ${specialRequest.trim()}.`;
+  }
+
+  if (recipePace === RecipePace.QUICK) {
+    prompt += ` Az egész menü a lehető leggyorsabban elkészíthető legyen.`;
+  } else if (recipePace === RecipePace.SIMPLE) {
+    prompt += ` A menü minden fogása a lehető legkevesebb hozzávalóból álljon, és az elkészítése legyen rendkívül egyszerű.`;
+  }
+
+  if (diet === DietOption.DIABETIC) {
+    prompt += ` Mivel a menü cukorbeteg diétához készül, minden fogásnál add meg a becsült tápértékadatokat (kalória, szénhidrát, fehérje, zsír), a glikémiás indexet, és egy rövid tanácsot cukorbetegeknek.`;
+  }
+
+  if (withCost) {
+    prompt += ` Minden fogásnál adj egy becsült teljes költséget forintban (Ft).`;
+  }
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: menuSchema,
+      },
+    });
+    
+    const json = JSON.parse(response.text);
+    const menu = json as MenuRecipe;
+    
+    // Add shared metadata to each recipe in the menu
+    const metadata = { diet, cuisine, cookingMethods, recipePace };
+    menu.appetizer = { ...menu.appetizer, ...metadata, mealType: MealType.ELEVENSES }; // Approximate meal type
+    menu.soup = { ...menu.soup, ...metadata, mealType: MealType.SOUP };
+    menu.mainCourse = { ...menu.mainCourse, ...metadata, mealType: MealType.LUNCH };
+    menu.dessert = { ...menu.dessert, ...metadata, mealType: MealType.DESSERT };
+
+    return menu;
+
+  } catch (e: any) {
+    console.error('Error generating menu:', e);
+    if (e.message.includes('JSON')) {
+        throw new Error('Az AI válasza hibás formátumú volt. Próbálja újra egy kicsit más feltételekkel!');
+    } else if (e.message.toLowerCase().includes('quota')) {
+        throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    }
+    throw new Error(`Hiba történt a menü generálása közben: ${e.message}`);
+  }
+};
+
+export const generateDailyMenu = async (
+  ingredients: string,
+  excludedIngredients: string,
+  diet: DietOption,
+  cuisine: CuisineOption,
+  cookingMethods: CookingMethod[],
+  specialRequest: string,
+  withCost: boolean,
+  numberOfServings: number,
+  recipePace: RecipePace,
+  mode: 'standard' | 'leftover',
+  useSeasonalIngredients: boolean,
+  customCuisineOptions: OptionItem[],
+  customCookingMethods: OptionItem[]
+): Promise<DailyMenuRecipe> => {
+  const dietLabel = DIET_OPTIONS.find((d) => d.value === diet)?.label || '';
+  const cuisineLabel = customCuisineOptions.find((c) => c.value === cuisine)?.label || cuisine;
+  const cookingMethodLabels = cookingMethods
+    .map(cm => customCookingMethods.find(c => c.value === cm)?.label || cm)
+    .filter(Boolean);
+
+  let prompt = `Generálj egy teljes, 3 fogásos napi menüt, ami pontosan ${numberOfServings} személyre szól. A menü részei: reggeli, ebéd, és vacsora. Az ételek harmonizáljanak egymással, és alkossanak egy kiegyensúlyozott, egészséges napi étrendet. Adj a teljes napi menünek egy fantázianevet és egy rövid leírást.`;
+
+  if (ingredients.trim()) {
+    prompt += ` A menü legalább részben épüljön a következő alapanyagokra: ${ingredients}.`;
+  }
+  
+  if (useSeasonalIngredients) {
+    prompt += ` Különös figyelmet fordíts arra, hogy a receptek lehetőség szerint friss, helyi és idényjellegű (szezonális) alapanyagokat használjanak.`;
+  }
+
+  if (excludedIngredients.trim()) {
+    prompt += ` FONTOS KIKÖTÉS: Egyik recept SE TARTALMAZZA a következőket: ${excludedIngredients}.`;
+  }
+  
+  if (cookingMethodLabels.length > 0) {
+    prompt += ` Az elkészítési mód legyen: ${cookingMethodLabels.join(' és ')}. FONTOS: Az elkészítési lépéseknek, beleértve a gépekhez (pl. Thermomixer) tartozó specifikus utasításokat is (hőfok, sebesség, idő), KIZÁRÓLAG magyar nyelven kell lenniük.`;
+  }
+  
+  if (diet !== DietOption.NONE && dietLabel) {
+    prompt += ` A teljes napi menü feleljen meg a következő diétás előírásnak: ${dietLabel}.`;
+  }
+  
+  if (cuisine !== CuisineOption.NONE && cuisineLabel) {
+    prompt += ` A menü stílusa legyen: ${cuisineLabel}.`;
+  }
+  
+  if (specialRequest.trim()) {
+    prompt += ` A menünek a következő különleges kérésnek is meg kell felelnie: ${specialRequest.trim()}.`;
+  }
+
+  if (recipePace === RecipePace.QUICK) {
+    prompt += ` Az egész menü a lehető leggyorsabban elkészíthető legyen.`;
+  } else if (recipePace === RecipePace.SIMPLE) {
+    prompt += ` A menü minden fogása a lehető legkevesebb hozzávalóból álljon, és az elkészítése legyen rendkívül egyszerű.`;
+  }
+
+  if (diet === DietOption.DIABETIC) {
+    prompt += ` Mivel a menü cukorbeteg diétához készül, minden fogásnál add meg a becsült tápértékadatokat (kalória, szénhidrát, fehérje, zsír), a glikémiás indexet, és egy rövid tanácsot cukorbetegeknek.`;
+  }
+
+  if (withCost) {
+    prompt += ` Minden fogásnál adj egy becsült teljes költséget forintban (Ft).`;
+  }
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: dailyMenuSchema,
+      },
+    });
+    
+    const json = JSON.parse(response.text);
+    const menu = json as DailyMenuRecipe;
+    
+    // Add shared metadata to each recipe in the menu
+    const metadata = { diet, cuisine, cookingMethods, recipePace };
+    menu.breakfast = { ...menu.breakfast, ...metadata, mealType: MealType.BREAKFAST };
+    menu.lunch = { ...menu.lunch, ...metadata, mealType: MealType.LUNCH };
+    menu.dinner = { ...menu.dinner, ...metadata, mealType: MealType.DINNER };
+
+    return menu;
+
+  } catch (e: any) {
+    console.error('Error generating daily menu:', e);
+    if (e.message.includes('JSON')) {
+        throw new Error('Az AI válasza hibás formátumú volt. Próbálja újra egy kicsit más feltételekkel!');
+    } else if (e.message.toLowerCase().includes('quota')) {
+        throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    }
+    throw new Error(`Hiba történt a napi menü generálása közben: ${e.message}`);
+  }
+};
+
 
 export const categorizeIngredients = async (ingredients: string[]): Promise<CategorizedIngredient[]> => {
     if (ingredients.length === 0) {
@@ -380,6 +603,9 @@ export const interpretFormCommand = async (transcript: string, mealTypes: Option
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
+      config: {
+        responseMimeType: 'application/json'
+      }
     });
     
     // FIX: Access the .text property for the JSON string as per Gemini API guidelines.

@@ -318,6 +318,43 @@ export const removeCategory = async (category: string): Promise<Favorites> => {
 };
 
 /**
+ * Removes all recipes belonging to a specific menu from a category.
+ * @param menuName The name of the menu to remove.
+ * @param category The category from which to remove the menu recipes.
+ * @returns The updated favorites object.
+ */
+export const removeMenuFromFavorites = async (menuName: string, category: string): Promise<Favorites> => {
+  const { favorites } = getFavorites();
+  if (favorites[category]) {
+    const recipesToRemove = favorites[category].filter(r => r.menuName === menuName);
+    
+    // Delete associated images first
+    for (const recipe of recipesToRemove) {
+      if (recipe.imageUrl && recipe.imageUrl.startsWith('indexeddb:')) {
+        await imageStore.deleteImage(recipe.imageUrl.substring(10));
+      }
+      if (recipe.instructions) {
+        for (const instruction of recipe.instructions) {
+          if (instruction.imageUrl && instruction.imageUrl.startsWith('indexeddb:')) {
+            await imageStore.deleteImage(instruction.imageUrl.substring(10));
+          }
+        }
+      }
+    }
+
+    // Filter out the recipes
+    favorites[category] = favorites[category].filter(r => r.menuName !== menuName);
+    
+    if (favorites[category].length === 0) {
+      delete favorites[category];
+    }
+    saveFavorites(favorites);
+  }
+  return favorites;
+};
+
+
+/**
  * Processes a Favorites object to move any Data URL images to IndexedDB.
  * This is useful after importing old backup files.
  * @param favorites The favorites object to process.

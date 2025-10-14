@@ -278,27 +278,31 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
           {categorizedList ? (
             <div className="space-y-3">
-              {Object.entries(categorizedList).map(([category, items]: [string, ShoppingListItem[]]) => (
-                <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-                  <button
-                    onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
-                    className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100"
-                    aria-expanded={!!expandedAIGroups[category]}
-                  >
-                    <span className="font-bold text-primary-700">{category}</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${expandedAIGroups[category] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  {expandedAIGroups[category] && (
-                    <ul className="divide-y divide-gray-200">
-                      {/* FIX: Explicitly type the 'item' parameter in the map callback to resolve type inference issue. */}
-                      {items.map((item: ShoppingListItem) => {
-                        const originalIndex = list.findIndex(li => li.text === item.text);
-                        return renderListItem(item, originalIndex);
-                      })}
-                    </ul>
-                  )}
-                </div>
-              ))}
+              {/* FIX: Refactored to use Object.keys() to ensure correct type inference for `items`. */}
+              {Object.keys(categorizedList).map(category => {
+                const items = categorizedList[category];
+                return (
+                  <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                    <button
+                      onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
+                      className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100"
+                      aria-expanded={!!expandedAIGroups[category]}
+                    >
+                      <span className="font-bold text-primary-700">{category}</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${expandedAIGroups[category] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    {expandedAIGroups[category] && (
+                      <ul className="divide-y divide-gray-200">
+                        {/* FIX: Explicitly type the `item` in the map function to resolve type inference issues. */}
+                        {items.map((item: ShoppingListItem) => {
+                          const originalIndex = list.findIndex(li => li.text === item.text);
+                          return renderListItem(item, originalIndex);
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           ) : (
             <ul className="divide-y divide-gray-200">

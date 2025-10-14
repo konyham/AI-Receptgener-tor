@@ -319,7 +319,7 @@ const PantryView: React.FC<PantryViewProps> = ({
   
   const renderItemList = (items: PantryItemWithIndex[]) => (
      <ul className="divide-y divide-gray-200">
-        {/* FIX: Explicitly type the 'item' parameter in the map callback to resolve type inference issue. */}
+        {/* FIX: Explicitly type `item` in the map callback to resolve type inference issues. */}
         {items.map((item: PantryItemWithIndex) => {
           const urgency = getUrgency(item);
           const isSelected = selectedItems[activeLocation].has(item.originalIndex);
@@ -431,7 +431,7 @@ const PantryView: React.FC<PantryViewProps> = ({
             <button
                 onClick={onMoveCheckedToPantryRequest}
                 disabled={shoppingListItems.filter(i => i.checked).length === 0}
-                className="flex-1 bg-green-600 text-white font-semibold py-3 px-4 rounded-lg shadow-sm hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="flex-1 bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow-sm hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
                 Kipipáltak áthelyezése a kamrába
             </button>
@@ -490,21 +490,25 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {Object.entries(categorizedPantry).map(([category, items]: [string, PantryItemWithIndex[]]) => (
-                  <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-                      <button
-                          onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
-                          className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100"
-                          aria-expanded={!!expandedAIGroups[category]}
-                      >
-                          <span className="font-bold text-primary-700">{category}</span>
-                          <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${expandedAIGroups[category] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                      </button>
-                      {expandedAIGroups[category] && (
-                          renderItemList(items)
-                      )}
-                  </div>
-              ))}
+              {/* FIX: Refactored to use Object.keys() to ensure correct type inference for `items`. */}
+              {Object.keys(categorizedPantry).map(category => {
+                  const items = categorizedPantry[category];
+                  return (
+                    <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                        <button
+                            onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
+                            className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100"
+                            aria-expanded={!!expandedAIGroups[category]}
+                        >
+                            <span className="font-bold text-primary-700">{category}</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${expandedAIGroups[category] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        {expandedAIGroups[category] && (
+                            renderItemList(items)
+                        )}
+                    </div>
+                  )
+              })}
           </div>
         ) : (
           filteredAndSortedPantry.length > 0 ? (
