@@ -219,12 +219,9 @@ const PantryView: React.FC<PantryViewProps> = ({
             }
         });
 
+        // FIX: Replaced a complex .reduce() with Object.fromEntries to avoid type inference issues.
+        setExpandedAIGroups(Object.fromEntries(Object.keys(grouped).map(key => [key, true])));
         setCategorizedPantry(grouped);
-        // FIX: Explicitly type the accumulator in the reduce function to resolve the 'unknown index type' error.
-        setExpandedAIGroups(Object.keys(grouped).reduce((acc: Record<string, boolean>, key: string) => {
-            acc[key] = true;
-            return acc;
-        }, {}));
 
     } catch (e: any) {
         showNotification(e.message, 'info');
@@ -319,7 +316,7 @@ const PantryView: React.FC<PantryViewProps> = ({
   
   const renderItemList = (items: PantryItemWithIndex[]) => (
      <ul className="divide-y divide-gray-200">
-        {/* FIX: Explicitly type `item` in the map callback to resolve type inference issues. */}
+        {/* FIX: Add explicit type annotation to `item` to resolve TypeScript error. */}
         {items.map((item: PantryItemWithIndex) => {
           const urgency = getUrgency(item);
           const isSelected = selectedItems[activeLocation].has(item.originalIndex);
@@ -490,10 +487,9 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {/* FIX: Refactored to use Object.keys() to ensure correct type inference for `items`. */}
-              {Object.keys(categorizedPantry).map(category => {
-                  const items = categorizedPantry[category];
-                  return (
+              {/* FIX: Use Object.entries for stronger type inference. */}
+              {/* FIX: Change map to implicit return and correct return value to fix type error on 'category'. */}
+              {Object.entries(categorizedPantry).map(([category, items]: [string, PantryItemWithIndex[]]) => (
                     <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                         <button
                             onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
@@ -507,8 +503,7 @@ const PantryView: React.FC<PantryViewProps> = ({
                             renderItemList(items)
                         )}
                     </div>
-                  )
-              })}
+                  ))}
           </div>
         ) : (
           filteredAndSortedPantry.length > 0 ? (

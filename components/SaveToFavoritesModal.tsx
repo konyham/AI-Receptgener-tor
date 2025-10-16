@@ -65,7 +65,6 @@ const SaveRecipeModal: React.FC<SaveRecipeModalProps> = ({ isOpen, onClose, onSa
 
             if (event.shiftKey) { // Shift+Tab
                 if (document.activeElement === firstElement) {
-                    // FIX: Use an instanceof check to narrow the type from `Element` to `HTMLElement` before calling `.focus()`.
                     if (lastElement instanceof HTMLElement) {
                         lastElement.focus();
                     }
@@ -73,7 +72,6 @@ const SaveRecipeModal: React.FC<SaveRecipeModalProps> = ({ isOpen, onClose, onSa
                 }
             } else { // Tab
                 if (document.activeElement === lastElement) {
-                    // FIX: Use an instanceof check to narrow the type from `Element` to `HTMLElement` before calling `.focus()`.
                     if (firstElement instanceof HTMLElement) {
                         firstElement.focus();
                     }

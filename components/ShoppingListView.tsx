@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { ShoppingListItem, Favorites, BackupData, PantryItem, PantryLocation, StorageType, UserProfile, OptionItem } from '../types';
+import { ShoppingListItem, StorageType } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
-import * as imageStore from '../services/imageStore';
 import ShoppingListItemActionModal from './ShoppingListItemActionModal';
 import { categorizeIngredients } from '../services/geminiService';
 
@@ -171,11 +170,8 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         }
 
         setCategorizedList(grouped);
-        // FIX: Explicitly type the accumulator in the reduce function to resolve the 'unknown index type' error.
-        setExpandedAIGroups(Object.keys(grouped).reduce((acc: Record<string, boolean>, key: string) => {
-            acc[key] = true;
-            return acc;
-        }, {}));
+        // FIX: Replaced a complex .reduce() with Object.fromEntries to avoid type inference issues.
+        setExpandedAIGroups(Object.fromEntries(Object.keys(grouped).map(key => [key, true])));
 
     } catch (e: any) {
         showNotification(e.message, 'info');
@@ -260,12 +256,12 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         <button
             onClick={handleCategorize}
             disabled={isCategorizing || list.filter(item => !item.checked).length === 0}
-            className="flex-1 bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-purple-700 transition disabled:bg-gray-400 flex items-center justify-center gap-2"
+            className="flex-1 bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-purple-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
             {isCategorizing ? 'Kategorizálás...' : 'AI-alapú kategorizálás'}
         </button>
         {categorizedList && (
-            <button
+             <button
                 onClick={() => setCategorizedList(null)}
                 className="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition"
             >
@@ -273,79 +269,76 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
             </button>
         )}
       </div>
-      
-      {list.length > 0 ? (
-        <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-          {categorizedList ? (
-            <div className="space-y-3">
-              {/* FIX: Refactored to use Object.keys() to ensure correct type inference for `items`. */}
-              {Object.keys(categorizedList).map(category => {
-                const items = categorizedList[category];
-                return (
-                  <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-                    <button
-                      onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
-                      className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100"
-                      aria-expanded={!!expandedAIGroups[category]}
-                    >
-                      <span className="font-bold text-primary-700">{category}</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${expandedAIGroups[category] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                    </button>
-                    {expandedAIGroups[category] && (
-                      <ul className="divide-y divide-gray-200">
-                        {/* FIX: Explicitly type the `item` in the map function to resolve type inference issues. */}
-                        {items.map((item: ShoppingListItem) => {
-                          const originalIndex = list.findIndex(li => li.text === item.text);
-                          return renderListItem(item, originalIndex);
-                        })}
-                      </ul>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <ul className="divide-y divide-gray-200">
-              {list.map((item, index) => renderListItem(item, index))}
-            </ul>
-          )}
-        </div>
-      ) : (
-        <p className="text-center text-gray-500">A bevásárlólista üres.</p>
-      )}
+
+      <div className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+        {list.length > 0 ? (
+            categorizedList ? (
+                <div className="space-y-3 p-2">
+                    {/* FIX: Add explicit types to map to prevent type inference issues. */}
+                    {Object.entries(categorizedList).map(([category, items]: [string, ShoppingListItem[]]) => (
+                         <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                            <button
+                                onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
+                                className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100"
+                                aria-expanded={!!expandedAIGroups[category]}
+                            >
+                                <span className="font-bold text-primary-700">{category}</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${expandedAIGroups[category] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                             {expandedAIGroups[category] && (
+                                <ul className="divide-y divide-gray-100 bg-white">
+                                    {/* FIX: Add explicit type annotation to `item` to resolve TypeScript error. */}
+                                    {items.map((item: ShoppingListItem) => {
+                                        const originalIndex = list.findIndex(li => li.text === item.text);
+                                        return renderListItem(item, originalIndex);
+                                    })}
+                                </ul>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <ul className="divide-y divide-gray-100">
+                    {list.map((item, index) => renderListItem(item, index))}
+                </ul>
+            )
+        ) : (
+          <p className="text-center text-gray-500 p-8">A bevásárlólista üres.</p>
+        )}
+      </div>
 
       {list.length > 0 && (
-        <div className="flex flex-col sm:flex-row gap-2 justify-between items-center">
-            <button
-                onClick={handleCopyList}
-                className="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors"
-            >
-                Lista másolása vágólapra
-            </button>
-            <div className="flex gap-2">
-                <button
-                    onClick={onClearChecked}
-                    disabled={checkedCount === 0}
-                    className="bg-yellow-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors disabled:bg-gray-300"
-                >
-                    Kipipáltak törlése ({checkedCount})
-                </button>
-                <button
-                    onClick={onClearAll}
-                    className="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors"
-                >
-                    Teljes lista törlése
-                </button>
-            </div>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <button
+            // FIX: Changed `handleClearChecked` to `onClearChecked` to match props.
+            onClick={onClearChecked}
+            disabled={checkedCount === 0}
+            className="flex-1 bg-yellow-500 text-white font-semibold py-3 px-4 rounded-lg shadow-sm hover:bg-yellow-600 transition disabled:bg-gray-300"
+          >
+            Kipipáltak törlése ({checkedCount})
+          </button>
+          <button
+            // FIX: Changed `handleClearAll` to `onClearAll` to match props.
+            onClick={onClearAll}
+            className="flex-1 bg-red-500 text-white font-semibold py-3 px-4 rounded-lg hover:bg-red-600 transition"
+          >
+            Teljes lista törlése
+          </button>
+           <button
+            onClick={handleCopyList}
+            className="flex-1 bg-blue-500 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-600 transition"
+          >
+            Lista másolása vágólapra
+          </button>
         </div>
       )}
 
       {actionItem && (
         <ShoppingListItemActionModal
-            isOpen={!!actionItem}
-            onClose={() => setActionItem(null)}
-            itemName={actionItem.item.text}
-            onAction={handleItemAction}
+          isOpen={!!actionItem}
+          itemName={actionItem.item.text}
+          onClose={() => setActionItem(null)}
+          onAction={handleItemAction}
         />
       )}
     </div>

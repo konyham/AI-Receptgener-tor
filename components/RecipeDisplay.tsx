@@ -7,10 +7,8 @@ import { useNotification } from '../contexts/NotificationContext';
 import KitchenTimer from './KitchenTimer';
 import SaveRecipeModal from './SaveToFavoritesModal';
 import ImageDisplayModal from './ImageDisplayModal';
-import ErrorMessage from './ErrorMessage';
 import InstructionCarousel from './InstructionCarousel';
 import { DIET_OPTIONS } from '../constants';
-import ShareFallbackModal from './ShareFallbackModal';
 import { konyhaMikiLogo as konyhaMikiLogoBase64 } from '../assets';
 import StarRating from './StarRating';
 import FavoriteStatusModal from './FavoriteStatusModal';
@@ -33,6 +31,7 @@ interface RecipeDisplayProps {
   mealTypes: OptionItem[];
   cuisineOptions: OptionItem[];
   cookingMethodsList: OptionItem[];
+  category: string | null;
 }
 
 const loadOptions = (key: string, defaultValue: readonly any[]) => {
@@ -301,13 +300,25 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
   mealTypes,
   cuisineOptions,
   cookingMethodsList,
+  category,
 }) => {
     const { showNotification } = useNotification();
     const originalRecipeRef = useRef(recipe);
     
-    const [editableRecipe, setEditableRecipe] = useState<Recipe>(() => JSON.parse(JSON.stringify(recipe)));
+    // This state is a buffer for form inputs when in edit mode.
+    const [editableRecipe, setEditableRecipe] = useState<Recipe>(recipe);
     const [isEditing, setIsEditing] = useState(false);
     
+    // Sync the internal state with the prop from the parent (App.tsx),
+    // which is the source of truth. This avoids stale state issues.
+    // We don't sync while actively editing, to avoid overwriting user input.
+    useEffect(() => {
+        if (!isEditing) {
+            setEditableRecipe(recipe);
+            originalRecipeRef.current = recipe;
+        }
+    }, [recipe, isEditing]);
+
     // Image states
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -322,12 +333,10 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
     const [isSimplifying, setIsSimplifying] = useState(false);
     const [alternativeSuggestions, setAlternativeSuggestions] = useState<AlternativeRecipeSuggestion[] | null>(null);
     const [isLoadingAlternatives, setIsLoadingAlternatives] = useState(false);
-    const [textToShare, setTextToShare] = useState('');
     
     // Modal states
     const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
     const [isTimerOpen, setIsTimerOpen] = useState(false);
-    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [isFavoriteStatusModalOpen, setIsFavoriteStatusModalOpen] = useState(false);
     const [timerInitialValues, setTimerInitialValues] = useState<{ hours?: number; minutes?: number; seconds?: number } | null>(null);
 
@@ -478,10 +487,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
             await imageStore.saveImage(imageId, watermarkedImageUrl);
 
             const updatedRecipe = { ...editableRecipe, imageUrl: `indexeddb:${imageId}` };
-            setEditableRecipe(updatedRecipe);
-            if (isFromFavorites) {
-                onRecipeUpdate(updatedRecipe, originalRecipeRef.current);
-            }
+            onRecipeUpdate(updatedRecipe, originalRecipeRef.current);
+
         } catch (e: any) {
             setGeneratingImageError(e.message);
         } finally {
@@ -517,10 +524,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                 await imageStore.saveImage(imageId, watermarkedImageUrl);
     
                 const updatedRecipe = { ...editableRecipe, imageUrl: `indexeddb:${imageId}` };
-                setEditableRecipe(updatedRecipe);
-                if (isFromFavorites) {
-                    onRecipeUpdate(updatedRecipe, originalRecipeRef.current);
-                }
+                onRecipeUpdate(updatedRecipe, originalRecipeRef.current);
                 showNotification('Kép sikeresen feltöltve és vízjelezve!', 'success');
     
             } catch (err: any) {
@@ -536,6 +540,30 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
     
         event.target.value = '';
     };
+    
+    const handleRemoveImage = useCallback(async () => {
+        if (!editableRecipe.imageUrl) return;
+    
+        setIsGeneratingImage(true);
+        setGeneratingImageError(null);
+        setImageLoaded(false);
+    
+        try {
+            if (editableRecipe.imageUrl.startsWith('indexeddb:')) {
+                const imageId = editableRecipe.imageUrl.substring(10);
+                await imageStore.deleteImage(imageId);
+            }
+            
+            const updatedRecipe = { ...editableRecipe, imageUrl: undefined };
+            onRecipeUpdate(updatedRecipe, originalRecipeRef.current);
+            showNotification('Kép sikeresen eltávolítva!', 'success');
+        } catch (e: any) {
+            setGeneratingImageError('Hiba történt a kép törlése közben.');
+            showNotification('Hiba a kép törlésekor.', 'info');
+        } finally {
+            setIsGeneratingImage(false);
+        }
+    }, [editableRecipe, onRecipeUpdate, showNotification]);
 
     // Load image from IndexedDB
     useEffect(() => {
@@ -547,7 +575,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                 } else {
                     console.warn(`Image with id ${imageId} not found in IndexedDB.`);
                     // Optionally clear the invalid URL
-                    setEditableRecipe(prev => ({...prev, imageUrl: undefined}));
+                    onRecipeUpdate({ ...editableRecipe, imageUrl: undefined }, originalRecipeRef.current);
                 }
             });
         } else if (editableRecipe.imageUrl) {
@@ -568,7 +596,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
     };
 
     const handleCancelEdit = () => {
-        setEditableRecipe(JSON.parse(JSON.stringify(originalRecipeRef.current)));
+        // The useEffect will sync the editableRecipe state back to the original prop
         setIsEditing(false);
     };
 
@@ -577,10 +605,17 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
     };
     
     const handleRatingChange = (newRating: number | undefined) => {
+        // Create an updated recipe object based on the current editable state
         const updatedRecipe = { ...editableRecipe, rating: newRating };
+    
+        // Update the local state immediately for instant UI feedback
         setEditableRecipe(updatedRecipe);
+    
+        // Call the parent component to persist the change
+        // We pass the *original* recipe before this change as the second argument,
+        // which is what originalRecipeRef is for.
         onRecipeUpdate(updatedRecipe, originalRecipeRef.current);
-    }
+    };
     
     const handleGenerateInstructionImage = async (stepIndex: number) => {
         if (generatingInstructionImageFor !== null) return;
@@ -597,34 +632,12 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
             updatedInstructions[stepIndex] = { ...updatedInstructions[stepIndex], imageUrl: `indexeddb:${imageId}`};
             
             const updatedRecipe = {...editableRecipe, instructions: updatedInstructions };
-            setEditableRecipe(updatedRecipe);
-            if (isFromFavorites) {
-                onRecipeUpdate(updatedRecipe, originalRecipeRef.current);
-            }
+            onRecipeUpdate(updatedRecipe, originalRecipeRef.current);
 
         } catch (e: any) {
             showNotification(e.message, 'info');
         } finally {
             setGeneratingInstructionImageFor(null);
-        }
-    };
-
-    const handleShare = async () => {
-        const shareText = `Recept: ${editableRecipe.recipeName}\n\nLeírás: ${editableRecipe.description}\n\nHozzávalók:\n- ${editableRecipe.ingredients.join('\n- ')}\n\nElkészítés:\n${editableRecipe.instructions.map((step, i) => `${i + 1}. ${step.text}`).join('\n\n')}`;
-        setTextToShare(shareText);
-
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: editableRecipe.recipeName,
-                    text: `Nézd meg ezt a finom receptet: ${editableRecipe.recipeName}!`,
-                });
-                showNotification('Recept sikeresen megosztva!', 'success');
-            } catch (error) {
-                console.log('Megosztás megszakítva vagy sikertelen', error);
-            }
-        } else {
-            setIsShareModalOpen(true);
         }
     };
 
@@ -653,135 +666,62 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
         }
     };
 
-    const handlePrint = () => {
-        // 1. Copy title to clipboard
-        navigator.clipboard.writeText(editableRecipe.recipeName).then(() => {
-          showNotification(`'${editableRecipe.recipeName}' a vágólapra másolva!`, 'success');
-        }).catch(err => {
-          console.error('Failed to copy text: ', err);
-          showNotification('A vágólapra másolás nem sikerült.', 'info');
-        });
-    
-        // 2. Prepare image HTML
-        const mainImageHtml = activeImageUrl
-          ? `<img src="${activeImageUrl}" alt="Recept fotó" class="main-image">`
-          : '';
-      
-        // 3. Generate HTML content string for the new window
-        const printContent = `
-          <!DOCTYPE html>
-          <html lang="hu">
-          <head>
-            <meta charset="UTF-8">
-            <title>Nyomtatás: ${editableRecipe.recipeName}</title>
-            <style>
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                margin: 30px;
-              }
-              h1 {
-                color: #854d24;
-                border-bottom: 2px solid #f6e8d6;
-                padding-bottom: 10px;
-              }
-              h2 {
-                color: #a65b25;
-                margin-top: 2em;
-                border-bottom: 1px solid #efd8ba;
-                padding-bottom: 5px;
-              }
-              .main-image {
-                width: 100%;
-                max-width: 500px;
-                height: auto;
-                border-radius: 8px;
-                margin: 1em auto 2em;
-                display: block;
-                page-break-inside: avoid;
-              }
-              .instruction-image {
-                width: 100%;
-                max-width: 300px;
-                height: auto;
-                border-radius: 8px;
-                margin-top: 1em;
-                display: block;
-              }
-              .details {
-                display: flex;
-                gap: 20px;
-                padding: 10px;
-                background-color: #fbf6ef;
-                border: 1px solid #f6e8d6;
-                border-radius: 8px;
-                margin-bottom: 2em;
-                page-break-inside: avoid;
-              }
-              .details div {
-                flex: 1;
-              }
-              .details strong {
-                display: block;
-                font-size: 0.9em;
-                color: #a65b25;
-              }
-              ul, ol {
-                padding-left: 20px;
-              }
-              li {
-                margin-bottom: 0.5em;
-              }
-              .instruction-step {
-                page-break-inside: avoid;
-                margin-bottom: 1.5em;
-              }
-              @media print {
-                body { margin: 1cm; }
-                .main-image, .instruction-image {
-                    max-width: 90%;
-                }
-              }
-            </style>
-          </head>
-          <body>
-            <h1>${editableRecipe.recipeName}</h1>
-            ${mainImageHtml}
-            <div class="details">
-              <div><strong>Előkészítés:</strong> ${editableRecipe.prepTime}</div>
-              <div><strong>Főzési idő:</strong> ${editableRecipe.cookTime}</div>
-              <div><strong>Adag:</strong> ${editableRecipe.servings}</div>
-            </div>
-            <h2>Hozzávalók</h2>
-            <ul>
-              ${editableRecipe.ingredients.map(ing => `<li>${ing}</li>`).join('')}
-            </ul>
-            <h2>Elkészítés</h2>
-            <ol>
-              ${
-                resolvedInstructions.map(inst => {
-                  const instImageHtml = inst.imageUrl
-                    ? `<img src="${inst.imageUrl}" alt="Illusztráció" class="instruction-image">`
-                    : '';
-                  return `<li class="instruction-step">${inst.text}${instImageHtml}</li>`;
-                }).join('')
-              }
-            </ol>
-            <script>
-              window.onafterprint = function() {
-                window.close();
-              };
-              // Wait for images to load before printing
-              Promise.all(Array.from(document.images).filter(img => !img.complete).map(img => new Promise(resolve => { img.onload = img.onerror = resolve; }))).then(() => {
+    const getPrintHtml = useCallback(() => `
+      <!DOCTYPE html>
+      <html lang="hu">
+      <head>
+        <meta charset="UTF-8">
+        <title>Nyomtatás: ${editableRecipe.recipeName}</title>
+        <style>
+          @page { size: A4; margin: 20mm; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; }
+          h1 { color: #854d24; border-bottom: 2px solid #f6e8d6; padding-bottom: 10px; font-size: 24pt; page-break-after: avoid; }
+          h2 { color: #a65b25; margin-top: 1.5em; border-bottom: 1px solid #efd8ba; padding-bottom: 5px; font-size: 18pt; page-break-after: avoid; }
+          p { margin: 0 0 1em; }
+          .main-image { width: 100%; max-width: 170mm; height: auto; border-radius: 8px; margin: 1em auto 2em; display: block; page-break-inside: avoid; }
+          .instruction-image { width: 100%; max-width: 120mm; height: auto; border-radius: 8px; margin-top: 1em; page-break-inside: avoid; }
+          .details { display: flex; flex-wrap: wrap; gap: 15px; padding: 15px; background-color: #fbf6ef; border: 1px solid #f6e8d6; border-radius: 8px; margin-bottom: 2em; page-break-inside: avoid; }
+          .details div { flex: 1 1 120px; }
+          .details strong { display: block; font-size: 0.9em; color: #a65b25; }
+          ul, ol { padding-left: 25px; }
+          li { margin-bottom: 0.75em; }
+          .instruction-step { page-break-inside: avoid; margin-bottom: 1.5em; }
+        </style>
+      </head>
+      <body>
+        <h1>${editableRecipe.recipeName}</h1>
+        <p>${editableRecipe.description}</p>
+        ${activeImageUrl ? `<img src="${activeImageUrl}" alt="Recept fotó" class="main-image">` : ''}
+        <div class="details">
+          <div><strong>Előkészítés:</strong> ${editableRecipe.prepTime}</div>
+          <div><strong>Főzési idő:</strong> ${editableRecipe.cookTime}</div>
+          <div><strong>Adag:</strong> ${editableRecipe.servings}</div>
+        </div>
+        <h2>Hozzávalók</h2>
+        <ul>${editableRecipe.ingredients.map(ing => `<li>${ing}</li>`).join('')}</ul>
+        <h2>Elkészítés</h2>
+        <ol>${resolvedInstructions.map(inst => `<li class="instruction-step">${inst.text}${inst.imageUrl ? `<img src="${inst.imageUrl}" alt="Illusztráció" class="instruction-image">` : ''}</li>`).join('')}</ol>
+        <script>
+            window.onafterprint = () => window.close();
+            Promise.all(Array.from(document.images).filter(img => !img.complete).map(img => new Promise(resolve => { img.onload = img.onerror = resolve; }))).then(() => {
                 window.print();
-              });
-            </script>
-          </body>
-          </html>
-        `;
-      
-        // 4. Open new window, write content, and trigger print
+            });
+        </script>
+      </body>
+      </html>
+    `, [editableRecipe, activeImageUrl, resolvedInstructions]);
+
+
+    const handlePrint = useCallback(async () => {
+        try {
+            await navigator.clipboard.writeText(editableRecipe.recipeName);
+            showNotification(`'${editableRecipe.recipeName}' a vágólapra másolva!`, 'success');
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            showNotification('A vágólapra másolás nem sikerült.', 'info');
+        }
+
+        const printContent = getPrintHtml();
         const printWindow = window.open('', '_blank');
         if (printWindow) {
           printWindow.document.open();
@@ -790,7 +730,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
         } else {
           showNotification('A felugró ablakok le vannak tiltva. Kérjük, engedélyezze őket a nyomtatáshoz.', 'info');
         }
-    };
+    }, [getPrintHtml, showNotification, editableRecipe.recipeName]);
+    
 
     const ActionButton: React.FC<{ onClick: () => void; disabled?: boolean; children: React.ReactNode; label: string; }> = ({ onClick, disabled, children, label }) => (
         <button
@@ -847,19 +788,21 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
 
             {/* Action Buttons */}
             <div className="my-6 p-4 bg-gray-100 rounded-lg">
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-7 gap-3">
                     <ActionButton onClick={() => setIsSaveModalOpen(true)} label="Recept mentése">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor">
                             <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v10l-5-4-5 4V4z" />
                         </svg>
                         <span className="text-xs font-semibold text-gray-700">Mentés</span>
                     </ActionButton>
-                    <ActionButton onClick={handleShare} label="Recept megosztása">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
-                        </svg>
-                        <span className="text-xs font-semibold text-gray-700">Megosztás</span>
-                    </ActionButton>
+                    {isFromFavorites && (
+                        <ActionButton onClick={() => setIsFavoriteStatusModalOpen(true)} label="Kedvencnek jelölés">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-xs font-semibold text-gray-700">Kedvencek</span>
+                        </ActionButton>
+                    )}
                     <ActionButton onClick={handleSimplify} disabled={isSimplifying} label="Recept egyszerűsítése">
                         {isSimplifying ? (
                             <svg className="animate-spin h-6 w-6 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -878,7 +821,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                         ) : (
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
                         )}
-                        <span className="text-xs font-semibold text-gray-700">{isLoadingAlternatives ? "Keresés..." : "Hasonló receptek"}</span>
+                        <span className="text-xs font-semibold text-gray-700">{isLoadingAlternatives ? "Keresés..." : "Variációk"}</span>
                     </ActionButton>
                     <ActionButton onClick={handlePrint} label="Recept nyomtatása">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor">
@@ -893,88 +836,131 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                 {/* Left Column */}
                 <div className="space-y-6">
                     {/* Image Section */}
-                    <div>
-                        {isGeneratingImage ? (
-                            <div className="aspect-[4/3] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4 border animate-pulse-bg">
-                                <svg className="animate-spin h-10 w-10 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <p className="mt-4 text-lg font-semibold text-gray-700">Ételkép feldolgozása...</p>
-                                <p className="text-sm text-gray-500">Ez eltarthat egy pillanatig.</p>
-                            </div>
-                        ) : generatingImageError ? (
-                            <div className="aspect-[4/3] rounded-lg bg-red-50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-red-300">
-                                <p className="text-red-700 font-semibold text-center mb-2">Hiba történt a kép generálása közben.</p>
-                                <p className="text-red-600 text-sm text-center mb-4">{generatingImageError}</p>
-                                <button
-                                    onClick={() => handleGenerateImage(true)}
-                                    className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-red-700 transition-colors"
-                                >
-                                    Újrapróbálkozás
-                                </button>
-                            </div>
-                        ) : activeImageUrl ? (
-                            <div className="relative group">
-                                <button
-                                    onClick={() => {
-                                        setActiveImageTitle(editableRecipe.recipeName);
-                                        setIsImageModalOpen(true);
-                                    }}
-                                    className="w-full aspect-[4/3] rounded-lg overflow-hidden shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                                    aria-label="Kép megtekintése nagyban"
-                                >
-                                    <img
-                                        src={activeImageUrl}
-                                        alt={`Fotó a receptről: ${editableRecipe.recipeName}`}
-                                        className={`w-full h-full object-cover transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-                                        onLoad={() => setImageLoaded(true)}
-                                    />
-                                    {!imageLoaded && (
-                                        <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
-                                            <svg className="animate-spin h-8 w-8 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <div className="space-y-2">
+                        {isEditing ? (
+                            <div className="p-4 border-2 border-dashed border-primary-300 rounded-lg space-y-4 bg-primary-50">
+                                <h4 className="font-bold text-primary-800">Kép szerkesztése</h4>
+                                <div className="relative">
+                                    {isGeneratingImage ? (
+                                        <div className="aspect-[4/3] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4 border animate-pulse-bg">
+                                            <svg className="animate-spin h-10 w-10 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        </div>
+                                    ) : activeImageUrl ? (
+                                        <img
+                                            src={activeImageUrl}
+                                            alt={`Fotó a receptről: ${editableRecipe.recipeName}`}
+                                            className="w-full aspect-[4/3] object-cover rounded-lg shadow-md"
+                                        />
+                                    ) : (
+                                        <div className="aspect-[4/3] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4">
+                                            <p className="text-gray-500 text-center">Nincs kép a recepthez.</p>
                                         </div>
                                     )}
-                                </button>
-                                <div className="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                        onClick={() => handleGenerateImage(true)}
-                                        className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 bg-white/80 backdrop-blur-sm text-gray-800 rounded-full hover:bg-white shadow-md transition-colors"
-                                        aria-label="Új ételfotó generálása"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
-                                        Újragenerálás
+                                </div>
+                                {generatingImageError && <p className="text-red-600 text-sm text-center">{generatingImageError}</p>}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    <button type="button" onClick={() => handleGenerateImage(true)} disabled={isGeneratingImage} className="bg-primary-600 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 disabled:bg-gray-400">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
+                                        Új AI kép
                                     </button>
-                                    <button
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 bg-white/80 backdrop-blur-sm text-gray-800 rounded-full hover:bg-white shadow-md transition-colors"
-                                        aria-label="Új kép feltöltése"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
-                                        Új kép feltöltése
+                                    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isGeneratingImage} className="bg-gray-600 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 disabled:bg-gray-400">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
+                                        Feltöltés
+                                    </button>
+                                    <button type="button" onClick={handleRemoveImage} disabled={isGeneratingImage || !activeImageUrl} className="sm:col-span-2 lg:col-span-1 bg-red-600 text-white font-bold py-2 px-3 rounded-lg shadow-md hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:bg-gray-400">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                                        Kép törlése
                                     </button>
                                 </div>
                             </div>
                         ) : (
-                            <div className="aspect-[4/3] rounded-lg bg-gray-50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300">
-                                <h4 className="text-lg font-semibold text-gray-700 mb-2">Ételfotó</h4>
-                                <p className="text-gray-500 text-center text-sm mb-4">Generáljon egy képet a recepthez, vagy töltsön fel egy sajátot.</p>
-                                <div className="flex flex-col sm:flex-row gap-4">
-                                    <button
-                                        onClick={() => handleGenerateImage()}
-                                        className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
-                                        Generálás AI-val
-                                    </button>
-                                    <button
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
-                                        Saját kép feltöltése
-                                    </button>
-                                </div>
+                            <div>
+                                {isGeneratingImage ? (
+                                    <div className="aspect-[4/3] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4 border animate-pulse-bg">
+                                        <svg className="animate-spin h-10 w-10 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <p className="mt-4 text-lg font-semibold text-gray-700">Ételkép feldolgozása...</p>
+                                        <p className="text-sm text-gray-500">Ez eltarthat egy pillanatig.</p>
+                                    </div>
+                                ) : generatingImageError ? (
+                                    <div className="aspect-[4/3] rounded-lg bg-red-50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-red-300">
+                                        <p className="text-red-700 font-semibold text-center mb-2">Hiba történt a kép generálása közben.</p>
+                                        <p className="text-red-600 text-sm text-center mb-4">{generatingImageError}</p>
+                                        <button
+                                            onClick={() => handleGenerateImage(true)}
+                                            className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-red-700 transition-colors"
+                                        >
+                                            Újrapróbálkozás
+                                        </button>
+                                    </div>
+                                ) : activeImageUrl ? (
+                                    <div className="relative group">
+                                        <button
+                                            onClick={() => {
+                                                setActiveImageTitle(editableRecipe.recipeName);
+                                                setIsImageModalOpen(true);
+                                            }}
+                                            className="w-full aspect-[4/3] rounded-lg overflow-hidden shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                                            aria-label="Kép megtekintése nagyban"
+                                        >
+                                            <img
+                                                src={activeImageUrl}
+                                                alt={`Fotó a receptről: ${editableRecipe.recipeName}`}
+                                                className={`w-full h-full object-cover transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                                                onLoad={() => setImageLoaded(true)}
+                                            />
+                                            {!imageLoaded && (
+                                                <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
+                                                    <svg className="animate-spin h-8 w-8 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                </div>
+                                            )}
+                                        </button>
+                                        <div className="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => handleGenerateImage(true)}
+                                                className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 bg-white/80 backdrop-blur-sm text-gray-800 rounded-full hover:bg-white shadow-md transition-colors"
+                                                aria-label="Új ételfotó generálása"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
+                                                Újragenerálás
+                                            </button>
+                                            <button
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 bg-white/80 backdrop-blur-sm text-gray-800 rounded-full hover:bg-white shadow-md transition-colors"
+                                                aria-label="Új kép feltöltése"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
+                                                Új kép feltöltése
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="aspect-[4/3] rounded-lg bg-gray-50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300">
+                                        <h4 className="text-lg font-semibold text-gray-700 mb-2">Ételfotó</h4>
+                                        <p className="text-gray-500 text-center text-sm mb-4">Generáljon egy képet a recepthez, vagy töltsön fel egy sajátot.</p>
+                                        <div className="flex flex-col sm:flex-row gap-4">
+                                            <button
+                                                onClick={() => handleGenerateImage()}
+                                                className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
+                                                Generálás AI-val
+                                            </button>
+                                            <button
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
+                                                Saját kép feltöltése
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                         <input
@@ -1115,8 +1101,14 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
             {/* Modals */}
             {isSaveModalOpen && <SaveRecipeModal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} onSave={(cat) => onSave(editableRecipe, cat)} existingCategories={Object.keys(favorites)} suggestedCategory={mealTypeLabel} />}
             {isTimerOpen && <KitchenTimer onClose={() => setIsTimerOpen(false)} initialValues={timerInitialValues} />}
-            {isShareModalOpen && <ShareFallbackModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} textToCopy={textToShare} />}
-            {isFavoriteStatusModalOpen && <FavoriteStatusModal isOpen={isFavoriteStatusModalOpen} onClose={() => setIsFavoriteStatusModalOpen(false)} onSave={(ids) => onUpdateFavoriteStatus(editableRecipe.recipeName, "mock_category", ids)} users={users} initialFavoritedByIds={editableRecipe.favoritedBy || []} recipeName={editableRecipe.recipeName} />}
+            {isFavoriteStatusModalOpen && <FavoriteStatusModal isOpen={isFavoriteStatusModalOpen} onClose={() => setIsFavoriteStatusModalOpen(false)} onSave={(ids) => {
+                if (category) {
+                    onUpdateFavoriteStatus(editableRecipe.recipeName, category, ids);
+                    setIsFavoriteStatusModalOpen(false);
+                } else {
+                    showNotification("A recept kategóriája nem található, a kedvenc állapot mentése sikertelen.", "info");
+                }
+            }} users={users} initialFavoritedByIds={editableRecipe.favoritedBy || []} recipeName={editableRecipe.recipeName} />}
             {isImageModalOpen && <ImageDisplayModal imageUrl={activeImageUrl} recipeName={activeImageTitle} onClose={() => setIsImageModalOpen(false)} />}
         </div>
     </>

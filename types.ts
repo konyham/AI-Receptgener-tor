@@ -4,6 +4,7 @@ declare global {
     showSaveFilePicker(options?: any): Promise<any>;
     SpeechRecognition: any;
     webkitSpeechRecognition: any;
+    html2pdf: any;
   }
 }
 

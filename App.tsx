@@ -10,7 +10,6 @@ import ShoppingListView from './components/ShoppingListView';
 import PantryView from './components/PantryView';
 import UsersView from './components/UsersView';
 import AppVoiceControl from './components/AppVoiceControl';
-// FIX: The imported module was missing a default export. This has been fixed in the component file.
 import LocationPromptModal from './components/LocationPromptModal';
 import LoadOnStartModal from './components/LoadOnStartModal';
 import OptionsEditPanel from './components/OptionsEditPanel';
@@ -86,7 +85,7 @@ const App: React.FC = () => {
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
   const [pantry, setPantry] = useState<Record<PantryLocation, PantryItem[]>>({ Tiszadada: [], Vásárosnamény: [] });
   const [users, setUsers] = useState<UserProfile[]>([]);
-  // FIX: The state type for initial form data was incorrect (`Partial<Recipe>`), causing a mismatch with RecipeInputForm's props and type errors on assignment. The type now correctly reflects the form's data structure (`ingredients` as a string).
+  const [currentCategory, setCurrentCategory] = useState<string | null>(null);
   const [initialFormData, setInitialFormData] = useState<Partial<{ ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover', useSeasonalIngredients: boolean }> | null>(null);
   const [isFromFavorites, setIsFromFavorites] = useState(false);
   const [recipeSuggestions, setRecipeSuggestions] = useState<RecipeSuggestions | null>(null);
@@ -106,7 +105,6 @@ const App: React.FC = () => {
   const [mealTypes, setMealTypes] = useState<OptionItem[]>(() => loadFromLocalStorage(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES));
   const [cuisineOptions, setCuisineOptions] = useState<OptionItem[]>(() => loadFromLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, CUISINE_OPTIONS));
   const [cookingMethodsList, setCookingMethodsList] = useState<OptionItem[]>(() => loadFromLocalStorage(COOKING_METHODS_STORAGE_KEY, COOKING_METHODS));
-  // FIX: Corrected typo in the constant name for the storage key.
   const [cookingMethodCapacities, setCookingMethodCapacities] = useState<Record<string, number | null>>(() => loadFromLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, COOKING_METHOD_CAPACITIES));
   
   const [orderedMealTypes, setOrderedMealTypes] = useState<OptionItem[]>([]);
@@ -334,23 +332,20 @@ const App: React.FC = () => {
   
   const handleRecipeUpdate = async (updatedRecipe: Recipe, originalRecipe?: Recipe) => {
     setRecipe(updatedRecipe);
-    if (isFromFavorites && originalRecipe) {
-        let originalCategory: string | undefined;
-        for (const cat in favorites) {
-            if (favorites[cat].some(r => r.recipeName === originalRecipe.recipeName)) {
-                originalCategory = cat;
-                break;
-            }
+    // The save logic should only apply if it's a favorite being updated, and we know its category.
+    if (isFromFavorites && originalRecipe && currentCategory) {
+        // If the name changed, we need to remove the old entry before adding/updating the new one
+        // to prevent duplicates and ensure the update works correctly.
+        if (originalRecipe.recipeName !== updatedRecipe.recipeName) {
+            await favoritesService.removeRecipeFromFavorites(originalRecipe.recipeName, currentCategory);
         }
-        if (originalCategory) {
-            // If name has changed, we must remove the old entry first.
-            if (originalRecipe.recipeName !== updatedRecipe.recipeName) {
-                 await favoritesService.removeRecipeFromFavorites(originalRecipe.recipeName, originalCategory);
-            }
-            const finalFavorites = await favoritesService.addRecipeToFavorites(updatedRecipe, originalCategory);
-            setFavorites(finalFavorites);
-            showNotification('Recept sikeresen frissítve!', 'success');
-        }
+        
+        // The addRecipeToFavorites service function handles both creating a new entry (if the name changed)
+        // and updating an existing one (if the name is the same).
+        const finalFavorites = await favoritesService.addRecipeToFavorites(updatedRecipe, currentCategory);
+        
+        setFavorites(finalFavorites);
+        showNotification('Recept sikeresen frissítve!', 'success');
     }
   };
 
@@ -368,6 +363,7 @@ const App: React.FC = () => {
     setRecipeSuggestions(null);
     setIsFromFavorites(false);
     setInitialFormData(null);
+    setCurrentCategory(null);
     setView('generator');
   };
 
@@ -522,8 +518,9 @@ const App: React.FC = () => {
     }
   };
 
-  const handleViewFavorite = (recipeToView: Recipe) => {
+  const handleViewFavorite = (recipeToView: Recipe, category: string) => {
     setRecipe(recipeToView);
+    setCurrentCategory(category);
     setIsFromFavorites(true);
     setView('generator');
   };
@@ -836,7 +833,6 @@ const App: React.FC = () => {
   };
 
   // User handlers
-    // FIX: Update handleSaveUser to correctly handle adding new users (without an ID) and updating existing ones.
     const handleSaveUser = (user: UserProfile | Omit<UserProfile, 'id'>) => {
         if (!('id' in user)) {
             // This is a new user
@@ -1159,7 +1155,6 @@ const App: React.FC = () => {
     if (isProcessingVoiceCommandRef.current) return;
     isProcessingVoiceCommandRef.current = true;
     try {
-        // FIX: Explicitly type the 'item' parameter in the map function to fix type error.
         const allPantryItems = Object.values(pantry).flat().map((item: PantryItem) => item.text);
         const command: AppCommand = await interpretAppCommand(transcript, view, {
             categories: Object.keys(favorites),
@@ -1229,6 +1224,7 @@ const App: React.FC = () => {
           onClose={handleCloseRecipe}
           onRefine={handleRefineRecipe}
           isFromFavorites={isFromFavorites}
+          category={currentCategory}
           favorites={favorites}
           onSave={handleSaveToFavorites}
           onAddItemsToShoppingList={handleAddItemsToShoppingList}

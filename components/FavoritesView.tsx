@@ -10,7 +10,7 @@ import CategoryEditModal from './CategoryEditModal';
 interface FavoritesViewProps {
   favorites: Favorites;
   users: UserProfile[];
-  onViewRecipe: (recipe: Recipe) => void;
+  onViewRecipe: (recipe: Recipe, category: string) => void;
   onDeleteRecipe: (recipeName: string, category: string) => Promise<void>;
   onDeleteCategory: (category: string) => void;
   onDeleteMenu: (menuName: string, category: string) => void;
@@ -32,7 +32,7 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: SortOption.NAME_ASC, label: 'Név szerint (A-Z)' },
   { value: SortOption.NAME_DESC, label: 'Név szerint (Z-A)' },
   { value: SortOption.RATING_DESC, label: 'Értékelés szerint (legjobb elöl)' },
-  { value: SortOption.RATING_ASC, label: 'Értékelés szerint (legrosszabb elöl)' },
+  { value: SortOption.RATING_ASC, label: 'Értékelés szerint (legrossabb elöl)' },
 ];
 
 const fullMenuCategoryName = "Teljes Menü (Előétel, Leves, Főétel, Desszert)";
@@ -62,6 +62,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   const [statusModalState, setStatusModalState] = useState<{ recipe: Recipe; category: string } | null>(null);
   const [actionMenuRecipe, setActionMenuRecipe] = useState<{ recipe: Recipe; category: string } | null>(null);
   const [favoriteFilter, setFavoriteFilter] = useState('all'); // 'all', 'any_favorite', 'user_id'
+  const [ratingFilter, setRatingFilter] = useState(0); // 0 means all ratings
   
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ recipeName: string; category: string } | null>(null);
@@ -126,7 +127,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         ? Object.entries(favorites)
         : Object.entries(favorites).filter(([cat]) => cat === filterCategory);
 
-    const filteredBySearch = filteredByCategory.map(([category, recipes]) => {
+    const filteredBySearch = filteredByCategory.map(([category, recipes]: [string, Recipe[]]) => {
         const filteredRecipes = recipes.filter(recipe => 
             recipe.recipeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (recipe.menuName && recipe.menuName.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -135,9 +136,6 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         return [category, filteredRecipes] as [string, Recipe[]];
     }).filter(([, recipes]) => recipes.length > 0);
     
-    // FIX: Explicitly type the destructured `recipes` variable. This resolves an issue where TypeScript
-    // was incorrectly inferring its type as `unknown`, causing a '.filter does not exist' error.
-    // FIX: Explicitly type the destructured `recipes` variable in the `.map` callback. This resolves an issue where TypeScript was incorrectly inferring its type as `unknown`, causing a `.filter does not exist` error.
     const filteredByFavoriteStatus = filteredBySearch.map(([category, recipes]: [string, Recipe[]]) => {
         if (favoriteFilter === 'all') {
             return [category, recipes] as [string, Recipe[]];
@@ -150,8 +148,17 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         });
         return [category, filteredRecipes] as [string, Recipe[]];
     }).filter(([, recipes]) => recipes.length > 0);
+    
+    const filteredByRating = filteredByFavoriteStatus.map(([category, recipes]: [string, Recipe[]]) => {
+        if (ratingFilter === 0) {
+            return [category, recipes] as [string, Recipe[]];
+        }
+        const filteredRecipes = recipes.filter(recipe => (recipe.rating || 0) >= ratingFilter);
+        return [category, filteredRecipes] as [string, Recipe[]];
+    }).filter(([, recipes]) => recipes.length > 0);
 
-    const sorted = filteredByFavoriteStatus.map(([category, recipes]) => {
+
+    const sorted = filteredByRating.map(([category, recipes]: [string, Recipe[]]) => {
       const sortedRecipes = [...recipes].sort((a, b) => {
         switch (sortOption) {
           case SortOption.DATE_ASC:
@@ -174,7 +181,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
     });
 
     return sorted;
-  }, [favorites, filterCategory, sortOption, favoriteFilter, searchQuery]);
+  }, [favorites, filterCategory, sortOption, favoriteFilter, searchQuery, ratingFilter]);
 
   const recipeForCatEdit = actionMenuRecipe?.recipe;
   const initialCategoriesForEdit = useMemo(() => {
@@ -191,7 +198,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
       
       <div className="p-4 bg-gray-50 border rounded-lg space-y-4">
         <h3 className="text-lg font-semibold text-gray-700">Szűrés és Rendezés</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input
             type="search"
             value={searchQuery}
@@ -214,7 +221,20 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
           >
             {SORT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
-          <div className="md:col-span-2 lg:col-span-3">
+          <select
+            id="rating-filter"
+            value={ratingFilter}
+            onChange={(e) => setRatingFilter(Number(e.target.value))}
+            className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="0">Minden értékelés</option>
+            <option value="5">Csak 5 ★</option>
+            <option value="4">4+ ★</option>
+            <option value="3">3+ ★</option>
+            <option value="2">2+ ★</option>
+            <option value="1">1+ ★</option>
+          </select>
+          <div className="md:col-span-2">
              <select
                 value={favoriteFilter}
                 onChange={e => setFavoriteFilter(e.target.value)}
@@ -232,7 +252,6 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
 
       {sortedAndFilteredFavorites.length > 0 ? (
         <div className="space-y-4">
-          {/* FIX: Explicitly type the destructured `recipes` variable to resolve type errors with .reduce, .length, and .sort. */}
           {sortedAndFilteredFavorites.map(([category, recipes]: [string, Recipe[]]) => {
               if (category === fullMenuCategoryName || category === dailyMenuCategoryName) {
                   const menusByName = recipes.reduce<Record<string, Recipe[]>>((acc, recipe) => {
@@ -335,7 +354,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                                         </div>
                                         {recipe.favoritedBy && recipe.favoritedBy.length > 0 && (
                                             <div className="flex items-center gap-1 border-l pl-2">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-yellow-500" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
                                                 <span className="font-medium">{recipe.favoritedBy.length}</span>
                                             </div>
                                         )}
@@ -389,10 +408,16 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
             isOpen={!!actionMenuRecipe}
             onClose={() => setActionMenuRecipe(null)}
             recipe={actionMenuRecipe.recipe}
-            onView={() => { onViewRecipe(actionMenuRecipe.recipe); setActionMenuRecipe(null); }}
-            onMove={() => { setMovingRecipe(actionMenuRecipe); setActionMenuRecipe(null); }}
+            onView={() => { if (actionMenuRecipe) { onViewRecipe(actionMenuRecipe.recipe, actionMenuRecipe.category); } setActionMenuRecipe(null); }}
+            onMove={() => {
+              if (actionMenuRecipe) {
+                setMovingRecipe({ recipe: actionMenuRecipe.recipe, fromCategory: actionMenuRecipe.category });
+              }
+              setActionMenuRecipe(null);
+            }}
             onDelete={handleDeleteRequest}
             onEditCategories={() => setIsCategoryEditModalOpen(true)}
+            onSetFavorite={() => { if (actionMenuRecipe) { setStatusModalState(actionMenuRecipe); } setActionMenuRecipe(null); }}
         />
       )}
 
