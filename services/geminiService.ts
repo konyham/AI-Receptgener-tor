@@ -841,3 +841,40 @@ CRITICAL: The final image must be completely clean. It must contain ZERO text, l
     throw new Error('Hiba történt az illusztráció generálása közben.');
   }
 };
+
+export const generateAppGuide = async (): Promise<string> => {
+  const prompt = `Generálj egy részletes, mégis könnyen érthető felhasználói útmutatót magyar nyelven az **"AI receptgenerátor - Konyha Miki módra"** nevű alkalmazáshoz. Amikor az alkalmazás nevére hivatkozol, mindig ezt a formát használd, és tedd idézőjelbe vagy emeld ki. A kimenet legyen HTML formátumú, egyszerű tagekkel. A HTML tagekhez használj Tailwind CSS osztályokat a stílusozáshoz, hogy az esztétikus és olvasható legyen. Például:
+<h2 class="text-2xl font-bold text-primary-800 mt-6 mb-3">Fejléc</h2>
+<p class="text-gray-700 mb-4">Ez egy paragrafus.</p>
+<ul class="list-disc list-inside space-y-2 pl-4"><li>Ez egy lista elem.</li></ul>
+
+Ne használj <head>, <body> vagy <html> tageket, csak a tartalmi részt.
+
+Az útmutatónak az alábbi funkciókat kell bemutatnia, az aktuális verzió alapján:
+
+1.  **Fő nézetek (Navigációs sáv):**
+    *   **Receptgenerátor:** Az alkalmazás fő funkciója. Magyarázd el, hogy a felhasználó megadhat alapanyagokat (vagy hagyhatja üresen meglepetés recepthez), kizárhat alapanyagokat, választhat diétát, étkezés típusát, konyhát, recept jellegét (gyors, egyszerű), és elkészítési módot. Emelj ki olyan speciális funkciókat, mint a maradékfelhasználás mód, szezonális alapanyagok használata, és a felhasználói profilok (preferenciák, allergiák) automatikus figyelembevétele.
+    *   **Mentett Receptek:** Itt tárolhatók a kedvenc receptek kategóriákba rendezve. Említsd meg a szűrési és rendezési lehetőségeket (kategória, név, dátum, értékelés, felhasználói kedvencek alapján), a menük kezelését és a receptek szerkesztését.
+    *   **Kamra:** A felhasználók itt tarthatják nyilván az otthoni készleteiket, több helyszínen is (Tiszadada, Vásárosnamény). Magyarázd el a tételek hozzáadását, szerkesztését, törlését, és az alapanyagok áthelyezését a bevásárlólistáról a kamrába, vagy kamrák között. Említsd meg a "Főzés a kamrából" funkciót.
+    *   **Bevásárlólista:** Egy egyszerű lista a beszerzendő dolgokról. Említsd meg a tételek hozzáadását, kipipálását, törlését és az AI-alapú kategorizálást.
+    *   **Felhasználók:** Profilok létrehozása a családtagoknak, ahol rögzíthetők a kedvelt és nem kedvelt alapanyagok, valamint az allergiák.
+
+2.  **Fontosabb funkciók:**
+    *   **Adatkezelés:** A "Mentés Fájlba" és "Betöltés Fájlból" funkciók, amelyekkel a felhasználók biztonsági mentést készíthetnek minden adatukról (receptek, listák, profilok).
+    *   **Hangvezérlés:** Magyarázd el röviden, hogy a főbb navigációs és űrlapkitöltési műveletek hanggal is vezérelhetők.
+    *   **Kép- és Menügenerálás:** Említsd meg, hogy az AI képes ételfotókat generálni a receptekhez, sőt, komplett 4 fogásos (előétel, leves, főétel, desszert) vagy napi menüket (reggeli, ebéd, vacsora) is tud készíteni.
+    *   **Testreszabás:** A felhasználók szerkeszthetik az étkezés típusok, konyhák és elkészítési módok listáját az "Opciók szerkesztése" gombbal.
+
+A leírás legyen barátságos és segítőkész. A cél, hogy egy új felhasználó is megértse az alkalmazás teljes működését.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+    return response.text;
+  } catch (e: any) {
+    console.error('Error generating app guide:', e);
+    throw new Error(`Hiba történt az útmutató generálása közben: ${e.message}`);
+  }
+};

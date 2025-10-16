@@ -274,8 +274,10 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         {list.length > 0 ? (
             categorizedList ? (
                 <div className="space-y-3 p-2">
-                    {/* FIX: Add explicit types to map to prevent type inference issues. */}
-                    {Object.entries(categorizedList).map(([category, items]: [string, ShoppingListItem[]]) => (
+                    {/* FIX: Changed from Object.entries to Object.keys to fix type inference issues where `items` was becoming `unknown`. */}
+                    {Object.keys(categorizedList).map((category) => {
+                        const items = categorizedList[category];
+                        return (
                          <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                             <button
                                 onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
@@ -287,15 +289,14 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
                             </button>
                              {expandedAIGroups[category] && (
                                 <ul className="divide-y divide-gray-100 bg-white">
-                                    {/* FIX: Add explicit type annotation to `item` to resolve TypeScript error. */}
-                                    {items.map((item: ShoppingListItem) => {
+                                    {items.map((item) => {
                                         const originalIndex = list.findIndex(li => li.text === item.text);
                                         return renderListItem(item, originalIndex);
                                     })}
                                 </ul>
                             )}
                         </div>
-                    ))}
+                    )})}
                 </div>
             ) : (
                 <ul className="divide-y divide-gray-100">

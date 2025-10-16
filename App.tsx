@@ -13,7 +13,8 @@ import AppVoiceControl from './components/AppVoiceControl';
 import LocationPromptModal from './components/LocationPromptModal';
 import LoadOnStartModal from './components/LoadOnStartModal';
 import OptionsEditPanel from './components/OptionsEditPanel';
-import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu } from './services/geminiService';
+import InfoModal from './components/InfoModal';
+import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
 import * as pantryService from './services/pantryService';
@@ -112,6 +113,11 @@ const App: React.FC = () => {
   const [orderedCuisineOptions, setOrderedCuisineOptions] = useState<OptionItem[]>([]);
 
   const [isOptionsEditorOpen, setIsOptionsEditorOpen] = useState(false);
+
+  // Info Modal State
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [appGuideContent, setAppGuideContent] = useState('');
+  const [isLoadingGuide, setIsLoadingGuide] = useState(false);
 
 
   const { showNotification } = useNotification();
@@ -1190,6 +1196,25 @@ const App: React.FC = () => {
       continuous: false
   });
 
+  const handleOpenInfoModal = async () => {
+    if (appGuideContent) {
+        setIsInfoModalOpen(true);
+        return;
+    }
+
+    setIsLoadingGuide(true);
+    setIsInfoModalOpen(true);
+    try {
+        const guide = await generateAppGuide();
+        setAppGuideContent(guide);
+    } catch (err: any) {
+        showNotification(err.message, 'info');
+        setIsInfoModalOpen(false);
+    } finally {
+        setIsLoadingGuide(false);
+    }
+  };
+
   const renderView = () => {
     if (recipe && view === 'generator') {
       if ('menuName' in recipe) {
@@ -1344,6 +1369,15 @@ const App: React.FC = () => {
           <div className="flex items-center gap-3">
              <img src={konyhaMikiLogo} alt="Konyha Miki Logó" className="h-12" />
           </div>
+          <button
+            onClick={handleOpenInfoModal}
+            className="bg-primary-100 text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-200 shadow-sm hover:bg-primary-200 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            Információ
+          </button>
         </div>
       </header>
       
@@ -1418,6 +1452,12 @@ const App: React.FC = () => {
         initialCuisineOptions={orderedCuisineOptions}
         initialCookingMethods={orderedCookingMethods}
         initialCapacities={cookingMethodCapacities}
+      />
+      <InfoModal
+        isOpen={isInfoModalOpen}
+        onClose={() => setIsInfoModalOpen(false)}
+        content={appGuideContent}
+        isLoading={isLoadingGuide}
       />
     </div>
   );

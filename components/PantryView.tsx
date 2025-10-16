@@ -316,8 +316,7 @@ const PantryView: React.FC<PantryViewProps> = ({
   
   const renderItemList = (items: PantryItemWithIndex[]) => (
      <ul className="divide-y divide-gray-200">
-        {/* FIX: Add explicit type annotation to `item` to resolve TypeScript error. */}
-        {items.map((item: PantryItemWithIndex) => {
+        {items.map(item => {
           const urgency = getUrgency(item);
           const isSelected = selectedItems[activeLocation].has(item.originalIndex);
 
@@ -487,9 +486,10 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {/* FIX: Use Object.entries for stronger type inference. */}
-              {/* FIX: Change map to implicit return and correct return value to fix type error on 'category'. */}
-              {Object.entries(categorizedPantry).map(([category, items]: [string, PantryItemWithIndex[]]) => (
+              {/* FIX: Changed from Object.entries to Object.keys to fix type inference issues where `items` was becoming `unknown`. */}
+              {Object.keys(categorizedPantry).map(category => {
+                  const items = categorizedPantry[category];
+                  return (
                     <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                         <button
                             onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
@@ -503,7 +503,7 @@ const PantryView: React.FC<PantryViewProps> = ({
                             renderItemList(items)
                         )}
                     </div>
-                  ))}
+                  )})}
           </div>
         ) : (
           filteredAndSortedPantry.length > 0 ? (
