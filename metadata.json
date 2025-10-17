@@ -2,6 +2,7 @@
   "name": "AI receptgenerátor - Konyha Miki módra",
   "description": "Készítsen finom és egészséges recepteket a megadott összetevőkből és diétás igényeknek megfelelően, beleértve a cukorbeteg diétát is.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
   ]
 }

@@ -219,8 +219,10 @@ const PantryView: React.FC<PantryViewProps> = ({
             }
         });
 
-        // FIX: Replaced a complex .reduce() with Object.fromEntries to avoid type inference issues.
-        setExpandedAIGroups(Object.fromEntries(Object.keys(grouped).map(key => [key, true])));
+        // FIX: Replaced the error-prone `reduce` with a cleaner `Object.fromEntries` call to fix the "Type 'unknown' cannot be used as an index type" error.
+        setExpandedAIGroups(
+          Object.fromEntries(Object.keys(grouped).map((key) => [key, true]))
+        );
         setCategorizedPantry(grouped);
 
     } catch (e: any) {
@@ -316,7 +318,8 @@ const PantryView: React.FC<PantryViewProps> = ({
   
   const renderItemList = (items: PantryItemWithIndex[]) => (
      <ul className="divide-y divide-gray-200">
-        {items.map(item => {
+        {/* FIX: Explicitly typed `item` in the map function to resolve the type inference issue. */}
+        {items.map((item: PantryItemWithIndex) => {
           const urgency = getUrgency(item);
           const isSelected = selectedItems[activeLocation].has(item.originalIndex);
 
@@ -486,8 +489,8 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {/* FIX: Changed from Object.entries to Object.keys to fix type inference issues where `items` was becoming `unknown`. */}
-              {Object.keys(categorizedPantry).map(category => {
+              {/* FIX: Replaced Object.entries with Object.keys to fix type inference issues on the mapped 'items' array. */}
+              {Object.keys(categorizedPantry).map((category) => {
                   const items = categorizedPantry[category];
                   return (
                     <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">

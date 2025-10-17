@@ -83,6 +83,28 @@ const recipeSchema = {
   ],
 };
 
+const partialRecipeSchema = {
+    type: Type.OBJECT,
+    properties: {
+      recipeName: { type: Type.STRING, description: 'A recept neve.' },
+      description: { type: Type.STRING, description: 'A recept rövid, étvágygerjesztő leírása.' },
+      prepTime: { type: Type.STRING, description: 'Az előkészítési idő, pl. "15 perc".' },
+      cookTime: { type: Type.STRING, description: 'A főzési/sütési idő, pl. "30 perc".' },
+      servings: { type: Type.STRING, description: 'Hány személyre szól a recept, pl. "4 személy".' },
+      ingredients: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'A hozzávalók listája, pontos mennyiségekkel.' },
+      instructions: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: { text: { type: Type.STRING, description: 'Az elkészítési lépés leírása.' } },
+          required: ['text'],
+        },
+        description: 'Az elkészítési lépések listája, részletesen.',
+      },
+    },
+    // No 'required' field to allow for missing data from the source URL.
+};
+
 const menuSchema = {
   type: Type.OBJECT,
   properties: {
@@ -877,4 +899,87 @@ A leírás legyen barátságos és segítőkész. A cél, hogy egy új felhaszn�
     console.error('Error generating app guide:', e);
     throw new Error(`Hiba történt az útmutató generálása közben: ${e.message}`);
   }
+};
+
+export const parseRecipeFromUrl = async (url: string): Promise<Partial<Recipe>> => {
+    const prompt = `Viselkedj recept-értelmezőként. Elemezd a weboldal tartalmát a következő URL-en, és nyerd ki a receptinformációkat: ${url}.
+
+    A következő adatokat add vissza egy strukturált JSON formátumban. Ha egy adott információt nem találsz, hagyd ki a kulcsot, vagy adj neki üres értéket.
+
+    - recipeName: Az étel neve.
+    - description: Rövid leírás a receptről.
+    - prepTime: Előkészítési idő.
+    - cookTime: Főzési idő.
+    - servings: Adagok száma.
+    - ingredients: Stringek tömbje, ahol minden elem egy hozzávaló a mennyiségével együtt.
+    - instructions: Objektumok tömbje, ahol minden objektumnak van egy 'text' tulajdonsága az utasítási lépéshez.
+
+    A kimenet szigorúan tartsa be a megadott JSON sémát. Csak a JSON objektumot add vissza, mindenféle magyarázat vagy extra szöveg nélkül.`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: partialRecipeSchema,
+            },
+        });
+
+        const json = JSON.parse(response.text);
+        return json as Partial<Recipe>;
+
+    } catch (e: any) {
+        console.error('Error parsing recipe from URL:', e);
+        if (e.message.includes('JSON')) {
+            throw new Error('Az AI válasza hibás formátumú volt a weboldal elemzése során. Lehet, hogy a linkelt oldal nem tartalmaz receptet.');
+        } else if (e.message.toLowerCase().includes('quota')) {
+            throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+        }
+        throw new Error(`Hiba történt a recept URL-ből való beolvasása közben: ${e.message}`);
+    }
+};
+
+export const parseRecipeFromImage = async (imageData: {inlineData: { data: string, mimeType: string }}): Promise<Partial<Recipe>> => {
+    const prompt = `Viselkedj recept-értelmezőként. Elemezd a képen látható (kézzel írott vagy nyomtatott) receptet, és nyerd ki a receptinformációkat.
+
+    A következő adatokat add vissza egy strukturált JSON formátumban. Ha egy adott információt nem találsz, hagyd ki a kulcsot, vagy adj neki üres értéket.
+
+    - recipeName: Az étel neve.
+    - description: Rövid leírás a receptről.
+    - prepTime: Előkészítési idő.
+    - cookTime: Főzési idő.
+    - servings: Adagok száma.
+    - ingredients: Stringek tömbje, ahol minden elem egy hozzávaló a mennyiségével együtt.
+    - instructions: Objektumok tömbje, ahol minden objektumnak van egy 'text' tulajdonsága az utasítási lépéshez.
+
+    A kimenet szigorúan tartsa be a megadott JSON sémát. Csak a JSON objektumot add vissza, mindenféle magyarázat vagy extra szöveg nélkül.`;
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: {
+                parts: [
+                    imageData,
+                    { text: prompt },
+                ],
+            },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: partialRecipeSchema,
+            },
+        });
+
+        const json = JSON.parse(response.text);
+        return json as Partial<Recipe>;
+
+    } catch (e: any) {
+        console.error('Error parsing recipe from image:', e);
+        if (e.message.includes('JSON')) {
+            throw new Error('Az AI válasza hibás formátumú volt a kép elemzése során. Lehet, hogy a képen nem volt felismerhető recept.');
+        } else if (e.message.toLowerCase().includes('quota')) {
+            throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+        }
+        throw new Error(`Hiba történt a recept képről való beolvasása közben: ${e.message}`);
+    }
 };

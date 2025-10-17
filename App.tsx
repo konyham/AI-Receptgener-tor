@@ -14,7 +14,9 @@ import LocationPromptModal from './components/LocationPromptModal';
 import LoadOnStartModal from './components/LoadOnStartModal';
 import OptionsEditPanel from './components/OptionsEditPanel';
 import InfoModal from './components/InfoModal';
-import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide } from './services/geminiService';
+import ImportUrlModal from './components/ImportUrlModal';
+import ImportImageModal from './components/ImportImageModal';
+import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromImage } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
 import * as pantryService from './services/pantryService';
@@ -118,6 +120,14 @@ const App: React.FC = () => {
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [appGuideContent, setAppGuideContent] = useState('');
   const [isLoadingGuide, setIsLoadingGuide] = useState(false);
+
+  // URL/Image Import Modal State
+  const [isImportUrlModalOpen, setIsImportUrlModalOpen] = useState(false);
+  const [isParsingUrl, setIsParsingUrl] = useState(false);
+  const [parsingUrlError, setParsingUrlError] = useState<string | null>(null);
+  const [isImportImageModalOpen, setIsImportImageModalOpen] = useState(false);
+  const [isParsingImage, setIsParsingImage] = useState(false);
+  const [parsingImageError, setParsingImageError] = useState<string | null>(null);
 
 
   const { showNotification } = useNotification();
@@ -1059,6 +1069,7 @@ const App: React.FC = () => {
           images[id] = data;
         }
       });
+      // FIX: Awaited the array of promises (`imagePromises`) instead of the `images` object.
       await Promise.all(imagePromises);
 
       const dataToSave: BackupData = {
@@ -1214,6 +1225,131 @@ const App: React.FC = () => {
         setIsLoadingGuide(false);
     }
   };
+  
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleParseImage = async (file: File) => {
+    setIsParsingImage(true);
+    setParsingImageError(null);
+    try {
+        const base64Data = await fileToBase64(file);
+        // data:image/jpeg;base64,.....
+        const parts = base64Data.split(',');
+        if (parts.length !== 2) {
+            throw new Error("Érvénytelen képfájl formátum.");
+        }
+        const mimeType = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+        const data = parts[1];
+
+        const parsedData = await parseRecipeFromImage({ inlineData: { data, mimeType } });
+
+        if (!parsedData || Object.keys(parsedData).length === 0 || (!parsedData.ingredients && !parsedData.recipeName && !parsedData.description)) {
+            throw new Error("Nem sikerült receptadatokat kinyerni a képből. Próbálja meg egy másik, jobb minőségű képpel.");
+        }
+
+        const formData: Partial<NonNullable<typeof initialFormData>> = {};
+        if (parsedData.ingredients && Array.isArray(parsedData.ingredients) && parsedData.ingredients.length > 0) {
+            formData.ingredients = parsedData.ingredients.join(', ');
+        }
+        const specialRequests: string[] = [];
+        if (parsedData.recipeName) specialRequests.push(`A "${parsedData.recipeName}" recept alapján.`);
+        if (parsedData.description) specialRequests.push(parsedData.description);
+        if (parsedData.prepTime) specialRequests.push(`Előkészítési idő: ${parsedData.prepTime}.`);
+        if (parsedData.cookTime) specialRequests.push(`Főzési idő: ${parsedData.cookTime}.`);
+        if (specialRequests.length > 0) formData.specialRequest = specialRequests.join(' ');
+        if (parsedData.servings) {
+            const servingsMatch = parsedData.servings.match(/\d+/);
+            if (servingsMatch?.[0]) {
+                const servings = parseInt(servingsMatch[0], 10);
+                if (servings > 0) formData.numberOfServings = servings;
+            }
+        }
+        
+        if (Object.keys(formData).length === 0) {
+             throw new Error("A beolvasott adatok nem voltak elegendőek az űrlap kitöltéséhez.");
+        }
+
+        setInitialFormData(formData);
+        setView('generator');
+        setIsImportImageModalOpen(false);
+        showNotification('Recept sikeresen beolvasva a képről! Ellenőrizze az adatokat.', 'success');
+
+    } catch (err: any) {
+        setParsingImageError(err.message);
+    } finally {
+        setIsParsingImage(false);
+    }
+  };
+
+  const handleParseUrl = async (url: string) => {
+    setIsParsingUrl(true);
+    setParsingUrlError(null);
+    try {
+        const parsedData = await parseRecipeFromUrl(url);
+
+        // Check if we got any meaningful data back
+        if (!parsedData || Object.keys(parsedData).length === 0 || 
+            (!parsedData.ingredients && !parsedData.recipeName && !parsedData.description)) {
+            throw new Error("Nem sikerült receptadatokat kinyerni a megadott URL-ről. Próbálja meg egy másik, egyértelműen receptet tartalmazó linkkel.");
+        }
+
+        const formData: Partial<NonNullable<typeof initialFormData>> = {};
+
+        if (parsedData.ingredients && Array.isArray(parsedData.ingredients) && parsedData.ingredients.length > 0) {
+            formData.ingredients = parsedData.ingredients.join(', ');
+        }
+        
+        const specialRequests: string[] = [];
+        if (parsedData.recipeName) {
+            specialRequests.push(`A "${parsedData.recipeName}" recept alapján.`);
+        }
+        if (parsedData.description) {
+            specialRequests.push(parsedData.description);
+        }
+        // Combine prepTime and cookTime into the special request for context
+        if (parsedData.prepTime) {
+            specialRequests.push(`Előkészítési idő: ${parsedData.prepTime}.`);
+        }
+        if (parsedData.cookTime) {
+            specialRequests.push(`Főzési idő: ${parsedData.cookTime}.`);
+        }
+
+        if (specialRequests.length > 0) {
+            formData.specialRequest = specialRequests.join(' ');
+        }
+
+        if (parsedData.servings) {
+            const servingsMatch = parsedData.servings.match(/\d+/);
+            if (servingsMatch && servingsMatch[0]) {
+                const servings = parseInt(servingsMatch[0], 10);
+                if (servings > 0) {
+                    formData.numberOfServings = servings;
+                }
+            }
+        }
+        
+        if (Object.keys(formData).length === 0) {
+             throw new Error("A beolvasott adatok nem voltak elegendőek az űrlap kitöltéséhez.");
+        }
+
+        setInitialFormData(formData);
+        setView('generator');
+        setIsImportUrlModalOpen(false);
+        showNotification('Recept sikeresen beolvasva! Ellenőrizze és finomítsa az adatokat.', 'success');
+
+    } catch (err: any) {
+        setParsingUrlError(err.message);
+    } finally {
+        setIsParsingUrl(false);
+    }
+  };
 
   const renderView = () => {
     if (recipe && view === 'generator') {
@@ -1347,6 +1483,14 @@ const App: React.FC = () => {
                 orderedCookingMethods={orderedCookingMethods}
                 orderedCuisineOptions={orderedCuisineOptions}
                 onOpenOptionsEditor={() => setIsOptionsEditorOpen(true)}
+                onOpenUrlImporter={() => {
+                  setParsingUrlError(null);
+                  setIsImportUrlModalOpen(true);
+                }}
+                onOpenImageImporter={() => {
+                    setParsingImageError(null);
+                    setIsImportImageModalOpen(true);
+                }}
               />
             )}
           </>
@@ -1458,6 +1602,20 @@ const App: React.FC = () => {
         onClose={() => setIsInfoModalOpen(false)}
         content={appGuideContent}
         isLoading={isLoadingGuide}
+      />
+      <ImportUrlModal
+        isOpen={isImportUrlModalOpen}
+        onClose={() => setIsImportUrlModalOpen(false)}
+        onParse={handleParseUrl}
+        isParsing={isParsingUrl}
+        error={parsingUrlError}
+      />
+      <ImportImageModal
+        isOpen={isImportImageModalOpen}
+        onClose={() => setIsImportImageModalOpen(false)}
+        onParse={handleParseImage}
+        isParsing={isParsingImage}
+        error={parsingImageError}
       />
     </div>
   );

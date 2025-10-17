@@ -21,6 +21,8 @@ interface RecipeInputFormProps {
   orderedCookingMethods: OptionItem[];
   orderedCuisineOptions: OptionItem[];
   onOpenOptionsEditor: () => void;
+  onOpenUrlImporter?: () => void;
+  onOpenImageImporter?: () => void;
 }
 
 const INGREDIENTS_STORAGE_KEY = 'ai-recipe-generator-saved-ingredients';
@@ -40,6 +42,8 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     orderedCookingMethods,
     orderedCuisineOptions,
     onOpenOptionsEditor,
+    onOpenUrlImporter,
+    onOpenImageImporter,
 }) => {
   const [mode, setMode] = useState<'standard' | 'leftover'>('standard');
   const [ingredients, setIngredients] = useState<string[]>([]);
@@ -619,15 +623,35 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
         </button>
       </div>
       
-      <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border">
-        <h3 className="text-lg font-semibold text-gray-700">Testreszabás</h3>
-        <button 
-          type="button" 
-          onClick={onOpenOptionsEditor}
-          className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-        >
-          Opciók szerkesztése...
-        </button>
+      <div className="flex flex-col sm:flex-row justify-between items-center bg-gray-50 p-3 rounded-lg border gap-4">
+        <h3 className="text-lg font-semibold text-gray-700">Eszközök és Beállítások</h3>
+        <div className="flex flex-wrap gap-2 justify-end">
+          {onOpenUrlImporter && (
+            <button
+              type="button"
+              onClick={onOpenUrlImporter}
+              className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            >
+              Importálás URL-ből...
+            </button>
+          )}
+          {onOpenImageImporter && (
+            <button
+              type="button"
+              onClick={onOpenImageImporter}
+              className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            >
+              Importálás Képből...
+            </button>
+          )}
+          <button 
+            type="button" 
+            onClick={onOpenOptionsEditor}
+            className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            Opciók szerkesztése...
+          </button>
+        </div>
       </div>
 
        {isSupported && (

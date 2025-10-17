@@ -170,7 +170,6 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         }
 
         setCategorizedList(grouped);
-        // FIX: Replaced a complex .reduce() with Object.fromEntries to avoid type inference issues.
         setExpandedAIGroups(Object.fromEntries(Object.keys(grouped).map(key => [key, true])));
 
     } catch (e: any) {
@@ -274,7 +273,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         {list.length > 0 ? (
             categorizedList ? (
                 <div className="space-y-3 p-2">
-                    {/* FIX: Changed from Object.entries to Object.keys to fix type inference issues where `items` was becoming `unknown`. */}
+                    {/* FIX: Replaced Object.entries with Object.keys to fix type inference issues on the mapped 'items' array. */}
                     {Object.keys(categorizedList).map((category) => {
                         const items = categorizedList[category];
                         return (
