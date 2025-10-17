@@ -133,6 +133,7 @@ const App: React.FC = () => {
   const { showNotification } = useNotification();
   const isProcessingVoiceCommandRef = React.useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recipeDisplayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     document.documentElement.lang = 'hu';
@@ -214,6 +215,16 @@ const App: React.FC = () => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, []);
+
+  useEffect(() => {
+    // Scroll to the recipe view when a new recipe is generated.
+    if (recipe && !isLoading && !isFromFavorites && recipeDisplayRef.current) {
+      // Use a small timeout to ensure the browser has painted the new component before scrolling
+      setTimeout(() => {
+        recipeDisplayRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }, [recipe, isLoading, isFromFavorites]);
 
 
   // Effects to sync ordered lists (lifted from RecipeInputForm)
@@ -1600,7 +1611,7 @@ const App: React.FC = () => {
             </div>
           </div>
         
-        <div className="bg-white p-4 md:p-8 rounded-lg shadow-lg">
+        <div ref={recipeDisplayRef} className="bg-white p-4 md:p-8 rounded-lg shadow-lg">
           {renderView()}
         </div>
       </main>
