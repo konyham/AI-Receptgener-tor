@@ -883,6 +883,7 @@ Az útmutatónak az alábbi funkciókat kell bemutatnia, az aktuális verzió al
 
 2.  **Fontosabb funkciók:**
     *   **Adatkezelés:** A "Mentés Fájlba" és "Betöltés Fájlból" funkciók, amelyekkel a felhasználók biztonsági mentést készíthetnek minden adatukról (receptek, listák, profilok).
+    *   **Recept Importálás:** Mutasd be, hogy a felhasználók beolvashatnak recepteket külső forrásokból. Ez magában foglalja a receptek importálását weboldal linkjéről (URL), vagy képfájlból. A kép lehet egy elmentett fotó, vagy egy frissen, a telefon kamerájával készített kép egy szakácskönyvről, újságról, vagy akár a nagymama kézzel írt receptfüzetéről. Az AI megpróbálja kinyerni az adatokat és kitölteni a receptgenerátor űrlapot.
     *   **Hangvezérlés:** Magyarázd el röviden, hogy a főbb navigációs és űrlapkitöltési műveletek hanggal is vezérelhetők.
     *   **Kép- és Menügenerálás:** Említsd meg, hogy az AI képes ételfotókat generálni a receptekhez, sőt, komplett 4 fogásos (előétel, leves, főétel, desszert) vagy napi menüket (reggeli, ebéd, vacsora) is tud készíteni.
     *   **Testreszabás:** A felhasználók szerkeszthetik az étkezés típusok, konyhák és elkészítési módok listáját az "Opciók szerkesztése" gombbal.

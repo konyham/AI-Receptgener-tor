@@ -489,7 +489,6 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {/* FIX: Changed from Object.entries to Object.keys to ensure proper type inference for 'items'. */}
               {Object.keys(categorizedPantry).map((category) => {
                   const items = categorizedPantry[category];
                   return (
