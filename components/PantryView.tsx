@@ -319,7 +319,7 @@ const PantryView: React.FC<PantryViewProps> = ({
   const renderItemList = (items: PantryItemWithIndex[]) => (
      <ul className="divide-y divide-gray-200">
         {/* FIX: Explicitly typed `item` in the map function to resolve the type inference issue. */}
-        {items.map((item: PantryItemWithIndex) => {
+        {items.map((item) => {
           const urgency = getUrgency(item);
           const isSelected = selectedItems[activeLocation].has(item.originalIndex);
 
@@ -489,9 +489,8 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {/* FIX: Replaced Object.entries with Object.keys to fix type inference issues on the mapped 'items' array. */}
-              {Object.keys(categorizedPantry).map((category) => {
-                  const items = categorizedPantry[category];
+              {/* FIX: Reverted to Object.entries for correct type inference on the mapped 'items' array. */}
+              {Object.entries(categorizedPantry).map(([category, items]) => {
                   return (
                     <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                         <button

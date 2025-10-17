@@ -1069,7 +1069,6 @@ const App: React.FC = () => {
           images[id] = data;
         }
       });
-      // FIX: Awaited the array of promises (`imagePromises`) instead of the `images` object.
       await Promise.all(imagePromises);
 
       const dataToSave: BackupData = {
@@ -1226,12 +1225,46 @@ const App: React.FC = () => {
     }
   };
   
-  const fileToBase64 = (file: File): Promise<string> => {
+  const resizeAndEncodeImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
+      const MAX_DIMENSION = 1280;
       const reader = new FileReader();
+
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+
+          if (width > height) {
+            if (width > MAX_DIMENSION) {
+              height *= MAX_DIMENSION / width;
+              width = MAX_DIMENSION;
+            }
+          } else {
+            if (height > MAX_DIMENSION) {
+              width *= MAX_DIMENSION / height;
+              height = MAX_DIMENSION;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            return reject(new Error('Nem sikerült a vászon kontextus létrehozása.'));
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Use original file type for conversion, with a quality setting for JPEGs
+          const dataUrl = canvas.toDataURL(file.type, 0.9);
+          resolve(dataUrl);
+        };
+        img.onerror = (err) => reject(new Error(`A kép betöltése sikertelen: ${err}`));
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = (err) => reject(new Error(`A fájl olvasása sikertelen: ${err}`));
       reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
     });
   };
 
@@ -1239,8 +1272,8 @@ const App: React.FC = () => {
     setIsParsingImage(true);
     setParsingImageError(null);
     try {
-        const base64Data = await fileToBase64(file);
-        // data:image/jpeg;base64,.....
+        const base64Data = await resizeAndEncodeImage(file);
+        
         const parts = base64Data.split(',');
         if (parts.length !== 2) {
             throw new Error("Érvénytelen képfájl formátum.");

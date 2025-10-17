@@ -273,9 +273,8 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         {list.length > 0 ? (
             categorizedList ? (
                 <div className="space-y-3 p-2">
-                    {/* FIX: Replaced Object.entries with Object.keys to fix type inference issues on the mapped 'items' array. */}
-                    {Object.keys(categorizedList).map((category) => {
-                        const items = categorizedList[category];
+                    {/* FIX: Reverted to Object.entries to fix type inference issues on the mapped 'items' array. */}
+                    {Object.entries(categorizedList).map(([category, items]) => {
                         return (
                          <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                             <button
