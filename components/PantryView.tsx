@@ -219,10 +219,12 @@ const PantryView: React.FC<PantryViewProps> = ({
             }
         });
 
-        // FIX: Replaced the error-prone reduce with a cleaner Object.fromEntries call to fix the "Type 'unknown' cannot be used as an index type" error.
-        setExpandedAIGroups(
-          Object.fromEntries(Object.keys(grouped).map((key) => [key, true]))
-        );
+        // FIX: Replaced Object.fromEntries with a standard loop to prevent potential type inference issues. This resolves the "Type 'unknown' cannot be used as an index type" error that can occur with object creation helpers.
+        const newExpanded: Record<string, boolean> = {};
+        for (const key of Object.keys(grouped)) {
+            newExpanded[key] = true;
+        }
+        setExpandedAIGroups(newExpanded);
         setCategorizedPantry(grouped);
 
     } catch (e: any) {
@@ -489,8 +491,8 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {/* FIX: Changed from Object.keys to Object.entries for better type inference. */}
-              {Object.entries(categorizedPantry).map(([category, items]) => {
+              {/* FIX: Explicitly typed the destructured `items` from Object.entries to resolve downstream type errors. */}
+              {Object.entries(categorizedPantry).map(([category, items]: [string, PantryItemWithIndex[]]) => {
                   return (
                     <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                         <button

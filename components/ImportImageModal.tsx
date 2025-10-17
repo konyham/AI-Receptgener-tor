@@ -11,7 +11,6 @@ interface ImportImageModalProps {
 const ImportImageModal: React.FC<ImportImageModalProps> = ({ isOpen, onClose, onParse, isParsing, error }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -69,24 +68,15 @@ const ImportImageModal: React.FC<ImportImageModalProps> = ({ isOpen, onClose, on
             
             <div className="space-y-4">
                 <button
-                    onClick={() => cameraInputRef.current?.click()}
+                    onClick={() => fileInputRef.current?.click()}
                     className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 flex items-center justify-center gap-3"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
-                    Fénykép készítése
+                    Kép Beolvasása (Fájl/Fotó)
                 </button>
-
-                <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-green-700 flex items-center justify-center gap-3"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
-                    Kép feltöltése fájlból
-                </button>
-
-                <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
+                <p className="text-center text-sm text-gray-500 mt-2">Tipp: A gombra kattintva választhat meglévő fájlt, vagy készíthet új fotót a telefon kamerájával.</p>
+                
                 <input type="file" ref={fileInputRef} accept="image/*" onChange={handleFileSelect} className="hidden" />
-
             </div>
 
              {error && <p className="text-red-600 text-sm mt-4">{error}</p>}

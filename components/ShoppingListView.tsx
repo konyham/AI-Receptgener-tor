@@ -170,7 +170,11 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         }
 
         setCategorizedList(grouped);
-        setExpandedAIGroups(Object.fromEntries(Object.keys(grouped).map(key => [key, true])));
+        const newExpanded: Record<string, boolean> = {};
+        for (const key of Object.keys(grouped)) {
+            newExpanded[key] = true;
+        }
+        setExpandedAIGroups(newExpanded);
 
     } catch (e: any) {
         showNotification(e.message, 'info');
@@ -273,8 +277,8 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         {list.length > 0 ? (
             categorizedList ? (
                 <div className="space-y-3 p-2">
-                    {/* FIX: Using Object.entries ensures 'items' is correctly typed as ShoppingListItem[], resolving 'unknown' type errors. */}
-                    {Object.entries(categorizedList).map(([category, items]) => {
+                    {/* FIX: Explicitly typed the destructured `items` from Object.entries to resolve downstream type errors. */}
+                    {Object.entries(categorizedList).map(([category, items]: [string, ShoppingListItem[]]) => {
                         return (
                          <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                             <button
@@ -309,7 +313,6 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
       {list.length > 0 && (
         <div className="flex flex-col sm:flex-row gap-4">
           <button
-            // FIX: Changed `handleClearChecked` to `onClearChecked` to match props.
             onClick={onClearChecked}
             disabled={checkedCount === 0}
             className="flex-1 bg-yellow-500 text-white font-semibold py-3 px-4 rounded-lg shadow-sm hover:bg-yellow-600 transition disabled:bg-gray-300"
@@ -317,7 +320,6 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
             Kipipáltak törlése ({checkedCount})
           </button>
           <button
-            // FIX: Changed `handleClearAll` to `onClearAll` to match props.
             onClick={onClearAll}
             className="flex-1 bg-red-500 text-white font-semibold py-3 px-4 rounded-lg hover:bg-red-600 transition"
           >

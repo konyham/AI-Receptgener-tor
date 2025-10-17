@@ -58,6 +58,7 @@ import {
     MEAL_TYPES_ORDER_KEY,
     COOKING_METHODS_ORDER_KEY,
     CUISINE_OPTIONS_ORDER_KEY,
+    APP_VERSION,
 } from './constants';
 import { safeSetLocalStorage } from './utils/storage';
 import { konyhaMikiLogo } from './assets';
@@ -1237,90 +1238,104 @@ const App: React.FC = () => {
   };
   
   const resizeAndEncodeImage = (file: File): Promise<string> => {
-      const MAX_DIMENSION = 1280;
-      // Create a URL for the file. This is memory-efficient.
-      const objectUrl = URL.createObjectURL(file);
-      const img = new Image();
+    const MAX_DIMENSION = 800;
+    const JPEG_QUALITY = 0.75;
 
-      return new Promise((resolve, reject) => {
-        // This function will be called when the browser has read the image's metadata (like dimensions).
-        img.onload = async () => {
-          try {
-            const { width: originalWidth, height: originalHeight } = img;
-            let targetWidth = originalWidth;
-            let targetHeight = originalHeight;
+    // A. createImageBitmap is available (Modern, Safe Path)
+    if (typeof window.createImageBitmap !== 'undefined') {
+        return new Promise(async (resolve, reject) => {
+            let bitmap: ImageBitmap | null = null;
+            try {
+                // Decode once. This is the main memory operation, but it's done via the more efficient API.
+                bitmap = await createImageBitmap(file);
 
-            // Calculate the new dimensions, preserving the aspect ratio.
-            if (originalWidth > originalHeight) {
-              if (originalWidth > MAX_DIMENSION) {
-                targetWidth = MAX_DIMENSION;
-                targetHeight = Math.round(originalHeight * (MAX_DIMENSION / originalWidth));
-              }
-            } else {
-              if (originalHeight > MAX_DIMENSION) {
-                targetHeight = MAX_DIMENSION;
-                targetWidth = Math.round(originalWidth * (MAX_DIMENSION / originalHeight));
-              }
+                const { width: originalWidth, height: originalHeight } = bitmap;
+                let targetWidth = originalWidth;
+                let targetHeight = originalHeight;
+
+                // Calculate target dimensions
+                if (originalWidth > originalHeight) {
+                    if (originalWidth > MAX_DIMENSION) {
+                        targetWidth = MAX_DIMENSION;
+                        targetHeight = Math.round(originalHeight * (MAX_DIMENSION / originalWidth));
+                    }
+                } else {
+                    if (originalHeight > MAX_DIMENSION) {
+                        targetHeight = MAX_DIMENSION;
+                        targetWidth = Math.round(originalWidth * (MAX_DIMENSION / originalHeight));
+                    }
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    throw new Error('Nem sikerült a vászon kontextus létrehozása.');
+                }
+                // Use drawImage to perform the resize from the full-size bitmap.
+                ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+                
+                const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+                resolve(dataUrl);
+
+            } catch (e) {
+                reject(e);
+            } finally {
+                bitmap?.close();
             }
+        });
+    }
 
-            // **Modern, Memory-Efficient Approach**
-            // Use createImageBitmap if the browser supports it. This API is designed to
-            // decode and resize images without loading the entire full-resolution image
-            // into memory as an intermediate step, which prevents crashes on mobile devices.
-            if (typeof window.createImageBitmap !== 'undefined') {
-              const imageBitmap = await createImageBitmap(file, {
-                resizeWidth: targetWidth,
-                resizeHeight: targetHeight,
-                resizeQuality: 'high',
-              });
+    // B. Fallback path (Less safe, for older browsers)
+    console.warn('createImageBitmap not supported, using fallback image resizing.');
+    return new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file);
+        const img = new Image();
 
-              const canvas = document.createElement('canvas');
-              canvas.width = imageBitmap.width;
-              canvas.height = imageBitmap.height;
-              const ctx = canvas.getContext('2d');
-              if (!ctx) {
-                imageBitmap.close(); // Always release memory
-                throw new Error('Nem sikerült a vászon kontextus létrehozása.');
-              }
-              ctx.drawImage(imageBitmap, 0, 0);
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-              imageBitmap.close(); // IMPORTANT: Explicitly release the bitmap's memory
-              resolve(dataUrl);
+        img.onload = () => {
+            try {
+                const { width: originalWidth, height: originalHeight } = img;
+                let targetWidth = originalWidth;
+                let targetHeight = originalHeight;
 
-            } else { 
-              // **Fallback for Older Browsers**
-              // This method can cause memory issues as it decodes the full image first.
-              console.warn('createImageBitmap not supported, using fallback image resizing.');
-              const canvas = document.createElement('canvas');
-              canvas.width = targetWidth;
-              canvas.height = targetHeight;
-              const ctx = canvas.getContext('2d');
-              if (!ctx) {
-                throw new Error('Nem sikerült a vászon kontextus létrehozása.');
-              }
-              // This single call decodes, resizes, and draws the image, which can cause memory spikes.
-              ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-              resolve(dataUrl);
+                if (originalWidth > originalHeight) {
+                  if (originalWidth > MAX_DIMENSION) {
+                    targetWidth = MAX_DIMENSION;
+                    targetHeight = Math.round(originalHeight * (MAX_DIMENSION / originalWidth));
+                  }
+                } else {
+                  if (originalHeight > MAX_DIMENSION) {
+                    targetHeight = MAX_DIMENSION;
+                    targetWidth = Math.round(originalWidth * (MAX_DIMENSION / originalHeight));
+                  }
+                }
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    throw new Error('Nem sikerült a vászon kontextus létrehozása.');
+                }
+                ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+                const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+                resolve(dataUrl);
+            } catch (e) {
+                reject(e);
+            } finally {
+                URL.revokeObjectURL(objectUrl);
             }
-          } catch (e) {
-            reject(e);
-          } finally {
-            // Clean up the object URL regardless of success or failure.
-            URL.revokeObjectURL(objectUrl);
-          }
         };
 
-        // This is called if the image file is corrupt or can't be loaded.
         img.onerror = (err) => {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error(`A kép betöltése sikertelen: ${err}`));
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error(`A kép betöltése sikertelen: ${err}`));
         };
 
-        // This starts the loading process.
         img.src = objectUrl;
-      });
-    };
+    });
+};
 
   const handleParseImage = async (file: File) => {
     setIsParsingImage(true);
@@ -1535,6 +1550,7 @@ const App: React.FC = () => {
               onGenerateFromPantryRequest={handleGenerateFromPantryRequest}
               onGenerateFromSelectedPantryItemsRequest={handleGenerateFromSelectedPantryItemsRequest}
               shoppingListItems={shoppingList}
+              // FIX: Corrected typo from handleMoveItems to handleMovePantryItems
               onMoveItems={handleMovePantryItems}
             />
         );
@@ -1660,7 +1676,7 @@ const App: React.FC = () => {
       </main>
       
       <footer className="text-center py-6 text-sm text-gray-500">
-          <p>{`© ${new Date().getFullYear()} Konyha Miki. Minden jog fenntartva.`}</p>
+          <p>{`© ${new Date().getFullYear()} Konyha Miki. Minden jog fenntartva. v${APP_VERSION}`}</p>
       </footer>
       <LocationPromptModal
         isOpen={isLocationPromptOpen}
