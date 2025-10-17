@@ -1237,50 +1237,90 @@ const App: React.FC = () => {
   };
   
   const resizeAndEncodeImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
       const MAX_DIMENSION = 1280;
+      // Create a URL for the file. This is memory-efficient.
       const objectUrl = URL.createObjectURL(file);
       const img = new Image();
 
-      img.onload = () => {
-        let { width, height } = img;
+      return new Promise((resolve, reject) => {
+        // This function will be called when the browser has read the image's metadata (like dimensions).
+        img.onload = async () => {
+          try {
+            const { width: originalWidth, height: originalHeight } = img;
+            let targetWidth = originalWidth;
+            let targetHeight = originalHeight;
 
-        if (width > height) {
-          if (width > MAX_DIMENSION) {
-            height *= MAX_DIMENSION / width;
-            width = MAX_DIMENSION;
-          }
-        } else {
-          if (height > MAX_DIMENSION) {
-            width *= MAX_DIMENSION / height;
-            height = MAX_DIMENSION;
-          }
-        }
+            // Calculate the new dimensions, preserving the aspect ratio.
+            if (originalWidth > originalHeight) {
+              if (originalWidth > MAX_DIMENSION) {
+                targetWidth = MAX_DIMENSION;
+                targetHeight = Math.round(originalHeight * (MAX_DIMENSION / originalWidth));
+              }
+            } else {
+              if (originalHeight > MAX_DIMENSION) {
+                targetHeight = MAX_DIMENSION;
+                targetWidth = Math.round(originalWidth * (MAX_DIMENSION / originalHeight));
+              }
+            }
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
+            // **Modern, Memory-Efficient Approach**
+            // Use createImageBitmap if the browser supports it. This API is designed to
+            // decode and resize images without loading the entire full-resolution image
+            // into memory as an intermediate step, which prevents crashes on mobile devices.
+            if (typeof window.createImageBitmap !== 'undefined') {
+              const imageBitmap = await createImageBitmap(file, {
+                resizeWidth: targetWidth,
+                resizeHeight: targetHeight,
+                resizeQuality: 'high',
+              });
+
+              const canvas = document.createElement('canvas');
+              canvas.width = imageBitmap.width;
+              canvas.height = imageBitmap.height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                imageBitmap.close(); // Always release memory
+                throw new Error('Nem sikerült a vászon kontextus létrehozása.');
+              }
+              ctx.drawImage(imageBitmap, 0, 0);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+              imageBitmap.close(); // IMPORTANT: Explicitly release the bitmap's memory
+              resolve(dataUrl);
+
+            } else { 
+              // **Fallback for Older Browsers**
+              // This method can cause memory issues as it decodes the full image first.
+              console.warn('createImageBitmap not supported, using fallback image resizing.');
+              const canvas = document.createElement('canvas');
+              canvas.width = targetWidth;
+              canvas.height = targetHeight;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                throw new Error('Nem sikerült a vászon kontextus létrehozása.');
+              }
+              // This single call decodes, resizes, and draws the image, which can cause memory spikes.
+              ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+              resolve(dataUrl);
+            }
+          } catch (e) {
+            reject(e);
+          } finally {
+            // Clean up the object URL regardless of success or failure.
+            URL.revokeObjectURL(objectUrl);
+          }
+        };
+
+        // This is called if the image file is corrupt or can't be loaded.
+        img.onerror = (err) => {
           URL.revokeObjectURL(objectUrl);
-          return reject(new Error('Nem sikerült a vászon kontextus létrehozása.'));
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-        
-        URL.revokeObjectURL(objectUrl);
-        resolve(dataUrl);
-      };
-      
-      img.onerror = (err) => {
-        URL.revokeObjectURL(objectUrl);
-        reject(new Error(`A kép betöltése sikertelen: ${err}`));
-      };
-      
-      img.src = objectUrl;
-    });
-  };
+          reject(new Error(`A kép betöltése sikertelen: ${err}`));
+        };
+
+        // This starts the loading process.
+        img.src = objectUrl;
+      });
+    };
 
   const handleParseImage = async (file: File) => {
     setIsParsingImage(true);

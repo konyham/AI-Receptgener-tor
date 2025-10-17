@@ -219,7 +219,7 @@ const PantryView: React.FC<PantryViewProps> = ({
             }
         });
 
-        // FIX: Replaced the error-prone `reduce` with a cleaner `Object.fromEntries` call to fix the "Type 'unknown' cannot be used as an index type" error.
+        // FIX: Replaced the error-prone reduce with a cleaner Object.fromEntries call to fix the "Type 'unknown' cannot be used as an index type" error.
         setExpandedAIGroups(
           Object.fromEntries(Object.keys(grouped).map((key) => [key, true]))
         );
