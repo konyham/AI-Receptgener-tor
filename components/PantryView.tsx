@@ -489,8 +489,8 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {Object.keys(categorizedPantry).map((category) => {
-                  const items = categorizedPantry[category];
+              {/* FIX: Changed from Object.keys to Object.entries for better type inference. */}
+              {Object.entries(categorizedPantry).map(([category, items]) => {
                   return (
                     <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                         <button

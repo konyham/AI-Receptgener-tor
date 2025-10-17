@@ -1239,43 +1239,46 @@ const App: React.FC = () => {
   const resizeAndEncodeImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const MAX_DIMENSION = 1280;
-      const reader = new FileReader();
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
 
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          let { width, height } = img;
+      img.onload = () => {
+        let { width, height } = img;
 
-          if (width > height) {
-            if (width > MAX_DIMENSION) {
-              height *= MAX_DIMENSION / width;
-              width = MAX_DIMENSION;
-            }
-          } else {
-            if (height > MAX_DIMENSION) {
-              width *= MAX_DIMENSION / height;
-              height = MAX_DIMENSION;
-            }
+        if (width > height) {
+          if (width > MAX_DIMENSION) {
+            height *= MAX_DIMENSION / width;
+            width = MAX_DIMENSION;
           }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            return reject(new Error('Nem sikerült a vászon kontextus létrehozása.'));
+        } else {
+          if (height > MAX_DIMENSION) {
+            width *= MAX_DIMENSION / height;
+            height = MAX_DIMENSION;
           }
-          ctx.drawImage(img, 0, 0, width, height);
-          
-          // Use original file type for conversion, with a quality setting for JPEGs
-          const dataUrl = canvas.toDataURL(file.type, 0.9);
-          resolve(dataUrl);
-        };
-        img.onerror = (err) => reject(new Error(`A kép betöltése sikertelen: ${err}`));
-        img.src = event.target?.result as string;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          URL.revokeObjectURL(objectUrl);
+          return reject(new Error('Nem sikerült a vászon kontextus létrehozása.'));
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        
+        URL.revokeObjectURL(objectUrl);
+        resolve(dataUrl);
       };
-      reader.onerror = (err) => reject(new Error(`A fájl olvasása sikertelen: ${err}`));
-      reader.readAsDataURL(file);
+      
+      img.onerror = (err) => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error(`A kép betöltése sikertelen: ${err}`));
+      };
+      
+      img.src = objectUrl;
     });
   };
 
