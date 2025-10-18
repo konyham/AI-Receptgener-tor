@@ -22,7 +22,7 @@ interface RecipeInputFormProps {
   orderedCuisineOptions: OptionItem[];
   onOpenOptionsEditor: () => void;
   onOpenUrlImporter?: () => void;
-  onOpenImageImporter?: () => void;
+  onOpenRecipeFileImporter: () => void;
 }
 
 const INGREDIENTS_STORAGE_KEY = 'ai-recipe-generator-saved-ingredients';
@@ -43,7 +43,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     orderedCuisineOptions,
     onOpenOptionsEditor,
     onOpenUrlImporter,
-    onOpenImageImporter,
+    onOpenRecipeFileImporter,
 }) => {
   const [mode, setMode] = useState<'standard' | 'leftover'>('standard');
   const [ingredients, setIngredients] = useState<string[]>([]);
@@ -623,35 +623,38 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
         </button>
       </div>
       
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-gray-50 p-3 rounded-lg border gap-4">
-        <h3 className="text-lg font-semibold text-gray-700">Eszközök és Beállítások</h3>
-        <div className="flex flex-wrap gap-2 justify-end">
-          {onOpenUrlImporter && (
+      <div>
+        <div className="flex flex-col sm:flex-row justify-between items-center bg-gray-50 p-3 rounded-lg border gap-4">
+            <h3 className="text-lg font-semibold text-gray-700">Eszközök és Beállítások</h3>
+            <div className="flex flex-wrap gap-2 justify-end">
+            {onOpenUrlImporter && (
+                <button
+                type="button"
+                onClick={onOpenUrlImporter}
+                className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                >
+                Importálás URL-ből...
+                </button>
+            )}
             <button
-              type="button"
-              onClick={onOpenUrlImporter}
-              className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                type="button"
+                onClick={onOpenRecipeFileImporter}
+                className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
             >
-              Importálás URL-ből...
+                Recept Fájlból...
             </button>
-          )}
-          {onOpenImageImporter && (
-            <button
-              type="button"
-              onClick={onOpenImageImporter}
-              className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            <button 
+                type="button" 
+                onClick={onOpenOptionsEditor}
+                className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
             >
-              Importálás Képből...
+                Opciók szerkesztése...
             </button>
-          )}
-          <button 
-            type="button" 
-            onClick={onOpenOptionsEditor}
-            className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-          >
-            Opciók szerkesztése...
-          </button>
+            </div>
         </div>
+        <p className="text-xs text-center text-gray-500 mt-2">
+            Tipp: Papíralapú receptet fotózzon le és mentse képként, vagy használjon PDF fájlt. Ezután töltse be a "Recept Fájlból..." gombbal.
+        </p>
       </div>
 
        {isSupported && (

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem } from '../types';
+import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import * as imageStore from '../services/imageStore';
 import MoveItemsModal from './MoveItemsModal';
@@ -201,15 +201,18 @@ const PantryView: React.FC<PantryViewProps> = ({
   const handleCategorize = async () => {
     if (isCategorizing || filteredAndSortedPantry.length === 0) return;
     setIsCategorizing(true);
+    setEditingItem(null); // Close any open editor
     try {
         const ingredientTexts = filteredAndSortedPantry.map(item => item.text);
-        const result = await categorizeIngredients(ingredientTexts);
+        const result: CategorizedIngredient[] = await categorizeIngredients(ingredientTexts);
         
         const originalItemMap = new Map(filteredAndSortedPantry.map(item => [item.text.toLowerCase(), item]));
         
         const grouped: Record<string, PantryItemWithIndex[]> = {};
         
-        result.forEach(({ ingredient, category }) => {
+        // FIX: Replaced forEach with a for...of loop to fix a type inference issue where 'category' was being treated as 'unknown'.
+        for (const categorizedItem of result) {
+            const { ingredient, category } = categorizedItem;
             const originalItem = originalItemMap.get(ingredient.toLowerCase());
             if (originalItem) {
                 if (!grouped[category]) {
@@ -217,9 +220,8 @@ const PantryView: React.FC<PantryViewProps> = ({
                 }
                 grouped[category].push(originalItem);
             }
-        });
+        }
 
-        // FIX: Replaced Object.fromEntries with a standard loop to prevent potential type inference issues. This resolves the "Type 'unknown' cannot be used as an index type" error that can occur with object creation helpers.
         const newExpanded: Record<string, boolean> = {};
         for (const key of Object.keys(grouped)) {
             newExpanded[key] = true;
@@ -320,8 +322,7 @@ const PantryView: React.FC<PantryViewProps> = ({
   
   const renderItemList = (items: PantryItemWithIndex[]) => (
      <ul className="divide-y divide-gray-200">
-        {/* FIX: Explicitly typed `item` in the map function to resolve the type inference issue. */}
-        {items.map((item: PantryItemWithIndex) => {
+        {items.map((item) => {
           const urgency = getUrgency(item);
           const isSelected = selectedItems[activeLocation].has(item.originalIndex);
 
@@ -491,9 +492,8 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {/* FIX: Explicitly typed the destructured `items` from Object.entries to resolve downstream type errors. */}
-              {Object.entries(categorizedPantry).map(([category, items]: [string, PantryItemWithIndex[]]) => {
-                  return (
+              {/* FIX: Changed from Object.keys to Object.entries for correct type inference of category and items. This resolves an "unknown index type" error for `category` and a subsequent error for `items` being passed to `renderItemList`. */}
+              {Object.entries(categorizedPantry).map(([category, items]) => (
                     <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                         <button
                             onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
@@ -507,7 +507,7 @@ const PantryView: React.FC<PantryViewProps> = ({
                             renderItemList(items)
                         )}
                     </div>
-                  )})}
+                  ))}
           </div>
         ) : (
           filteredAndSortedPantry.length > 0 ? (

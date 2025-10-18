@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ShoppingListItem, StorageType } from '../types';
+import { ShoppingListItem, StorageType, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import ShoppingListItemActionModal from './ShoppingListItemActionModal';
 import { categorizeIngredients } from '../services/geminiService';
@@ -147,13 +147,14 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     try {
         const uncheckedItems = list.filter(item => !item.checked);
         const ingredientTexts = uncheckedItems.map(item => item.text);
-        const result = await categorizeIngredients(ingredientTexts);
+        const result: CategorizedIngredient[] = await categorizeIngredients(ingredientTexts);
         
         const originalItemMap = new Map(list.map(item => [item.text.toLowerCase(), item]));
         
         const grouped: Record<string, ShoppingListItem[]> = {};
         
-        result.forEach(({ ingredient, category }) => {
+        result.forEach((categorizedItem: CategorizedIngredient) => {
+            const { ingredient, category } = categorizedItem;
             const originalItem = originalItemMap.get(ingredient.toLowerCase());
             if (originalItem) {
                 if (!grouped[category]) {
@@ -277,9 +278,8 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         {list.length > 0 ? (
             categorizedList ? (
                 <div className="space-y-3 p-2">
-                    {/* FIX: Explicitly typed the destructured `items` from Object.entries to resolve downstream type errors. */}
-                    {Object.entries(categorizedList).map(([category, items]: [string, ShoppingListItem[]]) => {
-                        return (
+                    {/* FIX: Changed from Object.keys to Object.entries for correct type inference of items. This resolves an issue where `item` was being inferred as `unknown`, causing a type error in `renderListItem`. */}
+                    {Object.entries(categorizedList).map(([category, items]) => (
                          <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                             <button
                                 onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
@@ -298,7 +298,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
                                 </ul>
                             )}
                         </div>
-                    )})}
+                    ))}
                 </div>
             ) : (
                 <ul className="divide-y divide-gray-100">
@@ -327,7 +327,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
           </button>
            <button
             onClick={handleCopyList}
-            className="flex-1 bg-blue-500 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-600 transition"
+            className="flex-1 bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition"
           >
             Lista másolása vágólapra
           </button>

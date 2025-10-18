@@ -518,7 +518,8 @@ export const categorizeIngredients = async (ingredients: string[]): Promise<Cate
         
         // Ensure the response matches the expected structure
         if (json.categorizedIngredients && Array.isArray(json.categorizedIngredients)) {
-            return json.categorizedIngredients;
+            // FIX: Explicitly cast the parsed JSON to ensure type safety in consuming components.
+            return json.categorizedIngredients as CategorizedIngredient[];
         } else {
             console.error("AI response for categorization is malformed:", json);
             throw new Error("Az AI válasza nem a várt formátumban érkezett.");
@@ -655,7 +656,7 @@ export const suggestMealType = async (ingredientsString: string, specialRequest:
             contents: prompt,
         });
         // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
-        return response.text.trim();
+        return (response.text ?? '').trim();
     } catch (e: any) {
         console.error('Error suggesting meal type:', e);
         return '';
@@ -702,10 +703,8 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
 };
 
 export const generateRecipeImage = async (recipe: Recipe, cookingMethodLabels: string[]): Promise<string> => {
-  const prompt = `A professional, ultra-realistic, and highly appetizing food photograph of a finished dish. The dish is '${recipe.recipeName}'. Style: modern food magazine, bright lighting, clean and simple background, shallow depth of field, close-up shot. The food must be beautifully arranged on a plate or in a bowl, ready to be eaten.
-
-CRITICAL: The final image must be completely clean. It must contain ZERO text, letters, watermarks, or logos. It must NOT contain any people, hands, or non-food objects. The image must ONLY contain the plated food.
-`;
+  const prompt = `Professzionális, ultrarealisztikus és rendkívül étvágygerjesztő ételfotó a kész ételről: '${recipe.recipeName}'. Stílus: modern ételmagazin, világos megvilágítás, tiszta és egyszerű háttér, sekély mélységélesség, közeli felvétel. Az étel gyönyörűen van elrendezve egy tányéron vagy tálban, fogyasztásra készen.`;
+  const negativePrompt = 'szöveg, betűk, vízjelek, logók, emberek, kezek, nem ételhez kapcsolódó tárgyak, feliratok';
   
   try {
     const response = await ai.models.generateImages({
@@ -715,6 +714,7 @@ CRITICAL: The final image must be completely clean. It must contain ZERO text, l
         numberOfImages: 1,
         outputMimeType: 'image/jpeg',
         aspectRatio: '4:3',
+        negativePrompt: negativePrompt,
       },
     });
     return response.generatedImages[0].image.imageBytes;
@@ -723,7 +723,8 @@ CRITICAL: The final image must be completely clean. It must contain ZERO text, l
     if (e && e.message && (e.message.includes('429') || e.message.toLowerCase().includes('quota'))) {
         throw new Error('Elérte a percenkénti kép-generálási korlátot. Kérjük, várjon egy percet, majd próbálja újra.');
     }
-    throw new Error('Hiba történt az ételfotó generálása közben.');
+    const errorMessage = e?.error?.message || e.message || 'Ismeretlen hiba.';
+    throw new Error(`Hiba történt az ételfotó generálása közben: ${errorMessage}`);
   }
 };
 
@@ -839,10 +840,8 @@ A válaszod egy JSON objektum legyen, ami egy "suggestions" kulcsot tartalmaz. E
 };
 
 export const generateInstructionImage = async (recipeName: string, instructionText: string, cookingMethodLabels: string[]): Promise<string> => {
-  const prompt = `A top-down (flat lay), photorealistic image illustrating a single step in a cooking process for the recipe '${recipeName}'. The instruction to visualize is: '${instructionText}'. Style: Clean, bright, minimalist. The image must ONLY show the cooking step in progress (ingredients being prepared, mixed in a bowl, or cooking in a pan/pot).
-
-CRITICAL: The final image must be completely clean. It must contain ZERO text, letters, watermarks, or logos. It must NOT show a finished, plated dish. It must NOT include any people, hands, or buildings.
-`;
+  const prompt = `Fotórealisztikus, felülnézeti (flat lay) kép, amely a(z) '${recipeName}' recept egyetlen főzési lépését illusztrálja. A megjelenítendő utasítás: '${instructionText}'. Stílus: tiszta, világos, minimalista. A kép kizárólag a folyamatban lévő főzési lépést mutassa (előkészített hozzávalók, tálban keverés, serpenyőben/lábasban főzés).`;
+  const negativePrompt = 'szöveg, betűk, vízjelek, logók, kész, tálalt étel, emberek, kezek, épületek, feliratok';
   
   try {
     const response = await ai.models.generateImages({
@@ -852,6 +851,7 @@ CRITICAL: The final image must be completely clean. It must contain ZERO text, l
         numberOfImages: 1,
         outputMimeType: 'image/jpeg',
         aspectRatio: '4:3',
+        negativePrompt: negativePrompt,
       },
     });
     return response.generatedImages[0].image.imageBytes;
@@ -860,7 +860,8 @@ CRITICAL: The final image must be completely clean. It must contain ZERO text, l
     if (e && e.message && (e.message.includes('429') || e.message.toLowerCase().includes('quota'))) {
         throw new Error('Elérte a percenkénti kép-generálási korlátot. Kérjük, várjon egy percet, majd próbálja újra.');
     }
-    throw new Error('Hiba történt az illusztráció generálása közben.');
+    const errorMessage = e?.error?.message || e.message || 'Ismeretlen hiba.';
+    throw new Error(`Hiba történt az illusztráció generálása közben: ${errorMessage}`);
   }
 };
 
@@ -883,7 +884,7 @@ Az útmutatónak az alábbi funkciókat kell bemutatnia, az aktuális verzió al
 
 2.  **Fontosabb funkciók:**
     *   **Adatkezelés:** A "Mentés Fájlba" és "Betöltés Fájlból" funkciók, amelyekkel a felhasználók biztonsági mentést készíthetnek minden adatukról (receptek, listák, profilok).
-    *   **Recept Importálás:** Mutasd be, hogy a felhasználók beolvashatnak recepteket külső forrásokból. Ez magában foglalja a receptek importálását weboldal linkjéről (URL), vagy képfájlból. A kép lehet egy elmentett fotó, vagy egy frissen, a telefon kamerájával készített kép egy szakácskönyvről, újságról, vagy akár a nagymama kézzel írt receptfüzetéről. Az AI megpróbálja kinyerni az adatokat és kitölteni a receptgenerátor űrlapot.
+    *   **Recept Importálás:** Mutasd be, hogy a felhasználók beolvashatnak recepteket külső forrásokból. Ez magában foglalja a receptek importálását weboldal linkjéről (URL), vagy képfájloból. A kép lehet egy elmentett fotó, vagy egy frissen, a telefon kamerájával készített kép egy szakácskönyvről, újságról, vagy akár a nagymama kézzel írt receptfüzetéről. Az AI megpróbálja kinyerni az adatokat és kitölteni a receptgenerátor űrlapot.
     *   **Hangvezérlés:** Magyarázd el röviden, hogy a főbb navigációs és űrlapkitöltési műveletek hanggal is vezérelhetők.
     *   **Kép- és Menügenerálás:** Említsd meg, hogy az AI képes ételfotókat generálni a receptekhez, sőt, komplett 4 fogásos (előétel, leves, főétel, desszert) vagy napi menüket (reggeli, ebéd, vacsora) is tud készíteni.
     *   **Testreszabás:** A felhasználók szerkeszthetik az étkezés típusok, konyhák és elkészítési módok listáját az "Opciók szerkesztése" gombbal.
@@ -941,8 +942,8 @@ export const parseRecipeFromUrl = async (url: string): Promise<Partial<Recipe>> 
     }
 };
 
-export const parseRecipeFromImage = async (imageData: {inlineData: { data: string, mimeType: string }}): Promise<Partial<Recipe>> => {
-    const prompt = `Viselkedj recept-értelmezőként. Elemezd a képen látható (kézzel írott vagy nyomtatott) receptet, és nyerd ki a receptinformációkat.
+export const parseRecipeFromFile = async (fileData: {inlineData: { data: string, mimeType: string }}): Promise<Partial<Recipe>> => {
+    const prompt = `Viselkedj recept-értelmezőként. Elemezd a feltöltött fájl (kép vagy PDF) tartalmát, ami egy receptet tartalmaz (lehet kézzel írott vagy nyomtatott), és nyerd ki a receptinformációkat.
 
     A következő adatokat add vissza egy strukturált JSON formátumban. Ha egy adott információt nem találsz, hagyd ki a kulcsot, vagy adj neki üres értéket.
 
@@ -961,7 +962,7 @@ export const parseRecipeFromImage = async (imageData: {inlineData: { data: strin
             model: 'gemini-2.5-flash',
             contents: {
                 parts: [
-                    imageData,
+                    fileData,
                     { text: prompt },
                 ],
             },
@@ -975,12 +976,12 @@ export const parseRecipeFromImage = async (imageData: {inlineData: { data: strin
         return json as Partial<Recipe>;
 
     } catch (e: any) {
-        console.error('Error parsing recipe from image:', e);
+        console.error('Error parsing recipe from file:', e);
         if (e.message.includes('JSON')) {
-            throw new Error('Az AI válasza hibás formátumú volt a kép elemzése során. Lehet, hogy a képen nem volt felismerhető recept.');
+            throw new Error('Az AI válasza hibás formátumú volt a fájl elemzése során. Lehet, hogy a fájl nem volt felismerhető recept.');
         } else if (e.message.toLowerCase().includes('quota')) {
             throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
         }
-        throw new Error(`Hiba történt a recept képről való beolvasása közben: ${e.message}`);
+        throw new Error(`Hiba történt a recept fájlból való beolvasása közben: ${e.message}`);
     }
 };

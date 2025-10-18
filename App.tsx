@@ -15,8 +15,7 @@ import LoadOnStartModal from './components/LoadOnStartModal';
 import OptionsEditPanel from './components/OptionsEditPanel';
 import InfoModal from './components/InfoModal';
 import ImportUrlModal from './components/ImportUrlModal';
-import ImportImageModal from './components/ImportImageModal';
-import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromImage } from './services/geminiService';
+import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
 import * as pantryService from './services/pantryService';
@@ -79,6 +78,133 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
     return defaultValue;
 };
 
+// The entire worker script is inlined here as a string to avoid cross-origin issues.
+const workerScriptContent = `
+const arrayBufferToBase64 = (buffer) => {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+};
+
+self.onmessage = async (e) => {
+  const { blob } = e.data; // Receives a pre-resized, pre-compressed JPEG blob
+  try {
+    const arrayBuffer = await blob.arrayBuffer();
+    const base64Data = arrayBufferToBase64(arrayBuffer);
+    self.postMessage({ success: true, data: base64Data, mimeType: 'image/jpeg' });
+  } catch (error) {
+    self.postMessage({ success: false, error: error.message });
+  }
+};
+`;
+
+/**
+ * Implements a new, memory-efficient image processing pipeline using `createImageBitmap` to prevent mobile browser memory crashes.
+ * 1. Efficient Resize: Uses `createImageBitmap` with resize options to decode the image directly to a smaller size,
+ *    avoiding the massive memory allocation that caused crashes with FileReader/Image elements.
+ * 2. Canvas Conversion: Draws the small `ImageBitmap` to a canvas to get a high-quality JPEG blob.
+ * 3. Worker Encoding: Sends the small blob to a Web Worker for the final, potentially blocking, conversion to base64, keeping the UI responsive.
+ * @param file The original, high-resolution image file from the camera or file input.
+ * @returns A promise that resolves to the base64 data and mime type of the processed JPEG image.
+ */
+const processAndResizeImageForGemini = (file: File): Promise<{ data: string; mimeType: string }> => {
+    return new Promise(async (resolve, reject) => {
+        const MAX_DIMENSION = 1600; // A good balance for OCR quality and performance.
+
+        if (typeof window.createImageBitmap === 'undefined') {
+            reject(new Error('A böngésződ nem támogatja a modern, memóriahatékony képfeldolgozást. A funkció valószínűleg nem fog működni ezen az eszközön.'));
+            return;
+        }
+
+        try {
+            // --- Stage 1: Memory-efficient resizing using createImageBitmap ---
+            const imageBitmap = await window.createImageBitmap(file, {
+                resizeWidth: MAX_DIMENSION,
+                resizeHeight: MAX_DIMENSION,
+                resizeQuality: 'high',
+            });
+
+            // --- Stage 2: Draw to canvas and get a blob ---
+            const canvas = document.createElement('canvas');
+            canvas.width = imageBitmap.width;
+            canvas.height = imageBitmap.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                imageBitmap.close();
+                reject(new Error("Could not get canvas context."));
+                return;
+            }
+            ctx.drawImage(imageBitmap, 0, 0);
+            imageBitmap.close(); // IMPORTANT: Release memory held by the bitmap.
+
+            const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+            
+            if (!blob) {
+                reject(new Error("Canvas toBlob conversion failed."));
+                return;
+            }
+
+            // --- Stage 3: Send the resized blob to the worker for base64 conversion ---
+            if (!window.Worker) {
+                reject(new Error('A Web Worker-ek nem támogatottak ebben a böngészőben.'));
+                return;
+            }
+            
+            let worker: Worker | null = null;
+            let workerUrl: string | null = null;
+            try {
+                const blobWorker = new Blob([workerScriptContent], { type: 'application/javascript' });
+                workerUrl = URL.createObjectURL(blobWorker);
+                worker = new Worker(workerUrl);
+
+                worker.onmessage = (e) => {
+                    if (e.data.success) {
+                        resolve({ data: e.data.data, mimeType: e.data.mimeType });
+                    } else {
+                        reject(new Error(e.data.error || 'Ismeretlen hiba a workerben.'));
+                    }
+                    worker?.terminate();
+                    if (workerUrl) URL.revokeObjectURL(workerUrl);
+                };
+
+                worker.onerror = (e) => {
+                    reject(new Error(`Worker hiba: ${e.message}`));
+                    worker?.terminate();
+                    if (workerUrl) URL.revokeObjectURL(workerUrl);
+                };
+                
+                worker.postMessage({ blob });
+
+            } catch (err: any) {
+                if (worker) worker.terminate();
+                if (workerUrl) URL.revokeObjectURL(workerUrl);
+                reject(new Error(`Hiba a worker inicializálása közben: ${err.message}`));
+            }
+
+        } catch (error: any) {
+            console.error("Error processing image with createImageBitmap:", error);
+            reject(new Error(`Hiba a kép feldolgozása közben: ${error.message}. Lehet, hogy a képfájl sérült, vagy túl nagy a készülék számára.`));
+        }
+    });
+};
+
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      // result is "data:mime/type;base64,the_base_64_string"
+      // we need to remove the prefix
+      const base64String = (reader.result as string).split(',')[1];
+      resolve(base64String);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('generator');
@@ -122,18 +248,16 @@ const App: React.FC = () => {
   const [appGuideContent, setAppGuideContent] = useState('');
   const [isLoadingGuide, setIsLoadingGuide] = useState(false);
 
-  // URL/Image Import Modal State
+  // URL Import Modal State
   const [isImportUrlModalOpen, setIsImportUrlModalOpen] = useState(false);
   const [isParsingUrl, setIsParsingUrl] = useState(false);
   const [parsingUrlError, setParsingUrlError] = useState<string | null>(null);
-  const [isImportImageModalOpen, setIsImportImageModalOpen] = useState(false);
-  const [isParsingImage, setIsParsingImage] = useState(false);
-  const [parsingImageError, setParsingImageError] = useState<string | null>(null);
 
 
   const { showNotification } = useNotification();
   const isProcessingVoiceCommandRef = React.useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recipeFileInputRef = useRef<HTMLInputElement>(null);
   const recipeDisplayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1236,124 +1360,30 @@ const App: React.FC = () => {
         setIsLoadingGuide(false);
     }
   };
-  
-  const resizeAndEncodeImage = (file: File): Promise<string> => {
-    const MAX_DIMENSION = 800;
-    const JPEG_QUALITY = 0.75;
 
-    // A. createImageBitmap is available (Modern, Safe Path)
-    if (typeof window.createImageBitmap !== 'undefined') {
-        return new Promise(async (resolve, reject) => {
-            let bitmap: ImageBitmap | null = null;
-            try {
-                // Decode once. This is the main memory operation, but it's done via the more efficient API.
-                bitmap = await createImageBitmap(file);
+  const handleRecipeFileParse = async (file: File) => {
+    setIsLoading(true);
+    setError(null);
+    setView('generator');
+    setRecipe(null);
 
-                const { width: originalWidth, height: originalHeight } = bitmap;
-                let targetWidth = originalWidth;
-                let targetHeight = originalHeight;
-
-                // Calculate target dimensions
-                if (originalWidth > originalHeight) {
-                    if (originalWidth > MAX_DIMENSION) {
-                        targetWidth = MAX_DIMENSION;
-                        targetHeight = Math.round(originalHeight * (MAX_DIMENSION / originalWidth));
-                    }
-                } else {
-                    if (originalHeight > MAX_DIMENSION) {
-                        targetHeight = MAX_DIMENSION;
-                        targetWidth = Math.round(originalWidth * (MAX_DIMENSION / originalHeight));
-                    }
-                }
-
-                const canvas = document.createElement('canvas');
-                canvas.width = targetWidth;
-                canvas.height = targetHeight;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) {
-                    throw new Error('Nem sikerült a vászon kontextus létrehozása.');
-                }
-                // Use drawImage to perform the resize from the full-size bitmap.
-                ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
-                
-                const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
-                resolve(dataUrl);
-
-            } catch (e) {
-                reject(e);
-            } finally {
-                bitmap?.close();
-            }
-        });
-    }
-
-    // B. Fallback path (Less safe, for older browsers)
-    console.warn('createImageBitmap not supported, using fallback image resizing.');
-    return new Promise((resolve, reject) => {
-        const objectUrl = URL.createObjectURL(file);
-        const img = new Image();
-
-        img.onload = () => {
-            try {
-                const { width: originalWidth, height: originalHeight } = img;
-                let targetWidth = originalWidth;
-                let targetHeight = originalHeight;
-
-                if (originalWidth > originalHeight) {
-                  if (originalWidth > MAX_DIMENSION) {
-                    targetWidth = MAX_DIMENSION;
-                    targetHeight = Math.round(originalHeight * (MAX_DIMENSION / originalWidth));
-                  }
-                } else {
-                  if (originalHeight > MAX_DIMENSION) {
-                    targetHeight = MAX_DIMENSION;
-                    targetWidth = Math.round(originalWidth * (MAX_DIMENSION / originalHeight));
-                  }
-                }
-                
-                const canvas = document.createElement('canvas');
-                canvas.width = targetWidth;
-                canvas.height = targetHeight;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) {
-                    throw new Error('Nem sikerült a vászon kontextus létrehozása.');
-                }
-                ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-                const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
-                resolve(dataUrl);
-            } catch (e) {
-                reject(e);
-            } finally {
-                URL.revokeObjectURL(objectUrl);
-            }
-        };
-
-        img.onerror = (err) => {
-            URL.revokeObjectURL(objectUrl);
-            reject(new Error(`A kép betöltése sikertelen: ${err}`));
-        };
-
-        img.src = objectUrl;
-    });
-};
-
-  const handleParseImage = async (file: File) => {
-    setIsParsingImage(true);
-    setParsingImageError(null);
     try {
-        const base64Data = await resizeAndEncodeImage(file);
-        
-        const parts = base64Data.split(',');
-        if (parts.length !== 2) {
-            throw new Error("Érvénytelen képfájl formátum.");
-        }
-        const mimeType = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-        const data = parts[1];
+        let generativePart;
 
-        const parsedData = await parseRecipeFromImage({ inlineData: { data, mimeType } });
+        if (file.type.startsWith('image/')) {
+            const { data, mimeType } = await processAndResizeImageForGemini(file);
+            generativePart = { inlineData: { data, mimeType } };
+        } else if (file.type === 'application/pdf') {
+            const data = await fileToBase64(file);
+            generativePart = { inlineData: { data, mimeType: 'application/pdf' } };
+        } else {
+            throw new Error("Csak képfájlok (pl. JPG, PNG) és PDF fájlok támogatottak.");
+        }
+        
+        const parsedData = await parseRecipeFromFile(generativePart);
 
         if (!parsedData || Object.keys(parsedData).length === 0 || (!parsedData.ingredients && !parsedData.recipeName && !parsedData.description)) {
-            throw new Error("Nem sikerült receptadatokat kinyerni a képből. Próbálja meg egy másik, jobb minőségű képpel.");
+            throw new Error("Nem sikerült receptadatokat kinyerni a fájlból. Próbálja meg egy másik, jobb minőségű fájllal.");
         }
 
         const formData: Partial<NonNullable<typeof initialFormData>> = {};
@@ -1379,14 +1409,22 @@ const App: React.FC = () => {
         }
 
         setInitialFormData(formData);
-        setView('generator');
-        setIsImportImageModalOpen(false);
-        showNotification('Recept sikeresen beolvasva a képről! Ellenőrizze az adatokat.', 'success');
+        showNotification('Recept sikeresen beolvasva a fájlból! Ellenőrizze az adatokat.', 'success');
 
     } catch (err: any) {
-        setParsingImageError(err.message);
+        setError(err.message);
     } finally {
-        setIsParsingImage(false);
+        setIsLoading(false);
+    }
+  };
+
+  const handleRecipeFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+        handleRecipeFileParse(file);
+    }
+    if (event.target) {
+        event.target.value = '';
     }
   };
 
@@ -1566,8 +1604,8 @@ const App: React.FC = () => {
       default:
         return (
           <>
-            <h1 className="text-3xl font-bold text-center text-primary-800">Konyha Miki, az Ön mesterséges intelligencia konyhafőnöke</h1>
-            <p className="text-center text-gray-600 mb-6">Mondja el, miből főzne, és én segítek!</p>
+            <h1 className="text-3xl font-bold text-center text-primary-800">Konyha Miki, az Ön AI-támogatott konyhafőnöke</h1>
+            <p className="text-center text-gray-600 mb-6">AI receptgenerátor - Konyha Miki módra - Mondja el, miből főzne, és én segítek!</p>
             {isLoading && <LoadingSpinner />}
             {error && <ErrorMessage message={error} />}
             {!isLoading && !error && (
@@ -1590,10 +1628,7 @@ const App: React.FC = () => {
                   setParsingUrlError(null);
                   setIsImportUrlModalOpen(true);
                 }}
-                onOpenImageImporter={() => {
-                    setParsingImageError(null);
-                    setIsImportImageModalOpen(true);
-                }}
+                onOpenRecipeFileImporter={() => recipeFileInputRef.current?.click()}
               />
             )}
           </>
@@ -1636,6 +1671,14 @@ const App: React.FC = () => {
               onFileChange={handleFileChange}
               fileInputRef={fileInputRef}
               hasAnyData={hasAnyData}
+            />
+            <input
+                type="file"
+                ref={recipeFileInputRef}
+                onChange={handleRecipeFileChange}
+                accept="image/*,application/pdf,.pdf"
+                className="hidden"
+                aria-hidden="true"
             />
             <nav className="mb-6">
                 <ul className="flex flex-wrap border-b border-gray-200">
@@ -1712,13 +1755,6 @@ const App: React.FC = () => {
         onParse={handleParseUrl}
         isParsing={isParsingUrl}
         error={parsingUrlError}
-      />
-      <ImportImageModal
-        isOpen={isImportImageModalOpen}
-        onClose={() => setIsImportImageModalOpen(false)}
-        onParse={handleParseImage}
-        isParsing={isParsingImage}
-        error={parsingImageError}
       />
     </div>
   );
