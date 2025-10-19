@@ -153,8 +153,8 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         
         const grouped: Record<string, ShoppingListItem[]> = {};
         
-        result.forEach((categorizedItem: CategorizedIngredient) => {
-            const { ingredient, category } = categorizedItem;
+        for (const categorizedItem of result) {
+            const { ingredient, category } = categorizedItem as CategorizedIngredient;
             const originalItem = originalItemMap.get(ingredient.toLowerCase());
             if (originalItem) {
                 if (!grouped[category]) {
@@ -162,9 +162,8 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
                 }
                 grouped[category].push(originalItem);
             }
-        });
+        }
         
-        // Add checked items to a separate "Kipipálva" category at the end
         const checkedItems = list.filter(item => item.checked);
         if(checkedItems.length > 0) {
             grouped['Kipipálva'] = checkedItems;
@@ -278,8 +277,9 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         {list.length > 0 ? (
             categorizedList ? (
                 <div className="space-y-3 p-2">
-                    {/* FIX: Changed from Object.keys to Object.entries for correct type inference of items. This resolves an issue where `item` was being inferred as `unknown`, causing a type error in `renderListItem`. */}
-                    {Object.entries(categorizedList).map(([category, items]) => (
+                    {/* FIX: Explicitly typing the destructured `items` array from `Object.entries` ensures that `item` within the inner `.map` is correctly inferred as `ShoppingListItem`, resolving the type error. */}
+                    {/* FIX: Explicitly type [category, items] to resolve TypeScript inference issue with Object.entries. */}
+                    {Object.entries(categorizedList).map(([category, items]: [string, ShoppingListItem[]]) => (
                          <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                             <button
                                 onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}

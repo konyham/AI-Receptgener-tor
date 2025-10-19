@@ -157,7 +157,8 @@ const PantryView: React.FC<PantryViewProps> = ({
   };
 
   const handleToggleSelectItem = (originalIndex: number) => {
-    setSelectedItems(prev => {
+    // FIX: Explicitly type the `prev` parameter in the state updater to resolve an error where it was being inferred as `unknown`.
+    setSelectedItems((prev: Record<PantryLocation, Set<number>>) => {
         const newSelection = new Set(prev[activeLocation]);
         if (newSelection.has(originalIndex)) {
             newSelection.delete(originalIndex);
@@ -210,9 +211,8 @@ const PantryView: React.FC<PantryViewProps> = ({
         
         const grouped: Record<string, PantryItemWithIndex[]> = {};
         
-        // FIX: Replaced forEach with a for...of loop to fix a type inference issue where 'category' was being treated as 'unknown'.
         for (const categorizedItem of result) {
-            const { ingredient, category } = categorizedItem;
+            const { ingredient, category } = categorizedItem as CategorizedIngredient;
             const originalItem = originalItemMap.get(ingredient.toLowerCase());
             if (originalItem) {
                 if (!grouped[category]) {
@@ -236,7 +236,7 @@ const PantryView: React.FC<PantryViewProps> = ({
     }
   };
 
-  const filteredAndSortedPantry = useMemo(() => {
+  const filteredAndSortedPantry: PantryItemWithIndex[] = useMemo(() => {
     const list = pantry[activeLocation] || [];
     
     return list
@@ -322,7 +322,7 @@ const PantryView: React.FC<PantryViewProps> = ({
   
   const renderItemList = (items: PantryItemWithIndex[]) => (
      <ul className="divide-y divide-gray-200">
-        {items.map((item) => {
+        {items.map((item: PantryItemWithIndex) => {
           const urgency = getUrgency(item);
           const isSelected = selectedItems[activeLocation].has(item.originalIndex);
 
@@ -492,8 +492,9 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {/* FIX: Changed from Object.keys to Object.entries for correct type inference of category and items. This resolves an "unknown index type" error for `category` and a subsequent error for `items` being passed to `renderItemList`. */}
-              {Object.entries(categorizedPantry).map(([category, items]) => (
+              {/* FIX: Explicitly type the arguments from `Object.entries` to ensure correct type inference within the map. */}
+              {/* FIX: Explicitly type [category, items] to resolve TypeScript inference issue with Object.entries. */}
+              {Object.entries(categorizedPantry).map(([category, items]: [string, PantryItemWithIndex[]]) => (
                     <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                         <button
                             onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}

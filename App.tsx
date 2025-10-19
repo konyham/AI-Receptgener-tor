@@ -15,7 +15,8 @@ import LoadOnStartModal from './components/LoadOnStartModal';
 import OptionsEditPanel from './components/OptionsEditPanel';
 import InfoModal from './components/InfoModal';
 import ImportUrlModal from './components/ImportUrlModal';
-import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile } from './services/geminiService';
+import RecipeComparisonView from './components/RecipeComparisonView';
+import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile, generateRecipeVariations } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
 import * as pantryService from './services/pantryService';
@@ -218,8 +219,11 @@ const App: React.FC = () => {
   const [currentCategory, setCurrentCategory] = useState<string | null>(null);
   const [initialFormData, setInitialFormData] = useState<Partial<{ ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover', useSeasonalIngredients: boolean }> | null>(null);
   const [isFromFavorites, setIsFromFavorites] = useState(false);
-  const [recipeSuggestions, setRecipeSuggestions] = useState<RecipeSuggestions | null>(null);
   const [shouldGenerateImage, setShouldGenerateImage] = useState(false);
+  
+  const [alternativeRecipes, setAlternativeRecipes] = useState<Recipe[] | null>(null);
+  const [isGeneratingVariations, setIsGeneratingVariations] = useState(false);
+
 
   // Favorites View State
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
@@ -414,7 +418,7 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setRecipe(null);
-    setRecipeSuggestions(null);
+    setAlternativeRecipes(null);
     setView('generator'); // Make sure we are on the generator view
 
     try {
@@ -512,77 +516,39 @@ const App: React.FC = () => {
   const handleCloseRecipe = () => {
     setRecipe(null);
     setError(null);
-    setRecipeSuggestions(null);
+    setAlternativeRecipes(null);
     setIsFromFavorites(false);
     setInitialFormData(null);
     setCurrentCategory(null);
     setView('generator');
   };
 
-  const handleRefineRecipe = async () => {
-    if (recipe && 'recipeName' in recipe) {
-      setIsLoading(true);
-      try {
-          const suggestions = await getRecipeModificationSuggestions(recipe.ingredients.join(', '), recipe.recipeName);
-          setRecipeSuggestions(suggestions);
-          showNotification('Sikeresen generáltunk javaslatokat!', 'success');
-      } catch (err: any) {
-          showNotification(err.message, 'info');
-      } finally {
-          setIsLoading(false);
-      }
-      
-      setInitialFormData({
-        ingredients: recipe.ingredients.join(', '),
-        excludedIngredients: '',
-        diet: DietOption.DIABETIC,
-        mealType: recipe.mealType,
-        cuisine: recipe.cuisine,
-        recipePace: recipe.recipePace,
-        cookingMethods: recipe.cookingMethods,
-        numberOfServings: parseInt(recipe.servings, 10) || 4,
-        specialRequest: '',
-      });
-      setRecipe(null);
-      setView('generator');
+  const handleFormPopulated = () => {
+    setInitialFormData(null);
+  };
+  
+  const handleGenerateVariations = async (originalRecipe: Recipe) => {
+    setIsGeneratingVariations(true);
+    setError(null);
+    try {
+      const variations = await generateRecipeVariations(
+        originalRecipe,
+        cookingMethodsList,
+        cuisineOptions,
+        mealTypes,
+        cookingMethodCapacities
+      );
+      setAlternativeRecipes(variations);
+    } catch (err: any) {
+      setError(err.message);
+      // If generation fails, stay on the current recipe view
+    } finally {
+      setIsGeneratingVariations(false);
     }
   };
 
-  const handleGenerateFromSuggestion = (suggestion: AlternativeRecipeSuggestion) => {
-    if (!recipe || !('recipeName' in recipe)) return;
-
-    const baseParams = {
-        diet: recipe.diet,
-        mealType: recipe.mealType,
-        cuisine: recipe.cuisine,
-        numberOfServings: parseInt(recipe.servings, 10) || 4,
-        recipePace: recipe.recipePace,
-    };
-
-    const suggestedParams = suggestion.newParameters;
-
-    const finalParams = {
-        // Defaults for a new generation
-        excludedIngredients: '',
-        withCost: false, // Don't run expensive ops by default
-        withImage: true, // Show an image for the new idea
-        mode: 'standard' as const,
-        useSeasonalIngredients: true,
-        
-        // Carry-overs from original recipe
-        ...baseParams,
-        
-        // Overrides from suggestion
-        ingredients: suggestedParams.ingredients || recipe.ingredients.join(', '),
-        cookingMethods: suggestedParams.cookingMethods || recipe.cookingMethods,
-        specialRequest: suggestedParams.specialRequest || `Készíts egy változatot a(z) "${recipe.recipeName}" receptre, ami a következő leírásnak felel meg: ${suggestion.description}`,
-    };
-
-    handleRecipeSubmit(finalParams);
-  };
-
-  const handleFormPopulated = () => {
-    setInitialFormData(null);
+  const handleCloseComparisonView = () => {
+    setAlternativeRecipes(null);
   };
   
   // Favorites handlers
@@ -596,6 +562,20 @@ const App: React.FC = () => {
       showNotification(e.message || 'Hiba történt a mentés közben.', 'info');
     }
   };
+
+  const handleSaveAllRecipes = async (recipesToSave: Recipe[], category: string) => {
+    try {
+        let currentFavorites = favorites;
+        for (const recipe of recipesToSave) {
+            currentFavorites = await favoritesService.addRecipeToFavorites(recipe, category);
+        }
+        setFavorites(currentFavorites);
+        showNotification(`${recipesToSave.length} recept elmentve a(z) '${category}' kategóriába.`, 'success');
+    } catch (e: any) {
+        showNotification(e.message || 'Hiba történt a receptek mentése közben.', 'info');
+    }
+  };
+
 
   const handleSaveMenu = async (menuName: string) => {
     if (!recipe || !('menuName' in recipe)) {
@@ -922,7 +902,7 @@ const App: React.FC = () => {
     
     // Clear the current recipe and suggestions to show the form
     setRecipe(null);
-    setRecipeSuggestions(null);
+    setAlternativeRecipes(null);
 
     // Set initial form data for the RecipeInputForm
     setInitialFormData({
@@ -955,7 +935,7 @@ const App: React.FC = () => {
 
     // Clear the current recipe to show the form
     setRecipe(null);
-    setRecipeSuggestions(null);
+    setAlternativeRecipes(null);
 
     // Set initial form data
     setInitialFormData({
@@ -1492,6 +1472,26 @@ const App: React.FC = () => {
   };
 
   const renderView = () => {
+    if (isGeneratingVariations) {
+        return <LoadingSpinner message="Variációk generálása... Ez több időt vehet igénybe." />;
+    }
+
+    if (recipe && alternativeRecipes) {
+        return (
+            <RecipeComparisonView
+                originalRecipe={recipe as Recipe}
+                variations={alternativeRecipes}
+                onClose={handleCloseComparisonView}
+                onSave={handleSaveToFavorites}
+                onSaveAll={handleSaveAllRecipes}
+                favorites={favorites}
+                mealTypes={orderedMealTypes}
+                cuisineOptions={orderedCuisineOptions}
+                cookingMethodsList={orderedCookingMethods}
+            />
+        );
+    }
+    
     if (recipe && view === 'generator') {
       if ('menuName' in recipe) {
         if ('appetizer' in recipe) {
@@ -1523,7 +1523,6 @@ const App: React.FC = () => {
         <RecipeDisplay
           recipe={recipe as Recipe}
           onClose={handleCloseRecipe}
-          onRefine={handleRefineRecipe}
           isFromFavorites={isFromFavorites}
           category={currentCategory}
           favorites={favorites}
@@ -1534,7 +1533,7 @@ const App: React.FC = () => {
           users={users}
           onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
           shouldGenerateImageInitially={shouldGenerateImage}
-          onGenerateFromSuggestion={handleGenerateFromSuggestion}
+          onGenerateVariations={handleGenerateVariations}
           mealTypes={orderedMealTypes}
           cuisineOptions={orderedCuisineOptions}
           cookingMethodsList={orderedCookingMethods}
@@ -1614,7 +1613,7 @@ const App: React.FC = () => {
                 isLoading={isLoading}
                 initialFormData={initialFormData}
                 onFormPopulated={handleFormPopulated}
-                suggestions={recipeSuggestions}
+                suggestions={null}
                 users={users}
                 mealTypes={mealTypes}
                 cuisineOptions={cuisineOptions}

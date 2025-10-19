@@ -703,8 +703,9 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
 };
 
 export const generateRecipeImage = async (recipe: Recipe, cookingMethodLabels: string[]): Promise<string> => {
-  const prompt = `Professzionális, ultrarealisztikus és rendkívül étvágygerjesztő ételfotó a kész ételről: '${recipe.recipeName}'. Stílus: modern ételmagazin, világos megvilágítás, tiszta és egyszerű háttér, sekély mélységélesség, közeli felvétel. Az étel gyönyörűen van elrendezve egy tányéron vagy tálban, fogyasztásra készen.`;
-  const negativePrompt = 'szöveg, betűk, vízjelek, logók, emberek, kezek, nem ételhez kapcsolódó tárgyak, feliratok';
+  // A felhasználó panaszkodott, hogy a képek irrelevánsak vagy szöveget tartalmaznak.
+  // Ezt egy sokkal specifikusabb és erősebb prompttal javítjuk.
+  const prompt = `Fotórealisztikus kép a következő ételről: "${recipe.recipeName}". Az étel egy egyszerű, fehér tányéron van, letisztult, elmosódott háttérrel. A stílus: ételfotó, természetes fények, makró. FONTOS: A képen KIZÁRÓLAG az étel legyen, semmi más. SZIGORÚAN TILOS a képre bármilyen szöveget, betűt, logót, vízjelet, embert, kezet, vagy bármilyen díszítő elemet tenni, ami nem maga az étel. A fókusz az étel textúráján és megjelenésén van.`;
   
   try {
     const response = await ai.models.generateImages({
@@ -714,7 +715,6 @@ export const generateRecipeImage = async (recipe: Recipe, cookingMethodLabels: s
         numberOfImages: 1,
         outputMimeType: 'image/jpeg',
         aspectRatio: '4:3',
-        negativePrompt: negativePrompt,
       },
     });
     return response.generatedImages[0].image.imageBytes;
@@ -839,31 +839,72 @@ A válaszod egy JSON objektum legyen, ami egy "suggestions" kulcsot tartalmaz. E
   }
 };
 
-export const generateInstructionImage = async (recipeName: string, instructionText: string, cookingMethodLabels: string[]): Promise<string> => {
-  const prompt = `Fotórealisztikus, felülnézeti (flat lay) kép, amely a(z) '${recipeName}' recept egyetlen főzési lépését illusztrálja. A megjelenítendő utasítás: '${instructionText}'. Stílus: tiszta, világos, minimalista. A kép kizárólag a folyamatban lévő főzési lépést mutassa (előkészített hozzávalók, tálban keverés, serpenyőben/lábasban főzés).`;
-  const negativePrompt = 'szöveg, betűk, vízjelek, logók, kész, tálalt étel, emberek, kezek, épületek, feliratok';
-  
-  try {
-    const response = await ai.models.generateImages({
-      model: 'imagen-4.0-generate-001',
-      prompt: prompt,
-      config: {
-        numberOfImages: 1,
-        outputMimeType: 'image/jpeg',
-        aspectRatio: '4:3',
-        negativePrompt: negativePrompt,
-      },
-    });
-    return response.generatedImages[0].image.imageBytes;
-  } catch (e: any) {
-    console.error('Error generating instruction image:', e);
-    if (e && e.message && (e.message.includes('429') || e.message.toLowerCase().includes('quota'))) {
-        throw new Error('Elérte a percenkénti kép-generálási korlátot. Kérjük, várjon egy percet, majd próbálja újra.');
-    }
-    const errorMessage = e?.error?.message || e.message || 'Ismeretlen hiba.';
-    throw new Error(`Hiba történt az illusztráció generálása közben: ${errorMessage}`);
+export const generateRecipeVariations = async (
+  originalRecipe: Recipe,
+  availableCookingMethods: OptionItem[],
+  customCuisineOptions: OptionItem[],
+  customMealTypes: OptionItem[],
+  customCookingMethodCapacities: Record<string, number | null>
+): Promise<Recipe[]> => {
+  // 1. Get suggestions
+  const { suggestions } = await generateAlternativeRecipeSuggestions(originalRecipe, availableCookingMethods);
+
+  if (!suggestions || suggestions.length === 0) {
+    throw new Error('Nem sikerült alternatívákat generálni. Próbálja meg később.');
   }
+
+  // 2. Create a generation promise for each suggestion
+  const generationPromises = suggestions.map(suggestion => {
+    const newParams = suggestion.newParameters;
+    
+    // Construct params for generateRecipe
+    const params = {
+      ingredients: newParams.ingredients || originalRecipe.ingredients.join(', '),
+      excludedIngredients: '', // Keep this simple for variations
+      diet: originalRecipe.diet,
+      mealType: originalRecipe.mealType,
+      cuisine: originalRecipe.cuisine,
+      cookingMethods: newParams.cookingMethods || originalRecipe.cookingMethods,
+      specialRequest: newParams.specialRequest || `Készíts egy változatot a(z) "${originalRecipe.recipeName}" receptre, ami a következő leírásnak felel meg: ${suggestion.description}`,
+      withCost: !!originalRecipe.estimatedCost,
+      numberOfServings: parseInt(originalRecipe.servings, 10) || 2,
+      recipePace: originalRecipe.recipePace,
+      mode: 'standard' as const,
+      useSeasonalIngredients: true, // A good default for variations
+      // These are needed by generateRecipe
+      customMealTypes,
+      customCuisineOptions,
+      customCookingMethods: availableCookingMethods,
+      customCookingMethodCapacities,
+    };
+
+    // Return the promise from generateRecipe
+    return generateRecipe(
+      params.ingredients,
+      params.excludedIngredients,
+      params.diet,
+      params.mealType,
+      params.cuisine,
+      params.cookingMethods,
+      params.specialRequest,
+      params.withCost,
+      params.numberOfServings,
+      params.recipePace,
+      params.mode,
+      params.useSeasonalIngredients,
+      params.customMealTypes,
+      params.customCuisineOptions,
+      params.customCookingMethods,
+      params.customCookingMethodCapacities,
+    );
+  });
+
+  // 3. Await all promises
+  const generatedRecipes = await Promise.all(generationPromises);
+
+  return generatedRecipes;
 };
+
 
 export const generateAppGuide = async (): Promise<string> => {
   const prompt = `Generálj egy részletes, mégis könnyen érthető felhasználói útmutatót magyar nyelven az **"AI receptgenerátor - Konyha Miki módra"** nevű alkalmazáshoz. Amikor az alkalmazás nevére hivatkozol, mindig ezt a formát használd, és tedd idézőjelbe vagy emeld ki. A kimenet legyen HTML formátumú, egyszerű tagekkel. A HTML tagekhez használj Tailwind CSS osztályokat a stílusozáshoz, hogy az esztétikus és olvasható legyen. Például:
@@ -886,7 +927,8 @@ Az útmutatónak az alábbi funkciókat kell bemutatnia, az aktuális verzió al
     *   **Adatkezelés:** A "Mentés Fájlba" és "Betöltés Fájlból" funkciók, amelyekkel a felhasználók biztonsági mentést készíthetnek minden adatukról (receptek, listák, profilok).
     *   **Recept Importálás:** Mutasd be, hogy a felhasználók beolvashatnak recepteket külső forrásokból. Ez magában foglalja a receptek importálását weboldal linkjéről (URL), vagy képfájloból. A kép lehet egy elmentett fotó, vagy egy frissen, a telefon kamerájával készített kép egy szakácskönyvről, újságról, vagy akár a nagymama kézzel írt receptfüzetéről. Az AI megpróbálja kinyerni az adatokat és kitölteni a receptgenerátor űrlapot.
     *   **Hangvezérlés:** Magyarázd el röviden, hogy a főbb navigációs és űrlapkitöltési műveletek hanggal is vezérelhetők.
-    *   **Kép- és Menügenerálás:** Említsd meg, hogy az AI képes ételfotókat generálni a receptekhez, sőt, komplett 4 fogásos (előétel, leves, főétel, desszert) vagy napi menüket (reggeli, ebéd, vacsora) is tud készíteni.
+    *   **Kép- és Menügenerálás:** Említsd meg, hogy az AI képes ételfotókat generálni a receptekhez, sőt, komplett 4 fogásos (előétel, leves, főétel, desszert) vagy napi menüket (reggeli, ebéd, vacsora) is tud készíteni. Az elkészítési lépésekhez már nem generál képet a rendszer.
+    *   **Recept Variációk:** Mutasd be, hogy egy elkészült receptnél a "Variációk" gombra kattintva az AI nem csak ötleteket ad, hanem legenerálja a teljes recept-alternatívákat. Ezeket egy új, füles felületen lehet kényelmesen összehasonlítani az eredetivel, és lehetőség van az összes vagy csak a kiválasztott variációk elmentésére.
     *   **Testreszabás:** A felhasználók szerkeszthetik az étkezés típusok, konyhák és elkészítési módok listáját az "Opciók szerkesztése" gombbal.
 
 A leírás legyen barátságos és segítőkész. A cél, hogy egy új felhasználó is megértse az alkalmazás teljes működését.`;
