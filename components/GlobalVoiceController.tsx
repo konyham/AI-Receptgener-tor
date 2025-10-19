@@ -6,11 +6,12 @@ interface GlobalVoiceControllerProps {
   onCommand: (transcript: string) => void;
   isProcessing: boolean;
   onTranscriptUpdate: (transcript: string | null) => void;
+  onActivate: () => void;
 }
 
 type Mode = 'IDLE' | 'LISTENING_FOR_WAKE_WORD' | 'AWAITING_COMMAND' | 'LISTENING_FOR_COMMAND';
 
-const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand, isProcessing, onTranscriptUpdate }) => {
+const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand, isProcessing, onTranscriptUpdate, onActivate }) => {
   const [isHandsFreeActive, setIsHandsFreeActive] = useState(false);
   const [mode, setMode] = useState<Mode>('IDLE');
   const commandTimeoutRef = useRef<number | null>(null);
@@ -83,6 +84,8 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
       }
       if (isHandsFreeActive) {
         onTranscriptUpdate(null);
+      } else {
+        onActivate();
       }
       setIsHandsFreeActive(prev => !prev);
   }

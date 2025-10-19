@@ -157,7 +157,6 @@ const PantryView: React.FC<PantryViewProps> = ({
   };
 
   const handleToggleSelectItem = (originalIndex: number) => {
-    // FIX: Type 'unknown' cannot be used as an index type.
     // FIX: Explicitly typed the `prev` parameter in the state updater to resolve an error where it was being inferred as `unknown`.
     setSelectedItems((prev: Record<PantryLocation, Set<number>>) => {
         const newSelection = new Set(prev[activeLocation]);

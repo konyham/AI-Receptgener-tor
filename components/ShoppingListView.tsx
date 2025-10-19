@@ -83,7 +83,6 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
       }
   };
 
-  // FIX: Argument of type 'unknown' is not assignable to parameter of type 'ShoppingListItem'.
   const handleDragSort = () => {
     if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
         dragItem.current = null;
@@ -92,8 +91,9 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     };
 
     const reorderedList = [...list];
+    // FIX: Replaced array destructuring with direct array access to avoid incorrect type inference.
     // Remove the dragged item and store it.
-    const [draggedItem] = reorderedList.splice(dragItem.current, 1);
+    const draggedItem = reorderedList.splice(dragItem.current, 1)[0];
 
     // If for some reason the item is not found, abort.
     if (!draggedItem) {

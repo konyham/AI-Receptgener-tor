@@ -63,6 +63,7 @@ import {
     COOKING_METHODS_ORDER_KEY,
     CUISINE_OPTIONS_ORDER_KEY,
     APP_VERSION,
+    LOCAL_COMMAND_EXAMPLES,
 } from './constants';
 import { safeSetLocalStorage } from './utils/storage';
 import { konyhaMikiLogo } from './assets';
@@ -1414,7 +1415,15 @@ const App: React.FC = () => {
             </div>
         </header>
         <div className="flex flex-col sm:flex-row justify-between items-center bg-gray-100 p-3 rounded-lg border gap-4 mb-6">
-            <GlobalVoiceController onCommand={handleGlobalCommand} isProcessing={isProcessingVoice} onTranscriptUpdate={handleTranscriptUpdate} />
+            <GlobalVoiceController
+                onCommand={handleGlobalCommand}
+                isProcessing={isProcessingVoice}
+                onTranscriptUpdate={handleTranscriptUpdate}
+                onActivate={() => {
+                    const message = `Kihangosított mód aktív! Néhány parancs, ami nem használja az AI-t: ${LOCAL_COMMAND_EXAMPLES.map(c => `'${c}'`).join(', ')}`;
+                    showNotification(message, 'info', 10000);
+                }}
+            />
             <button 
                 type="button" 
                 onClick={async () => {

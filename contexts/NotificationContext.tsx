@@ -6,10 +6,11 @@ type NotificationType = 'success' | 'info';
 interface NotificationState {
   message: string;
   type: NotificationType;
+  duration?: number;
 }
 
 interface NotificationContextType {
-  showNotification: (message: string, type?: NotificationType) => void;
+  showNotification: (message: string, type?: NotificationType, duration?: number) => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -25,8 +26,8 @@ export const useNotification = (): NotificationContextType => {
 export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [notification, setNotification] = useState<NotificationState | null>(null);
 
-  const showNotification = useCallback((message: string, type: NotificationType = 'info') => {
-    setNotification({ message, type });
+  const showNotification = useCallback((message: string, type: NotificationType = 'info', duration?: number) => {
+    setNotification({ message, type, duration });
   }, []);
 
   return (
@@ -36,6 +37,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
         <Notification
           message={notification.message}
           type={notification.type}
+          duration={notification.duration}
           onClose={() => setNotification(null)}
         />
       )}
