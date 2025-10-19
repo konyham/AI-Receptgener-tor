@@ -492,7 +492,6 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {/* FIX: Explicitly type the arguments from `Object.entries` to ensure correct type inference within the map. */}
               {/* FIX: Explicitly type [category, items] to resolve TypeScript inference issue with Object.entries. */}
               {Object.entries(categorizedPantry).map(([category, items]: [string, PantryItemWithIndex[]]) => (
                     <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">

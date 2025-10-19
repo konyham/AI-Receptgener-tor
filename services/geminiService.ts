@@ -665,7 +665,10 @@ export const suggestMealType = async (ingredientsString: string, specialRequest:
 
 export const interpretUserCommand = async (transcript: string): Promise<VoiceCommandResult> => {
   const prompt = `Értelmezd a következő hangparancsot egy recept felolvasása közben: "${transcript}".
-  Lehetséges parancsok (command): 'NEXT', 'STOP', 'READ_INTRO', 'READ_INGREDIENTS', 'START_COOKING', 'START_TIMER', 'UNKNOWN'.
+  Lehetséges parancsok (command): 'NEXT', 'PREVIOUS', 'REPEAT', 'STOP', 'READ_INTRO', 'READ_INGREDIENTS', 'START_COOKING', 'START_TIMER', 'UNKNOWN'.
+  - A "következő", "tovább" parancsok 'NEXT'-et jelentenek.
+  - Az "előző", "vissza" parancsok 'PREVIOUS'-t jelentenek.
+  - Az "ismételd", "olvasd újra" parancsok 'REPEAT'-et jelentenek.
   Ha a parancs 'START_TIMER', és a felhasználó megad időtartamot (pl. "indíts egy 5 perces időzítőt"), akkor a payload objektumban add vissza az órákat, perceket, másodperceket.
   A válaszod egy JSON objektum legyen { "command": "...", "payload": { "hours": ..., "minutes": ..., "seconds": ... } } formában.`;
 
@@ -699,6 +702,57 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
   } catch (e: any) {
     console.error('Error interpreting user command:', e);
     throw new Error('Hiba történt a hangparancs értelmezése közben.');
+  }
+};
+
+export const analyzeInstructionForTimer = async (instructionText: string): Promise<{ hours?: number; minutes?: number; seconds?: number } | null> => {
+  if (!instructionText || instructionText.trim() === '') return null;
+
+  const prompt = `Elemezd a következő magyar nyelvű főzési utasítást, és nyerd ki belőle az időtartamot: "${instructionText}".
+  A válaszod egy JSON objektum legyen, ami 'hours', 'minutes', és 'seconds' kulcsokat tartalmazhat.
+  Példák:
+  - "Főzzük 15 percig." -> {"minutes": 15}
+  - "Süssük egy órán át." -> {"hours": 1}
+  - "Pihentessük 30 másodpercig." -> {"seconds": 30}
+  - "Forraljuk fel a vizet." -> null
+  - "Süssük 1 óra 20 percig." -> {"hours": 1, "minutes": 20}
+  Ha nincs konkrét időtartam az utasításban, a válaszod legyen 'null'. Csak a JSON objektumot vagy a 'null' szót add vissza.`;
+  
+  const schema = {
+    type: Type.OBJECT,
+    properties: {
+      hours: { type: Type.NUMBER, description: "Az órák száma." },
+      minutes: { type: Type.NUMBER, description: "A percek száma." },
+      seconds: { type: Type.NUMBER, description: "A másodpercek száma." },
+    },
+    nullable: true,
+  };
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: schema,
+      },
+    });
+
+    const jsonText = response.text.trim();
+    if (jsonText.toLowerCase() === 'null') {
+      return null;
+    }
+    
+    const result = JSON.parse(jsonText);
+    if (!result || (result.hours === undefined && result.minutes === undefined && result.seconds === undefined)) {
+        return null;
+    }
+    return result;
+
+  } catch (e: any) {
+    console.error('Error analyzing instruction for timer:', e);
+    // Don't throw, just return null to not break the UI.
+    return null;
   }
 };
 

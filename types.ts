@@ -197,6 +197,8 @@ export interface FormCommand {
 
 export enum VoiceCommand {
   NEXT = 'NEXT',
+  PREVIOUS = 'PREVIOUS',
+  REPEAT = 'REPEAT',
   STOP = 'STOP',
   READ_INTRO = 'READ_INTRO',
   READ_INGREDIENTS = 'READ_INGREDIENTS',

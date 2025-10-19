@@ -277,7 +277,6 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         {list.length > 0 ? (
             categorizedList ? (
                 <div className="space-y-3 p-2">
-                    {/* FIX: Explicitly typing the destructured `items` array from `Object.entries` ensures that `item` within the inner `.map` is correctly inferred as `ShoppingListItem`, resolving the type error. */}
                     {/* FIX: Explicitly type [category, items] to resolve TypeScript inference issue with Object.entries. */}
                     {Object.entries(categorizedList).map(([category, items]: [string, ShoppingListItem[]]) => (
                          <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">

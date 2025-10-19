@@ -14,6 +14,7 @@ import { konyhaMikiLogo as konyhaMikiLogoBase64 } from '../assets';
 import StarRating from './StarRating';
 import FavoriteStatusModal from './FavoriteStatusModal';
 import RecipeDetails from './RecipeDetails';
+import CookingAssistantModal from './CookingAssistantModal';
 
 
 interface RecipeDisplayProps {
@@ -307,6 +308,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
     // Modal states
     const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
     const [isTimerOpen, setIsTimerOpen] = useState(false);
+    const [isCookingAssistantOpen, setIsCookingAssistantOpen] = useState(false);
     const [isFavoriteStatusModalOpen, setIsFavoriteStatusModalOpen] = useState(false);
     const [timerInitialValues, setTimerInitialValues] = useState<{ hours?: number; minutes?: number; seconds?: number } | null>(null);
 
@@ -376,9 +378,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                     setVoiceMode('ingredients');
                     break;
                 case VoiceCommand.START_COOKING:
-                    setVoiceMode('cooking');
-                    setCurrentSpeechStep(0);
-                    setInstructionStep(0);
+                    setIsCookingAssistantOpen(true);
                     break;
                 case VoiceCommand.START_TIMER:
                     if (payload) {
@@ -793,7 +793,11 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
 
             {/* Action Buttons */}
             <div className="my-6 p-4 bg-gray-100 rounded-lg">
-                <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-7 gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+                    <ActionButton onClick={() => setIsCookingAssistantOpen(true)} label="Főzési asszisztens">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                        <span className="text-xs font-semibold text-gray-700">Főzési Mód</span>
+                    </ActionButton>
                     <ActionButton onClick={() => setIsSaveModalOpen(true)} label="Recept mentése">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor">
                             <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v10l-5-4-5 4V4z" />
@@ -1027,6 +1031,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                 }
             }} users={users} initialFavoritedByIds={editableRecipe.favoritedBy || []} recipeName={editableRecipe.recipeName} />}
             {isImageModalOpen && <ImageDisplayModal imageUrl={activeImageUrl} recipeName={activeImageTitle} onClose={() => setIsImageModalOpen(false)} />}
+            {isCookingAssistantOpen && <CookingAssistantModal recipe={editableRecipe} onClose={() => setIsCookingAssistantOpen(false)} />}
         </div>
     </>
   );
