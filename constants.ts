@@ -1,7 +1,7 @@
 // FIX: This file has been cleaned up to only contain constant definitions, importing its types from the now-correct `types.ts` file. This resolves circular dependencies.
 import { DietOption, MealType, CookingMethod, CuisineOption, RecipePace } from './types';
 
-export const APP_VERSION = '1.5.4';
+export const APP_VERSION = '1.5.5';
 
 export const LOCAL_COMMAND_EXAMPLES = [
   'Menj a kedvencekhez',

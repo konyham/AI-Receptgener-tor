@@ -157,7 +157,7 @@ const PantryView: React.FC<PantryViewProps> = ({
   };
 
   const handleToggleSelectItem = (originalIndex: number) => {
-    // FIX: Explicitly typed the `prev` parameter in the state updater to resolve an error where it was being inferred as `unknown`.
+    // FIX: Explicitly typed the `prev` parameter to `Record<PantryLocation, Set<number>>` to resolve an error where it was being inferred as `unknown`, preventing property access.
     setSelectedItems((prev: Record<PantryLocation, Set<number>>) => {
         const newSelection = new Set(prev[activeLocation]);
         if (newSelection.has(originalIndex)) {

@@ -977,7 +977,12 @@ const App: React.FC = () => {
     };
 
     const handleTranscriptUpdate = (transcript: string | null) => {
-        // Only update the feedback bubble if we are NOT currently processing a command.
+        // Always allow clearing the bubble.
+        if (transcript === null) {
+            setVoiceFeedback(null);
+            return;
+        }
+        // Only show new transcripts if not currently processing a final command.
         if (!isProcessingVoice) {
             setVoiceFeedback(transcript);
         }

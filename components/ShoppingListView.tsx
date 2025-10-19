@@ -90,10 +90,11 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         return;
     };
 
-    const reorderedList = [...list];
-    // FIX: Replaced array destructuring with direct array access to avoid incorrect type inference.
+    // FIX: Explicitly typing reorderedList ensures that `draggedItem` is correctly inferred as ShoppingListItem, resolving the 'unknown' type error.
+    const reorderedList: ShoppingListItem[] = [...list];
+    // FIX: Using array destructuring to correctly infer the dragged item's type, as direct property access was failing.
     // Remove the dragged item and store it.
-    const draggedItem = reorderedList.splice(dragItem.current, 1)[0];
+    const [draggedItem] = reorderedList.splice(dragItem.current, 1);
 
     // If for some reason the item is not found, abort.
     if (!draggedItem) {
