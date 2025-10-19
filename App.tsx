@@ -9,20 +9,21 @@ import FavoritesView from './components/FavoritesView';
 import ShoppingListView from './components/ShoppingListView';
 import PantryView from './components/PantryView';
 import UsersView from './components/UsersView';
-import AppVoiceControl from './components/AppVoiceControl';
+import GlobalVoiceController from './components/GlobalVoiceController';
 import LocationPromptModal from './components/LocationPromptModal';
 import LoadOnStartModal from './components/LoadOnStartModal';
 import OptionsEditPanel from './components/OptionsEditPanel';
 import InfoModal from './components/InfoModal';
 import ImportUrlModal from './components/ImportUrlModal';
 import RecipeComparisonView from './components/RecipeComparisonView';
-import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile, generateRecipeVariations } from './services/geminiService';
+import VoiceFeedbackBubble from './components/VoiceFeedbackBubble';
+import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile, generateRecipeVariations, interpretFormCommand, interpretUserCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
 import * as pantryService from './services/pantryService';
 import * as userService from './services/userService';
+import { interpretLocalAppCommand, interpretLocalFormCommand, interpretLocalRecipeCommand } from './services/localCommandService';
 import { useNotification } from './contexts/NotificationContext';
-import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import {
   Recipe,
   DietOption,
@@ -45,8 +46,11 @@ import {
   AlternativeRecipeSuggestion,
   MenuRecipe,
   DailyMenuRecipe,
+  FormCommand,
+  VoiceCommandResult,
 } from './types';
 import {
+    DIET_OPTIONS,
     MEAL_TYPES,
     CUISINE_OPTIONS,
     COOKING_METHODS,
@@ -103,18 +107,9 @@ self.onmessage = async (e) => {
 };
 `;
 
-/**
- * Implements a new, memory-efficient image processing pipeline using `createImageBitmap` to prevent mobile browser memory crashes.
- * 1. Efficient Resize: Uses `createImageBitmap` with resize options to decode the image directly to a smaller size,
- *    avoiding the massive memory allocation that caused crashes with FileReader/Image elements.
- * 2. Canvas Conversion: Draws the small `ImageBitmap` to a canvas to get a high-quality JPEG blob.
- * 3. Worker Encoding: Sends the small blob to a Web Worker for the final, potentially blocking, conversion to base64, keeping the UI responsive.
- * @param file The original, high-resolution image file from the camera or file input.
- * @returns A promise that resolves to the base64 data and mime type of the processed JPEG image.
- */
 const processAndResizeImageForGemini = (file: File): Promise<{ data: string; mimeType: string }> => {
     return new Promise(async (resolve, reject) => {
-        const MAX_DIMENSION = 1600; // A good balance for OCR quality and performance.
+        const MAX_DIMENSION = 1600;
 
         if (typeof window.createImageBitmap === 'undefined') {
             reject(new Error('A böngésződ nem támogatja a modern, memóriahatékony képfeldolgozást. A funkció valószínűleg nem fog működni ezen az eszközön.'));
@@ -122,14 +117,12 @@ const processAndResizeImageForGemini = (file: File): Promise<{ data: string; mim
         }
 
         try {
-            // --- Stage 1: Memory-efficient resizing using createImageBitmap ---
             const imageBitmap = await window.createImageBitmap(file, {
                 resizeWidth: MAX_DIMENSION,
                 resizeHeight: MAX_DIMENSION,
                 resizeQuality: 'high',
             });
 
-            // --- Stage 2: Draw to canvas and get a blob ---
             const canvas = document.createElement('canvas');
             canvas.width = imageBitmap.width;
             canvas.height = imageBitmap.height;
@@ -140,7 +133,7 @@ const processAndResizeImageForGemini = (file: File): Promise<{ data: string; mim
                 return;
             }
             ctx.drawImage(imageBitmap, 0, 0);
-            imageBitmap.close(); // IMPORTANT: Release memory held by the bitmap.
+            imageBitmap.close();
 
             const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', 0.92));
             
@@ -149,7 +142,6 @@ const processAndResizeImageForGemini = (file: File): Promise<{ data: string; mim
                 return;
             }
 
-            // --- Stage 3: Send the resized blob to the worker for base64 conversion ---
             if (!window.Worker) {
                 reject(new Error('A Web Worker-ek nem támogatottak ebben a böngészőben.'));
                 return;
@@ -198,8 +190,6 @@ const fileToBase64 = (file: File): Promise<string> =>
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => {
-      // result is "data:mime/type;base64,the_base_64_string"
-      // we need to remove the prefix
       const base64String = (reader.result as string).split(',')[1];
       resolve(base64String);
     };
@@ -224,18 +214,14 @@ const App: React.FC = () => {
   const [alternativeRecipes, setAlternativeRecipes] = useState<Recipe[] | null>(null);
   const [isGeneratingVariations, setIsGeneratingVariations] = useState(false);
 
-
-  // Favorites View State
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [filterCategory, setFilterCategory] = useState('all');
   const [sortOption, setSortOption] = useState<SortOption>(SortOption.DATE_DESC);
   
-  // Location prompt state
   const [isLocationPromptOpen, setIsLocationPromptOpen] = useState(false);
   const [locationCallback, setLocationCallback] = useState<(location: PantryLocation) => void>(() => () => {});
   const [isLoadOnStartModalOpen, setIsLoadOnStartModalOpen] = useState(false);
 
-  // Customizable options state (lifted from RecipeInputForm)
   const [mealTypes, setMealTypes] = useState<OptionItem[]>(() => loadFromLocalStorage(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES));
   const [cuisineOptions, setCuisineOptions] = useState<OptionItem[]>(() => loadFromLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, CUISINE_OPTIONS));
   const [cookingMethodsList, setCookingMethodsList] = useState<OptionItem[]>(() => loadFromLocalStorage(COOKING_METHODS_STORAGE_KEY, COOKING_METHODS));
@@ -247,19 +233,21 @@ const App: React.FC = () => {
 
   const [isOptionsEditorOpen, setIsOptionsEditorOpen] = useState(false);
 
-  // Info Modal State
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [appGuideContent, setAppGuideContent] = useState('');
   const [isLoadingGuide, setIsLoadingGuide] = useState(false);
 
-  // URL Import Modal State
   const [isImportUrlModalOpen, setIsImportUrlModalOpen] = useState(false);
   const [isParsingUrl, setIsParsingUrl] = useState(false);
   const [parsingUrlError, setParsingUrlError] = useState<string | null>(null);
 
+  const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [formCommand, setFormCommand] = useState<FormCommand | null>(null);
+  const [recipeCommand, setRecipeCommand] = useState<VoiceCommandResult | null>(null);
+
 
   const { showNotification } = useNotification();
-  const isProcessingVoiceCommandRef = React.useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recipeFileInputRef = useRef<HTMLInputElement>(null);
   const recipeDisplayRef = useRef<HTMLDivElement>(null);
@@ -275,7 +263,6 @@ const App: React.FC = () => {
       setFavorites(favs);
       if (favsRecovery) showNotification(favsRecovery, 'info');
 
-      // Set all loaded categories to be expanded by default for better UX.
       const initialExpanded = Object.keys(favs).reduce((acc, cat) => {
         acc[cat] = true;
         return acc;
@@ -303,7 +290,6 @@ const App: React.FC = () => {
     loadData();
   }, [loadData]);
 
-  // Effect to prompt loading data if storage is empty on startup.
   useEffect(() => {
     const favoritesData = localStorage.getItem('ai-recipe-generator-favorites');
     const shoppingListData = localStorage.getItem('ai-recipe-generator-shopping-list');
@@ -321,7 +307,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Effect to warn user before closing the tab if they have data.
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
         const favoritesData = localStorage.getItem('ai-recipe-generator-favorites');
@@ -346,17 +331,13 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Scroll to the recipe view when a new recipe is generated.
     if (recipe && !isLoading && !isFromFavorites && recipeDisplayRef.current) {
-      // Use a small timeout to ensure the browser has painted the new component before scrolling
       setTimeout(() => {
         recipeDisplayRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
     }
   }, [recipe, isLoading, isFromFavorites]);
 
-
-  // Effects to sync ordered lists (lifted from RecipeInputForm)
     useEffect(() => {
         const savedOrder = loadFromLocalStorage<string[] | null>(MEAL_TYPES_ORDER_KEY, null);
         const optionsMap = new Map(mealTypes.map(item => [item.value, item]));
@@ -419,7 +400,7 @@ const App: React.FC = () => {
     setError(null);
     setRecipe(null);
     setAlternativeRecipes(null);
-    setView('generator'); // Make sure we are on the generator view
+    setView('generator');
 
     try {
        if (params.mealType === MealType.MENU) {
@@ -488,16 +469,11 @@ const App: React.FC = () => {
   
   const handleRecipeUpdate = async (updatedRecipe: Recipe, originalRecipe?: Recipe) => {
     setRecipe(updatedRecipe);
-    // The save logic should only apply if it's a favorite being updated, and we know its category.
     if (isFromFavorites && originalRecipe && currentCategory) {
-        // If the name changed, we need to remove the old entry before adding/updating the new one
-        // to prevent duplicates and ensure the update works correctly.
         if (originalRecipe.recipeName !== updatedRecipe.recipeName) {
             await favoritesService.removeRecipeFromFavorites(originalRecipe.recipeName, currentCategory);
         }
         
-        // The addRecipeToFavorites service function handles both creating a new entry (if the name changed)
-        // and updating an existing one (if the name is the same).
         const finalFavorites = await favoritesService.addRecipeToFavorites(updatedRecipe, currentCategory);
         
         setFavorites(finalFavorites);
@@ -541,7 +517,6 @@ const App: React.FC = () => {
       setAlternativeRecipes(variations);
     } catch (err: any) {
       setError(err.message);
-      // If generation fails, stay on the current recipe view
     } finally {
       setIsGeneratingVariations(false);
     }
@@ -551,7 +526,6 @@ const App: React.FC = () => {
     setAlternativeRecipes(null);
   };
   
-  // Favorites handlers
   const handleSaveToFavorites = async (recipeToSave: Recipe, category: string) => {
     try {
       const updatedFavorites = await favoritesService.addRecipeToFavorites(recipeToSave, category);
@@ -665,7 +639,6 @@ const App: React.FC = () => {
     } catch (error: any) {
         console.error("Failed to delete favorite:", error);
         showNotification(`Hiba történt a törlés közben: ${error.message}`, 'info');
-        // Re-throw to allow caller to handle UI state
         throw error;
     }
   };
@@ -684,7 +657,6 @@ const App: React.FC = () => {
   const handleDeleteCategory = async (category: string) => {
     const updatedFavorites = await favoritesService.removeCategory(category);
     setFavorites(updatedFavorites);
-    // Also remove the category from the expanded state tracker to prevent stale state
     setExpandedCategories(prev => {
         const newState = { ...prev };
         delete newState[category];
@@ -707,704 +679,538 @@ const App: React.FC = () => {
     try {
       const updatedFavorites = await favoritesService.updateFavoriteStatus(recipeName, category, favoritedByIds);
       setFavorites(updatedFavorites);
-
-      if (recipe && 'recipeName' in recipe && recipe.recipeName === recipeName) {
-        const updatedRecipe = updatedFavorites[category]?.find(r => r.recipeName === recipeName);
-        if (updatedRecipe) setRecipe(updatedRecipe);
+      // Update the currently viewed recipe if it's the one that changed
+      if (recipe && 'recipeName' in recipe && (recipe as Recipe).recipeName === recipeName) {
+        setRecipe({ ...(recipe as Recipe), favoritedBy: favoritedByIds });
       }
-      showNotification('Kedvenc állapot frissítve!', 'success');
+      showNotification('Kedvenc állapot frissítve.', 'success');
     } catch (e: any) {
-      showNotification('Hiba a mentés közben.', 'info');
+      showNotification('Hiba a kedvenc állapot frissítésekor.', 'info');
     }
-  };
-
-  const handleUpdateRecipeCategories = async (recipe: Recipe, newCategories: string[]) => {
-    try {
-      const updatedFavorites = await favoritesService.updateRecipeCategories(recipe, newCategories);
-      setFavorites(updatedFavorites);
-      showNotification('Kategóriák sikeresen frissítve!', 'success');
-    } catch (e: any) {
-      showNotification(e.message || 'Hiba történt a kategóriák frissítése közben.', 'info');
-    }
-  };
-
-  // Shopping list handlers
-  const handleAddItemsToShoppingList = (items: string[]) => {
-    const currentList = shoppingListService.getShoppingList().list;
-    const newItemsCount = items.filter(item => !currentList.some(li => li.text.toLowerCase() === item.toLowerCase())).length;
-    setShoppingList(shoppingListService.addItems(items));
-    if (newItemsCount > 0) {
-        showNotification(`${newItemsCount} tétel hozzáadva a bevásárlólistához!`, 'success');
-    } else {
-        showNotification('Minden tétel már a listán volt.', 'info');
-    }
-    setView('shopping-list');
   };
   
-    const handleAddMenuToShoppingList = (menu: MenuRecipe) => {
-        const allIngredients = [
+  const handleUpdateRecipeCategories = async (recipeToUpdate: Recipe, newCategories: string[]) => {
+    try {
+      const updatedFavorites = await favoritesService.updateRecipeCategories(recipeToUpdate, newCategories);
+      setFavorites(updatedFavorites);
+      showNotification(`'${recipeToUpdate.recipeName}' kategóriái frissítve.`, 'success');
+    } catch (e: any) {
+        showNotification('Hiba a kategóriák frissítésekor.', 'info');
+    }
+  };
+
+  const handleAddItemsToShoppingList = (items: string[]) => {
+    const updatedList = shoppingListService.addItems(items);
+    setShoppingList(updatedList);
+    showNotification(`${items.length} tétel hozzáadva a bevásárlólistához.`, 'success');
+  };
+  
+  const handleMenuToShoppingList = (menu: MenuRecipe | DailyMenuRecipe) => {
+    let allIngredients: string[] = [];
+    if ('appetizer' in menu) {
+        allIngredients = [
             ...menu.appetizer.ingredients,
             ...menu.soup.ingredients,
             ...menu.mainCourse.ingredients,
             ...menu.dessert.ingredients,
         ];
-        // The service function handles duplicates
-        handleAddItemsToShoppingList(allIngredients);
-    };
-
-    const handleAddDailyMenuToShoppingList = (menu: DailyMenuRecipe) => {
-        const allIngredients = [
+    } else {
+        allIngredients = [
             ...menu.breakfast.ingredients,
             ...menu.lunch.ingredients,
             ...menu.dinner.ingredients,
         ];
-        handleAddItemsToShoppingList(allIngredients);
-    };
-
+    }
+    const uniqueIngredients = [...new Set(allIngredients)];
+    handleAddItemsToShoppingList(uniqueIngredients);
+  };
 
   const handleUpdateShoppingListItem = (index: number, updatedItem: ShoppingListItem) => {
-    setShoppingList(shoppingListService.updateItem(index, updatedItem));
-  };
-  
-  const handleRemoveShoppingListItem = (index: number) => {
-    setShoppingList(shoppingListService.removeItem(index));
+    const updatedList = shoppingListService.updateItem(index, updatedItem);
+    setShoppingList(updatedList);
   };
 
+  const handleRemoveShoppingListItem = (index: number) => {
+    const updatedList = shoppingListService.removeItem(index);
+    setShoppingList(updatedList);
+  };
+  
   const handleClearCheckedShoppingList = () => {
-    setShoppingList(shoppingListService.clearChecked());
+    const updatedList = shoppingListService.clearChecked();
+    setShoppingList(updatedList);
+    showNotification('Kipipált tételek törölve.', 'success');
   };
 
   const handleClearAllShoppingList = () => {
-    setShoppingList(shoppingListService.clearAll());
-  };
-
-  const handleReorderShoppingList = (reorderedList: ShoppingListItem[]) => {
-    setShoppingList(reorderShoppingList(reorderedList));
-    showNotification('Bevásárlólista sorrendje frissítve.', 'success');
+    if (window.confirm('Biztosan törli a teljes bevásárlólistát?')) {
+      const updatedList = shoppingListService.clearAll();
+      setShoppingList(updatedList);
+      showNotification('Bevásárlólista törölve.', 'success');
+    }
   };
   
-  // Pantry handlers
-  const handleAddItemsToPantry = (items: string[], location: PantryLocation, date: string | null, storageType: StorageType) => {
-      setPantry(pantryService.addItems(items, location, date, storageType));
-      showNotification(`Tételek hozzáadva a(z) ${location} kamrához!`, 'success');
+  const handleReorderShoppingList = (reorderedList: ShoppingListItem[]) => {
+    const updatedList = reorderShoppingList(reorderedList);
+    setShoppingList(updatedList);
+  };
+
+  const handlePantryAddItem = (items: string[], location: PantryLocation, date: string | null, storageType: StorageType) => {
+    const updatedPantry = pantryService.addItems(items, location, date, storageType);
+    setPantry(updatedPantry);
+    showNotification(`${items.length} tétel hozzáadva a kamrához (${location}).`, 'success');
   };
   
   const handleUpdatePantryItem = (originalItem: PantryItem, updatedItem: PantryItem, location: PantryLocation) => {
-    const originalIndex = pantry[location]?.findIndex(item => 
-        item.text === originalItem.text &&
-        item.dateAdded === originalItem.dateAdded &&
-        item.quantity === originalItem.quantity &&
-        item.storageType === originalItem.storageType
-    );
-
-    if (originalIndex === -1 || typeof originalIndex === 'undefined') {
-        console.error("Item to update not found in original pantry list.", originalItem);
-        showNotification("Hiba: A szerkesztendő elem nem található.", "info");
-        return;
-    }
-    
-    setPantry(pantryService.updateItem(originalIndex, updatedItem, location));
-  };
-  
-  const handleRemovePantryItem = (itemToDelete: PantryItem, location: PantryLocation) => {
-    const originalIndex = pantry[location]?.findIndex(item => 
-        item.text === itemToDelete.text &&
-        item.dateAdded === itemToDelete.dateAdded &&
-        item.quantity === itemToDelete.quantity &&
-        item.storageType === itemToDelete.storageType
-    );
-
-    if (originalIndex === -1 || typeof originalIndex === 'undefined') {
-        console.error("Item to delete not found in original pantry list.", itemToDelete);
-        showNotification("Hiba: A törlendő elem nem található.", "info");
-        return;
-    }
-
-    // First, remove the item from the pantry state
-    setPantry(pantryService.removeItem(originalIndex, location));
-
-    // Then, add the item to the shopping list
-    const currentShoppingList = shoppingListService.getShoppingList().list;
-    const isAlreadyOnList = currentShoppingList.some(li => li.text.toLowerCase() === itemToDelete.text.toLowerCase());
-    
-    setShoppingList(shoppingListService.addItems([itemToDelete.text]));
-    
-    if (!isAlreadyOnList) {
-        showNotification(`'${itemToDelete.text}' áthelyezve a bevásárlólistára.`, 'success');
-    } else {
-        showNotification(`'${itemToDelete.text}' törölve a kamrából (már szerepelt a bevásárlólistán).`, 'info');
-    }
-  };
-
-  const handleClearPantry = (location: PantryLocation) => {
-    setPantry(pantryService.clearAll(location));
-  };
-  
-  const handleMoveCheckedToPantryRequest = () => {
-    const checkedItems = shoppingList.filter(item => item.checked).map(item => item.text);
-    if (checkedItems.length > 0) {
-        setLocationCallback(() => (location: PantryLocation) => {
-            // When moving, use current date and default pantry storage type
-            const today = new Date().toISOString().split('T')[0];
-            handleAddItemsToPantry(checkedItems, location, today, StorageType.PANTRY);
-            handleClearCheckedShoppingList();
-            showNotification(`${checkedItems.length} tétel áthelyezve a(z) ${location} kamrába.`, 'success');
-            setView('pantry');
-        });
-        setIsLocationPromptOpen(true);
-    } else {
-        showNotification('Nincsenek kipipált tételek a bevásárlólistán.', 'info');
-    }
-  };
-
-  const storageTypeLabels: Record<StorageType, { label: string; icon: string }> = {
-    [StorageType.FREEZER]: { label: "Fagyasztó", icon: "❄️" },
-    [StorageType.REFRIGERATOR]: { label: "Hűtő", icon: "🧊" },
-    [StorageType.PANTRY]: { label: "Kamra", icon: "🥫" },
-  };
-
-  const handleMoveShoppingListItemToPantryRequest = (index: number, itemText: string, storageType: StorageType) => {
-    setLocationCallback(() => (location: PantryLocation) => {
-        const today = new Date().toISOString().split('T')[0];
-        // 1. Add item to pantry state and storage
-        setPantry(pantryService.addItems([itemText], location, today, storageType));
-        // 2. Remove item from shopping list state and storage
-        setShoppingList(shoppingListService.removeItem(index));
-
-        showNotification(`'${itemText}' áthelyezve a(z) ${location} kamrába (${storageTypeLabels[storageType].label}).`, 'success');
-    });
-    setIsLocationPromptOpen(true);
-  };
-
-
-  const handleGenerateFromPantryRequest = () => {
-    setLocationCallback(() => (location: PantryLocation) => handleGenerateFromPantry(location));
-    setIsLocationPromptOpen(true);
-  };
-
-  const handleGenerateFromPantry = (location: PantryLocation) => {
-    const ingredientsFromPantry = [...pantry[location]] // Create a copy to sort
-      .sort((a, b) => {
-            if (a.dateAdded === null && b.dateAdded !== null) return -1; // a (unknown) comes first
-            if (a.dateAdded !== null && b.dateAdded === null) return 1;  // b (unknown) comes first
-            if (a.dateAdded === null && b.dateAdded === null) return 0; // order doesn't matter
-            // both have dates, sort by oldest
-            return new Date(a.dateAdded!).getTime() - new Date(b.dateAdded!).getTime();
-      })
-      .slice(0, 5) // take up to 5 oldest/unknown ingredients
-      .map(item => item.text)
-      .join(', ');
-
-    if (!ingredientsFromPantry) {
-        showNotification(`A kamra (${location}) üres!`, 'info');
-        return;
-    }
-    
-    // Clear the current recipe and suggestions to show the form
-    setRecipe(null);
-    setAlternativeRecipes(null);
-
-    // Set initial form data for the RecipeInputForm
-    setInitialFormData({
-        ingredients: ingredientsFromPantry,
-        excludedIngredients: '',
-        diet: DietOption.DIABETIC,
-        mealType: MealType.LUNCH,
-        cuisine: CuisineOption.NONE,
-        cookingMethods: [],
-        specialRequest: 'Készíts egy finom ételt a kamrában legrégebben tárolt alapanyagokból.',
-        withCost: false,
-        withImage: false,
-        numberOfServings: 2,
-        recipePace: RecipePace.NORMAL,
-        mode: 'standard',
-        useSeasonalIngredients: true,
-    });
-
-    setView('generator');
-    showNotification(`A legrégebbi kamra alapanyagok betöltve. Módosítsa a feltételeket és generáljon receptet!`, 'success');
-  };
-
-  const handleGenerateFromSelectedPantryItemsRequest = (items: string[]) => {
-    if (items.length === 0) {
-        showNotification('Nincsenek kijelölt alapanyagok!', 'info');
-        return;
-    }
-    
-    const ingredientsString = items.join(', ');
-
-    // Clear the current recipe to show the form
-    setRecipe(null);
-    setAlternativeRecipes(null);
-
-    // Set initial form data
-    setInitialFormData({
-        ingredients: ingredientsString,
-        excludedIngredients: '',
-        diet: DietOption.DIABETIC,
-        mealType: MealType.LUNCH,
-        cuisine: CuisineOption.NONE,
-        cookingMethods: [],
-        specialRequest: 'Készíts egy finom ételt a kamrából kiválasztott alapanyagokból.',
-        withCost: false,
-        withImage: false,
-        numberOfServings: 2,
-        recipePace: RecipePace.NORMAL,
-        mode: 'standard', // Use standard mode
-        useSeasonalIngredients: true,
-    });
-
-    setView('generator');
-    showNotification(`Kijelölt alapanyagok betöltve. Finomítsa a keresést és generáljon receptet!`, 'success');
-  };
-  
-  const handleMovePantryItems = (indices: number[], sourceLocation: PantryLocation, destinationLocation: PantryLocation) => {
-      const updatedPantry = pantryService.moveItems(indices, sourceLocation, destinationLocation);
+    const itemIndex = (pantry[location] || []).findIndex(item => item.text === originalItem.text && item.dateAdded === originalItem.dateAdded);
+    if (itemIndex > -1) {
+      const updatedPantry = pantryService.updateItem(itemIndex, updatedItem, location);
       setPantry(updatedPantry);
-      showNotification(`${indices.length} tétel sikeresen áthelyezve ide: ${destinationLocation}.`, 'success');
-  };
-
-  // User handlers
-    const handleSaveUser = (user: UserProfile | Omit<UserProfile, 'id'>) => {
-        if (!('id' in user)) {
-            // This is a new user
-            const updatedUsers = userService.addUser(users, user);
-            setUsers(updatedUsers);
-            showNotification(`'${user.name}' hozzáadva.`, 'success');
-        } else {
-            // This is an update
-            const updatedUsers = userService.updateUser(users, user as UserProfile);
-            setUsers(updatedUsers);
-            showNotification(`'${user.name}' adatok mentve.`, 'success');
-        }
-    };
-
-    const handleDeleteUser = (userId: string) => {
-        const userToDelete = users.find(u => u.id === userId);
-        if (userToDelete && window.confirm(`Biztosan törli a következő felhasználót: ${userToDelete.name}?`)) {
-            const updatedUsers = userService.deleteUser(users, userId);
-            setUsers(updatedUsers);
-            showNotification('Felhasználó törölve.', 'success');
-        }
-    };
-
-  const handleSaveOptions = (
-      newMealTypes: OptionItem[],
-      newCuisines: OptionItem[],
-      newMethods: OptionItem[],
-      newCapacities: Record<string, number | null>
-  ) => {
-      setMealTypes(newMealTypes);
-      safeSetLocalStorage(MEAL_TYPES_STORAGE_KEY, newMealTypes);
-      safeSetLocalStorage(MEAL_TYPES_ORDER_KEY, newMealTypes.map(o => o.value));
-
-      setCuisineOptions(newCuisines);
-      safeSetLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, newCuisines);
-      safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, newCuisines.map(o => o.value));
-
-      setCookingMethodsList(newMethods);
-      safeSetLocalStorage(COOKING_METHODS_STORAGE_KEY, newMethods);
-      safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, newMethods.map(o => o.value));
-
-      setCookingMethodCapacities(newCapacities);
-      safeSetLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, newCapacities);
-      
-      showNotification('A beállítások sikeresen mentve.', 'success');
-      setIsOptionsEditorOpen(false);
-  };
-
-
-  // Import/Export
-  const handleImportData = async (data: Partial<BackupData>) => {
-    try {
-      let message = 'Adatok importálva.';
-      let newCount = 0;
-      let tempFavorites = { ...favorites };
-      let tempShoppingList = [...shoppingList];
-      let tempPantry = { ...pantry };
-      let tempUsers = [...users];
-
-      // 1. Import images into IndexedDB first
-      if (data.images && typeof data.images === 'object') {
-        const imageEntries = Object.entries(data.images);
-        if (imageEntries.length > 0) {
-          const imagePromises = imageEntries.map(([id, imageData]) =>
-            imageStore.saveImage(id, imageData as string)
-          );
-          await Promise.all(imagePromises);
-        }
-      }
-
-      // 2. Merge favorites
-      if (data.favorites) {
-        const { favorites: validatedFavorites, recoveryNotification } = favoritesService.validateAndRecover(data.favorites);
-        if (recoveryNotification) showNotification(recoveryNotification, 'info');
-        const { mergedFavorites, newRecipesCount } = favoritesService.mergeFavorites(tempFavorites, validatedFavorites);
-        tempFavorites = mergedFavorites;
-        newCount += newRecipesCount;
-      }
-
-      // 3. Merge other data structures
-      if (data.shoppingList) {
-        const { list: validatedList, recoveryNotification } = shoppingListService.validateAndRecover(data.shoppingList);
-        if (recoveryNotification) showNotification(recoveryNotification, 'info');
-        const { mergedList, newItemsCount } = shoppingListService.mergeShoppingLists(tempShoppingList, validatedList);
-        tempShoppingList = mergedList;
-        newCount += newItemsCount;
-      }
-      if (data.pantry) {
-        const { pantry: validatedPantry, recoveryNotification } = pantryService.validateAndRecover(data.pantry);
-        if (recoveryNotification) showNotification(recoveryNotification, 'info');
-        const { mergedPantry, newItemsCount } = pantryService.mergePantries(tempPantry, validatedPantry);
-        tempPantry = mergedPantry;
-        newCount += newItemsCount;
-      }
-      if (data.users) {
-        const { users: validatedUsers, recoveryNotification } = userService.validateAndRecover(data.users);
-        if (recoveryNotification) showNotification(recoveryNotification, 'info');
-        const { mergedUsers, newItemsCount: newUsersCount } = userService.mergeUsers(tempUsers, validatedUsers);
-        tempUsers = mergedUsers;
-        newCount += newUsersCount;
-      }
-
-      // 4. Process the final merged favorites to move any Data URLs (from old backups) to IndexedDB
-      tempFavorites = await favoritesService.processFavoritesForStorage(tempFavorites);
-      
-      // 5. Update state and save everything to localStorage
-      setFavorites(tempFavorites);
-      setShoppingList(tempShoppingList);
-      setPantry(tempPantry);
-      setUsers(tempUsers);
-      
-      favoritesService.saveFavorites(tempFavorites);
-      shoppingListService.saveShoppingList(tempShoppingList);
-      pantryService.savePantry(tempPantry);
-      userService.saveUsers(tempUsers);
-      
-      if(newCount > 0) {
-        message = `${newCount} új elem sikeresen importálva.`;
-      }
-      
-      // Handle custom options import with MERGE logic
-      let optionsMessage = '';
-      if (data.mealTypes && Array.isArray(data.mealTypes)) {
-          const optionMap = new Map<string, OptionItem>();
-          mealTypes.forEach(opt => optionMap.set(opt.label.toLowerCase().trim(), opt));
-          (data.mealTypes as OptionItem[]).forEach(opt => optionMap.set(opt.label.toLowerCase().trim(), opt));
-          const mergedOptions = Array.from(optionMap.values());
-
-          setMealTypes(mergedOptions);
-          safeSetLocalStorage(MEAL_TYPES_STORAGE_KEY, mergedOptions);
-          if (data.mealTypesOrder) {
-              const importedOrderSet = new Set(data.mealTypesOrder);
-              const newItems = mergedOptions.filter((opt: OptionItem) => !importedOrderSet.has(opt.value)).map((opt: OptionItem) => opt.value);
-              const finalOrder = [...data.mealTypesOrder, ...newItems];
-              safeSetLocalStorage(MEAL_TYPES_ORDER_KEY, finalOrder);
-          }
-          optionsMessage += ' Étkezés típusok,';
-      }
-      if (data.cuisineOptions && Array.isArray(data.cuisineOptions)) {
-          const optionMap = new Map<string, OptionItem>();
-          cuisineOptions.forEach(opt => optionMap.set(opt.label.toLowerCase().trim(), opt));
-          (data.cuisineOptions as OptionItem[]).forEach(opt => optionMap.set(opt.label.toLowerCase().trim(), opt));
-          const mergedOptions = Array.from(optionMap.values());
-
-          setCuisineOptions(mergedOptions);
-          safeSetLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, mergedOptions);
-          if (data.cuisineOptionsOrder) {
-              const importedOrderSet = new Set(data.cuisineOptionsOrder);
-              const newItems = mergedOptions.filter((opt: OptionItem) => !importedOrderSet.has(opt.value)).map((opt: OptionItem) => opt.value);
-              const finalOrder = [...data.cuisineOptionsOrder, ...newItems];
-              safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, finalOrder);
-          }
-          optionsMessage += ' konyhák,';
-      }
-      if (data.cookingMethods && Array.isArray(data.cookingMethods)) {
-          const optionMap = new Map<string, OptionItem>();
-          cookingMethodsList.forEach(opt => optionMap.set(opt.label.toLowerCase().trim(), opt));
-          (data.cookingMethods as OptionItem[]).forEach(opt => optionMap.set(opt.label.toLowerCase().trim(), opt));
-          const mergedOptions = Array.from(optionMap.values());
-          
-          setCookingMethodsList(mergedOptions);
-          safeSetLocalStorage(COOKING_METHODS_STORAGE_KEY, mergedOptions);
-
-          if (data.cookingMethodCapacities || Object.keys(cookingMethodCapacities).length > 0) {
-              const allCaps = { ...cookingMethodCapacities, ...(data.cookingMethodCapacities || {}) };
-              const newCaps: Record<string, number | null> = {};
-              mergedOptions.forEach(opt => {
-                  if (allCaps.hasOwnProperty(opt.value)) {
-                      newCaps[opt.value] = allCaps[opt.value];
-                  }
-              });
-              setCookingMethodCapacities(newCaps);
-              safeSetLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, newCaps);
-          }
-          if (data.cookingMethodsOrder) {
-              const importedOrderSet = new Set(data.cookingMethodsOrder);
-              const newItems = mergedOptions.filter((opt: OptionItem) => !importedOrderSet.has(opt.value)).map((opt: OptionItem) => opt.value);
-              const finalOrder = [...data.cookingMethodsOrder, ...newItems];
-              safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, finalOrder);
-          }
-          optionsMessage += ' elkészítési módok';
-      }
-
-      if (optionsMessage) {
-        showNotification(message + ` és a személyes beállítások (${optionsMessage.trim().replace(/,$/, '')}) frissítve.`, 'success');
-      } else {
-        showNotification(message, 'success');
-      }
-      
-    } catch(e: any) {
-        console.error("Import failed:", e);
-        showNotification(`Hiba az importálás során: ${e.message}`, 'info');
     }
   };
+  
+  const handleRemovePantryItem = (item: PantryItem, location: PantryLocation) => {
+    const itemIndex = (pantry[location] || []).findIndex(i => i.text === item.text && i.dateAdded === item.dateAdded);
+    if (itemIndex > -1) {
+        const updatedPantry = pantryService.removeItem(itemIndex, location);
+        setPantry(updatedPantry);
+    }
+  };
+  
+  const handleClearPantry = (location: PantryLocation) => {
+    if (window.confirm(`Biztosan törli a(z) ${location} kamra teljes tartalmát?`)) {
+        const updatedPantry = pantryService.clearAll(location);
+        setPantry(updatedPantry);
+    }
+  };
+  
+  const handleMoveItemToPantryRequest = (shoppingListIndex: number, itemText: string, storageType: StorageType) => {
+      setLocationCallback(() => (location: PantryLocation) => {
+        handlePantryAddItem([itemText], location, new Date().toISOString().split('T')[0], storageType);
+        handleRemoveShoppingListItem(shoppingListIndex);
+        showNotification(`'${itemText}' áthelyezve a kamrába (${location}).`, 'success');
+      });
+      setIsLocationPromptOpen(true);
+  };
+
+  const handleMoveCheckedToPantryRequest = () => {
+    const checkedItems = shoppingList.filter(item => item.checked);
+    if (checkedItems.length === 0) return;
+    
+    setLocationCallback(() => (location: PantryLocation) => {
+        const itemTexts = checkedItems.map(item => item.text);
+        // Assume default storage type is PANTRY when moving from shopping list
+        handlePantryAddItem(itemTexts, location, new Date().toISOString().split('T')[0], StorageType.PANTRY);
+        handleClearCheckedShoppingList();
+        showNotification(`${checkedItems.length} tétel áthelyezve a kamrába (${location}).`, 'success');
+    });
+    setIsLocationPromptOpen(true);
+  };
+  
+  const handleGenerateFromPantryRequest = () => {
+    setLocationCallback(() => (location: PantryLocation) => {
+        const allItems = pantry[location] || [];
+        if (allItems.length === 0) {
+            showNotification(`A kamra (${location}) üres.`, 'info');
+            return;
+        }
+        
+        // Sort by date, oldest first, null dates treated as oldest
+        const sortedItems = [...allItems].sort((a, b) => {
+            if (a.dateAdded === null) return -1;
+            if (b.dateAdded === null) return 1;
+            return new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime();
+        });
+
+        const ingredientsString = sortedItems.map(item => item.text).join(', ');
+        setInitialFormData({ ingredients: ingredientsString, mode: 'standard' });
+        setView('generator');
+    });
+    setIsLocationPromptOpen(true);
+  };
+
+  const handleGenerateFromSelectedPantryItems = (items: string[]) => {
+      if (items.length > 0) {
+          setInitialFormData({ ingredients: items.join(', '), mode: 'standard' });
+          setView('generator');
+      }
+  };
+  
+  const handleMovePantryItems = (indices: number[], source: PantryLocation, destination: PantryLocation) => {
+    const updatedPantry = pantryService.moveItems(indices, source, destination);
+    setPantry(updatedPantry);
+    showNotification(`${indices.length} tétel áthelyezve ide: ${destination}.`, 'success');
+  };
+
+  const handleSaveUser = (user: UserProfile | Omit<UserProfile, 'id'>) => {
+    let updatedUsers: UserProfile[];
+    if ('id' in user) {
+        updatedUsers = userService.updateUser(users, user);
+        showNotification('Felhasználó frissítve.', 'success');
+    } else {
+        updatedUsers = userService.addUser(users, user);
+        showNotification('Új felhasználó hozzáadva.', 'success');
+    }
+    setUsers(updatedUsers);
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    if (window.confirm('Biztosan törli ezt a felhasználót?')) {
+        const updatedUsers = userService.deleteUser(users, userId);
+        setUsers(updatedUsers);
+        showNotification('Felhasználó törölve.', 'success');
+    }
+  };
+
+  // FIX: Added explicit type cast to resolve 'unknown' type error in .some() callback.
+  const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || Object.values(pantry).some((list: PantryItem[]) => list.length > 0) || users.length > 0;
+  
+    const handleShoppingListCommand = (command: AppCommand) => {
+        const { action, payload } = command;
+        if (view !== 'shopping-list') {
+            showNotification('Ehhez a parancshoz a bevásárlólista nézetben kell lennie.', 'info');
+            return;
+        }
+
+        switch (action) {
+            case 'add_shopping_list_item':
+                if (payload) {
+                    handleAddItemsToShoppingList([payload]);
+                    showNotification(`'${payload}' hozzáadva a listához.`, 'success');
+                }
+                break;
+            case 'remove_shopping_list_item':
+            case 'check_shopping_list_item':
+            case 'uncheck_shopping_list_item':
+                if (payload) {
+                    const itemText = String(payload).toLowerCase();
+                    const itemIndex = shoppingList.findIndex(i => i.text.toLowerCase() === itemText);
+                    if (itemIndex > -1) {
+                        if (action === 'remove_shopping_list_item') {
+                            handleRemoveShoppingListItem(itemIndex);
+                            showNotification(`'${payload}' törölve.`, 'success');
+                        } else {
+                            const item = shoppingList[itemIndex];
+                            const shouldBeChecked = action === 'check_shopping_list_item';
+                            if (item.checked !== shouldBeChecked) {
+                               handleUpdateShoppingListItem(itemIndex, {...item, checked: shouldBeChecked});
+                               showNotification(`'${payload}' állapota módosítva.`, 'success');
+                            }
+                        }
+                    } else {
+                        showNotification(`'${payload}' nem található a listán.`, 'info');
+                    }
+                }
+                break;
+            case 'clear_checked_shopping_list':
+                handleClearCheckedShoppingList();
+                break;
+            case 'clear_all_shopping_list':
+                handleClearAllShoppingList();
+                break;
+            default:
+                 showNotification('Ismeretlen parancs a bevásárlólistához.', 'info');
+        }
+    };
+    
+    const handleFavoritesCommand = (command: AppCommand) => {
+        const { action, payload } = command;
+        if (view !== 'favorites') {
+            showNotification('Ehhez a parancshoz a kedvencek nézetben kell lennie.', 'info');
+            return;
+        }
+
+        switch (action) {
+            case 'view_favorite_recipe':
+                if (payload) {
+                    let found = false;
+                    const recipeName = String(payload).toLowerCase();
+                    for (const category in favorites) {
+                        const recipe = favorites[category].find(r => r.recipeName.toLowerCase() === recipeName);
+                        if (recipe) {
+                            handleViewFavorite(recipe, category);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) showNotification(`'${payload}' recept nem található.`, 'info');
+                }
+                break;
+            case 'delete_favorite_recipe':
+                 if (payload) {
+                    let found = false;
+                    const recipeName = String(payload).toLowerCase();
+                    for (const category in favorites) {
+                        const recipe = favorites[category].find(r => r.recipeName.toLowerCase() === recipeName);
+                        if (recipe) {
+                            handleDeleteFavorite(recipe.recipeName, category);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) showNotification(`'${payload}' recept nem található.`, 'info');
+                }
+                break;
+            case 'filter_favorites':
+                if (payload && (Object.keys(favorites).includes(payload) || payload === 'all')) {
+                    setFilterCategory(payload);
+                }
+                break;
+            case 'clear_favorites_filter':
+                setFilterCategory('all');
+                break;
+            case 'expand_category':
+            case 'collapse_category':
+                 const category = payload;
+                 if (category && favorites[category]) {
+                    const isExpanded = expandedCategories[category] ?? false;
+                    const shouldBeExpanded = action === 'expand_category';
+                    if (isExpanded !== shouldBeExpanded) {
+                        // FIX: Changed handleToggleCategory to the correct state setter logic.
+                        setExpandedCategories(prev => ({...prev, [category]: !prev[category]}));
+                    }
+                 }
+                break;
+            default:
+                showNotification('Ismeretlen parancs a kedvencekhez.', 'info');
+        }
+    };
+
+    const handleTranscriptUpdate = (transcript: string | null) => {
+        // Only update the feedback bubble if we are NOT currently processing a command.
+        if (!isProcessingVoice) {
+            setVoiceFeedback(transcript);
+        }
+    };
+
+    const handleGlobalCommand = async (transcript: string) => {
+        setVoiceFeedback(transcript); // Ensure final transcript is set before processing
+        setIsProcessingVoice(true);
+        try {
+            // 1. Try general local commands (nav, scroll, etc.) first
+            const localAppCmd = interpretLocalAppCommand(transcript);
+            if (localAppCmd) {
+                if (localAppCmd.action === 'navigate' && localAppCmd.payload) {
+                    setView(localAppCmd.payload as AppView);
+                    showNotification(`Navigálás ide: ${localAppCmd.payload}`, 'info');
+                    return; // Command handled
+                }
+                switch (localAppCmd.action) {
+                    case 'scroll_down':
+                        window.scrollBy({ top: window.innerHeight * 0.8, behavior: 'smooth' });
+                        return; // Command handled
+                    case 'scroll_up':
+                        window.scrollBy({ top: -window.innerHeight * 0.8, behavior: 'smooth' });
+                        return; // Command handled
+                }
+                 // Handle other local commands like clear list if in the right view
+                if (view === 'shopping-list' && (localAppCmd.action === 'clear_checked_shopping_list' || localAppCmd.action === 'clear_all_shopping_list')) {
+                    handleShoppingListCommand(localAppCmd);
+                    return; // Command handled
+                }
+            }
+
+            // 2. If no general local command, check for context-specific commands (local first, then Gemini)
+            switch (view) {
+                case 'generator':
+                    if (recipe === null) { // On the form
+                        const localFormCmd = interpretLocalFormCommand(transcript);
+                        if (localFormCmd) {
+                            setFormCommand(localFormCmd);
+                        } else {
+                            const result = await interpretFormCommand(transcript, mealTypes, cookingMethodsList, DIET_OPTIONS);
+                            setFormCommand(result);
+                        }
+                    } else { // Viewing a recipe
+                        const localRecipeCmd = interpretLocalRecipeCommand(transcript);
+                        if (localRecipeCmd) {
+                            setRecipeCommand(localRecipeCmd);
+                        } else {
+                            const result = await interpretUserCommand(transcript);
+                            setRecipeCommand(result);
+                        }
+                    }
+                    break;
+                
+                // For other views, if no general local command was found, fallback to Gemini
+                case 'shopping-list':
+                case 'favorites':
+                case 'pantry':
+                case 'users':
+                    if (!localAppCmd) {
+                        const appContext = {
+                            categories: Object.keys(favorites),
+                            shoppingListItems: shoppingList.map(i => i.text),
+                            pantryItems: Object.values(pantry).flat().map((i: PantryItem) => i.text),
+                        };
+                        const appCommand = await interpretAppCommand(transcript, view, appContext);
+
+                        if (view === 'shopping-list') {
+                            handleShoppingListCommand(appCommand);
+                        } else if (view === 'favorites') {
+                            handleFavoritesCommand(appCommand);
+                        } else if (appCommand.action !== 'unknown') {
+                            showNotification('Ez a parancs ezen a nézeten nem értelmezhető.', 'info');
+                        } else {
+                            showNotification('Sajnos nem értettem a parancsot.', 'info');
+                        }
+                    }
+                    break;
+                
+                default:
+                    // If we are here, no local command matched and we don't have a specific Gemini interpreter for this view.
+                    if (!localAppCmd) {
+                        showNotification('Sajnos nem értettem a parancsot.', 'info');
+                    }
+                    break;
+            }
+    
+        } catch (e: unknown) {
+            console.error('Error processing global command:', e);
+            if (e instanceof Error) {
+                showNotification(e.message, 'info');
+            } else {
+                showNotification('Ismeretlen hiba a parancs feldolgozása közben.', 'info');
+            }
+        } finally {
+            setIsProcessingVoice(false);
+            setTimeout(() => {
+                setVoiceFeedback(null);
+            }, 500); // Keep bubble for a moment after processing finishes
+        }
+    };
 
   const handleExport = async () => {
     try {
-      const imageIds = new Set<string>();
-      for (const category in favorites) {
-        for (const recipe of favorites[category]) {
-          if (recipe.imageUrl && recipe.imageUrl.startsWith('indexeddb:')) {
-            imageIds.add(recipe.imageUrl.substring(10));
-          }
-          if (recipe.instructions) {
-            for (const instruction of recipe.instructions) {
-              if (instruction.imageUrl && instruction.imageUrl.startsWith('indexeddb:')) {
-                imageIds.add(instruction.imageUrl.substring(10));
-              }
-            }
-          }
+        const images = await imageStore.getAllImages();
+        const backupData: BackupData = {
+            favorites: favorites,
+            shoppingList: shoppingList,
+            pantry: pantry,
+            users: users,
+            images: images,
+            mealTypes: mealTypes,
+            cuisineOptions: cuisineOptions,
+            cookingMethods: cookingMethodsList,
+            cookingMethodCapacities: cookingMethodCapacities,
+            mealTypesOrder: mealTypes.map(o => o.value),
+            cuisineOptionsOrder: cuisineOptions.map(o => o.value),
+            cookingMethodsOrder: cookingMethodsList.map(o => o.value),
+        };
+        const jsonString = JSON.stringify(backupData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const now = new Date();
+        const dateString = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`;
+        const fileName = `konyha_miki_recept_backup_${dateString}.json`;
+
+        if ('showSaveFilePicker' in window) {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: fileName,
+                types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+        } else {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
-      }
-
-      const images: Record<string, string> = {};
-      const imagePromises = Array.from(imageIds).map(async (id) => {
-        const data = await imageStore.getImage(id);
-        if (data) {
-          images[id] = data;
+        showNotification('Adatok sikeresen elmentve!', 'success');
+    } catch (e: any) {
+        if (e.name !== 'AbortError') {
+            console.error('Export failed:', e);
+            showNotification(`Hiba történt a mentés közben: ${e.message}`, 'info');
         }
-      });
-      await Promise.all(imagePromises);
-
-      const dataToSave: BackupData = {
-        favorites,
-        shoppingList,
-        pantry,
-        users,
-        images,
-        mealTypes,
-        cuisineOptions,
-        cookingMethods: cookingMethodsList,
-        cookingMethodCapacities,
-        mealTypesOrder: orderedMealTypes.map(item => item.value),
-        cuisineOptionsOrder: orderedCuisineOptions.map(item => item.value),
-        cookingMethodsOrder: orderedCookingMethods.map(item => item.value),
-      };
-
-      const jsonString = JSON.stringify(dataToSave, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const now = new Date();
-      const date = now.toISOString().split('T')[0];
-      const time = now.toTimeString().split(' ')[0].substring(0, 5).replace(':', '-');
-      const suggestedName = `konyhamiki_mentes_${date}_${time}.json`;
-
-      const isPickerSupported = 'showSaveFilePicker' in window;
-      const isTopFrame = window.self === window.top;
-
-      if (isPickerSupported && isTopFrame) {
-        try {
-          const handle = await window.showSaveFilePicker({
-            suggestedName,
-            types: [{ description: 'JSON Fájl', accept: { 'application/json': ['.json'] } }],
-          });
-          const writable = await handle.createWritable();
-          await writable.write(blob);
-          await writable.close();
-          showNotification('Adatok sikeresen mentve!', 'success');
-        } catch (err: any) {
-          if (err.name !== 'AbortError') {
-            console.error("Hiba a mentés során (File Picker):", err);
-            showNotification('Hiba történt az adatok mentése közben.', 'info');
-          }
-        }
-      } else {
-        if (!isPickerSupported) {
-          showNotification('A böngészője nem támogatja a "Mentés másként" funkciót, ezért a fájl közvetlenül letöltésre kerül.', 'info');
-        } else if (!isTopFrame) {
-          showNotification('A böngésző biztonsági korlátozásai miatt a fájl közvetlenül letöltésre kerül.', 'info');
-        }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = suggestedName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-    } catch (error) {
-      console.error("Hiba a mentés során:", error);
-      showNotification('Hiba történt az adatok mentése közben.', 'info');
     }
   };
 
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
-        const text = e.target?.result;
-        if (typeof text === 'string') {
-          const data = JSON.parse(text);
-          handleImportData(data);
-        } else {
-          throw new Error('A fájl tartalma nem olvasható szövegként.');
-        }
-      } catch (error) {
-        console.error("Hiba a betöltés során:", error);
-        showNotification('Hiba történt a fájl beolvasása vagy feldolgozása közben.', 'info');
-      }
-    };
-    reader.onloadend = () => {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    };
+        const text = e.target?.result as string;
+        const data: BackupData = JSON.parse(text);
 
-    reader.readAsText(file);
-  };
-
-  const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || Object.values(pantry).some((pantryList: PantryItem[]) => pantryList.length > 0) || users.length > 0;
-
-  const handleAppVoiceResult = async (transcript: string) => {
-    if (isProcessingVoiceCommandRef.current) return;
-    isProcessingVoiceCommandRef.current = true;
-    try {
-        const allPantryItems = Object.values(pantry).flat().map((item: PantryItem) => item.text);
-        const command: AppCommand = await interpretAppCommand(transcript, view, {
-            categories: Object.keys(favorites),
-            recipesByCategory: {}, // This context is not fully implemented yet
-            shoppingListItems: shoppingList.map(i => i.text),
-            pantryItems: allPantryItems,
-        });
-
-        switch(command.action) {
-            case 'navigate':
-                if (['generator', 'favorites', 'shopping-list', 'pantry', 'users'].includes(command.payload)) {
-                    setView(command.payload as AppView);
-                    showNotification(`Navigálás ide: ${command.payload}`, 'info');
-                }
-                break;
-            case 'add_shopping_list_item':
-                const items = (command.payload as string).split(',').map(s => s.trim()).filter(Boolean);
-                handleAddItemsToShoppingList(items);
-                break;
-            // TODO: Add other app command handlers here...
-            default:
-                showNotification(`Ismeretlen parancs: "${transcript}"`, 'info');
-        }
-    } catch (e: any) {
-        showNotification(e.message, 'info');
-    } finally {
-        isProcessingVoiceCommandRef.current = false;
-    }
-  };
-
-  const { isListening, isSupported, startListening, stopListening, permissionState } = useSpeechRecognition({
-      onResult: handleAppVoiceResult,
-      continuous: false
-  });
-
-  const handleOpenInfoModal = async () => {
-    if (appGuideContent) {
-        setIsInfoModalOpen(true);
-        return;
-    }
-
-    setIsLoadingGuide(true);
-    setIsInfoModalOpen(true);
-    try {
-        const guide = await generateAppGuide();
-        setAppGuideContent(guide);
-    } catch (err: any) {
-        showNotification(err.message, 'info');
-        setIsInfoModalOpen(false);
-    } finally {
-        setIsLoadingGuide(false);
-    }
-  };
-
-  const handleRecipeFileParse = async (file: File) => {
-    setIsLoading(true);
-    setError(null);
-    setView('generator');
-    setRecipe(null);
-
-    try {
-        let generativePart;
-
-        if (file.type.startsWith('image/')) {
-            const { data, mimeType } = await processAndResizeImageForGemini(file);
-            generativePart = { inlineData: { data, mimeType } };
-        } else if (file.type === 'application/pdf') {
-            const data = await fileToBase64(file);
-            generativePart = { inlineData: { data, mimeType: 'application/pdf' } };
-        } else {
-            throw new Error("Csak képfájlok (pl. JPG, PNG) és PDF fájlok támogatottak.");
-        }
+        const { favorites: importedFavorites, recoveryNotification: favsRecovery } = favoritesService.validateAndRecover(data.favorites);
+        const { mergedFavorites, newRecipesCount } = favoritesService.mergeFavorites(favorites, importedFavorites);
+        if (favsRecovery) showNotification(favsRecovery, 'info');
         
-        const parsedData = await parseRecipeFromFile(generativePart);
+        const { list: importedShoppingList, recoveryNotification: shopListRecovery } = shoppingListService.validateAndRecover(data.shoppingList);
+        const { mergedList, newItemsCount: newShopItems } = shoppingListService.mergeShoppingLists(shoppingList, importedShoppingList);
+        if (shopListRecovery) showNotification(shopListRecovery, 'info');
 
-        if (!parsedData || Object.keys(parsedData).length === 0 || (!parsedData.ingredients && !parsedData.recipeName && !parsedData.description)) {
-            throw new Error("Nem sikerült receptadatokat kinyerni a fájlból. Próbálja meg egy másik, jobb minőségű fájllal.");
-        }
+        const { pantry: importedPantry, recoveryNotification: pantryRecovery } = pantryService.validateAndRecover(data.pantry);
+        const { mergedPantry, newItemsCount: newPantryItems } = pantryService.mergePantries(pantry, importedPantry);
+        if (pantryRecovery) showNotification(pantryRecovery, 'info');
 
-        const formData: Partial<NonNullable<typeof initialFormData>> = {};
-        if (parsedData.ingredients && Array.isArray(parsedData.ingredients) && parsedData.ingredients.length > 0) {
-            formData.ingredients = parsedData.ingredients.join(', ');
-        }
-        const specialRequests: string[] = [];
-        if (parsedData.recipeName) specialRequests.push(`A "${parsedData.recipeName}" recept alapján.`);
-        if (parsedData.description) specialRequests.push(parsedData.description);
-        if (parsedData.prepTime) specialRequests.push(`Előkészítési idő: ${parsedData.prepTime}.`);
-        if (parsedData.cookTime) specialRequests.push(`Főzési idő: ${parsedData.cookTime}.`);
-        if (specialRequests.length > 0) formData.specialRequest = specialRequests.join(' ');
-        if (parsedData.servings) {
-            const servingsMatch = parsedData.servings.match(/\d+/);
-            if (servingsMatch?.[0]) {
-                const servings = parseInt(servingsMatch[0], 10);
-                if (servings > 0) formData.numberOfServings = servings;
+        const { users: importedUsers, recoveryNotification: usersRecovery } = userService.validateAndRecover(data.users);
+        const { mergedUsers, newItemsCount: newUsers } = userService.mergeUsers(users, importedUsers);
+        if (usersRecovery) showNotification(usersRecovery, 'info');
+        
+        if (data.images && typeof data.images === 'object') {
+            for (const id in data.images) {
+                await imageStore.saveImage(id, data.images[id]);
             }
         }
         
-        if (Object.keys(formData).length === 0) {
-             throw new Error("A beolvasott adatok nem voltak elegendőek az űrlap kitöltéséhez.");
-        }
+        setFavorites(mergedFavorites);
+        shoppingListService.saveShoppingList(mergedList);
+        setShoppingList(mergedList);
+        pantryService.savePantry(mergedPantry);
+        setPantry(mergedPantry);
+        userService.saveUsers(mergedUsers);
+        setUsers(mergedUsers);
 
-        setInitialFormData(formData);
-        showNotification('Recept sikeresen beolvasva a fájlból! Ellenőrizze az adatokat.', 'success');
+        // Import custom options
+        if (data.mealTypes) handleOptionsSave(data.mealTypes, data.cuisineOptions || cuisineOptions, data.cookingMethods || cookingMethodsList, data.cookingMethodCapacities || cookingMethodCapacities, data.mealTypesOrder, data.cuisineOptionsOrder, data.cookingMethodsOrder, true);
 
-    } catch (err: any) {
-        setError(err.message);
-    } finally {
-        setIsLoading(false);
-    }
+        const totalNew = newRecipesCount + newShopItems + newPantryItems + newUsers;
+        showNotification(`Adatok sikeresen betöltve! ${totalNew} új tétel hozzáadva.`, 'success');
+        
+      } catch (err: any) {
+        console.error('Import failed:', err);
+        showNotification(`Hiba a betöltés közben: ${err.message}`, 'info');
+      }
+    };
+    reader.readAsText(file);
+    if (event.target) event.target.value = ''; // Reset input to allow re-importing same file
   };
 
-  const handleRecipeFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-        handleRecipeFileParse(file);
-    }
-    if (event.target) {
-        event.target.value = '';
+  const handleOptionsSave = (
+    newMealTypes: OptionItem[],
+    newCuisineOptions: OptionItem[],
+    newCookingMethods: OptionItem[],
+    newCapacities: Record<string, number | null>,
+    mealTypesOrder?: string[],
+    cuisineOptionsOrder?: string[],
+    cookingMethodsOrder?: string[],
+    silent = false,
+  ) => {
+    safeSetLocalStorage(MEAL_TYPES_STORAGE_KEY, newMealTypes);
+    setMealTypes(newMealTypes);
+    safeSetLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, newCuisineOptions);
+    setCuisineOptions(newCuisineOptions);
+    safeSetLocalStorage(COOKING_METHODS_STORAGE_KEY, newCookingMethods);
+    setCookingMethodsList(newCookingMethods);
+    safeSetLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, newCapacities);
+    setCookingMethodCapacities(newCapacities);
+    
+    // Also save the order
+    safeSetLocalStorage(MEAL_TYPES_ORDER_KEY, mealTypesOrder || newMealTypes.map(o => o.value));
+    safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, cuisineOptionsOrder || newCuisineOptions.map(o => o.value));
+    safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, cookingMethodsOrder || newCookingMethods.map(o => o.value));
+
+    setIsOptionsEditorOpen(false);
+    if (!silent) {
+        showNotification('Opciók elmentve!', 'success');
     }
   };
 
@@ -1412,142 +1218,150 @@ const App: React.FC = () => {
     setIsParsingUrl(true);
     setParsingUrlError(null);
     try {
-        const parsedData = await parseRecipeFromUrl(url);
-
-        // Check if we got any meaningful data back
-        if (!parsedData || Object.keys(parsedData).length === 0 || 
-            (!parsedData.ingredients && !parsedData.recipeName && !parsedData.description)) {
-            throw new Error("Nem sikerült receptadatokat kinyerni a megadott URL-ről. Próbálja meg egy másik, egyértelműen receptet tartalmazó linkkel.");
-        }
-
-        const formData: Partial<NonNullable<typeof initialFormData>> = {};
-
-        if (parsedData.ingredients && Array.isArray(parsedData.ingredients) && parsedData.ingredients.length > 0) {
-            formData.ingredients = parsedData.ingredients.join(', ');
-        }
-        
-        const specialRequests: string[] = [];
-        if (parsedData.recipeName) {
-            specialRequests.push(`A "${parsedData.recipeName}" recept alapján.`);
-        }
-        if (parsedData.description) {
-            specialRequests.push(parsedData.description);
-        }
-        // Combine prepTime and cookTime into the special request for context
-        if (parsedData.prepTime) {
-            specialRequests.push(`Előkészítési idő: ${parsedData.prepTime}.`);
-        }
-        if (parsedData.cookTime) {
-            specialRequests.push(`Főzési idő: ${parsedData.cookTime}.`);
-        }
-
-        if (specialRequests.length > 0) {
-            formData.specialRequest = specialRequests.join(' ');
-        }
-
-        if (parsedData.servings) {
-            const servingsMatch = parsedData.servings.match(/\d+/);
-            if (servingsMatch && servingsMatch[0]) {
-                const servings = parseInt(servingsMatch[0], 10);
-                if (servings > 0) {
-                    formData.numberOfServings = servings;
-                }
-            }
-        }
-        
-        if (Object.keys(formData).length === 0) {
-             throw new Error("A beolvasott adatok nem voltak elegendőek az űrlap kitöltéséhez.");
-        }
-
+        const parsedRecipe = await parseRecipeFromUrl(url);
+        const formData = {
+            ingredients: parsedRecipe.ingredients?.join(', ') || '',
+            specialRequest: `Készíts receptet a következő alapján: ${parsedRecipe.recipeName}. Leírás: ${parsedRecipe.description}`,
+            mealType: MealType.LUNCH, // Default
+        };
         setInitialFormData(formData);
         setView('generator');
         setIsImportUrlModalOpen(false);
-        showNotification('Recept sikeresen beolvasva! Ellenőrizze és finomítsa az adatokat.', 'success');
-
-    } catch (err: any) {
-        setParsingUrlError(err.message);
+        showNotification('Recept adatok sikeresen beolvasva!', 'success');
+    } catch (e: any) {
+        setParsingUrlError(e.message);
+    } finally {
+        setIsParsingUrl(false);
+    }
+  };
+  
+  const handleParseFile = async (file: File) => {
+    setIsParsingUrl(true); // Re-use parsing state
+    setParsingUrlError(null);
+    try {
+        const fileData = await processAndResizeImageForGemini(file);
+        const parsedRecipe = await parseRecipeFromFile({ inlineData: fileData });
+        const formData = {
+            ingredients: parsedRecipe.ingredients?.join(', ') || '',
+            specialRequest: `Készíts receptet a következő alapján: ${parsedRecipe.recipeName}. Leírás: ${parsedRecipe.description}`,
+            mealType: MealType.LUNCH, // Default
+        };
+        setInitialFormData(formData);
+        setView('generator');
+        showNotification('Recept adatok sikeresen beolvasva a fájlból!', 'success');
+    } catch (e: any) {
+        setError(e.message); // Show error on main screen
     } finally {
         setIsParsingUrl(false);
     }
   };
 
-  const renderView = () => {
-    if (isGeneratingVariations) {
-        return <LoadingSpinner message="Variációk generálása... Ez több időt vehet igénybe." />;
-    }
-
-    if (recipe && alternativeRecipes) {
-        return (
-            <RecipeComparisonView
-                originalRecipe={recipe as Recipe}
-                variations={alternativeRecipes}
-                onClose={handleCloseComparisonView}
-                onSave={handleSaveToFavorites}
-                onSaveAll={handleSaveAllRecipes}
-                favorites={favorites}
-                mealTypes={orderedMealTypes}
-                cuisineOptions={orderedCuisineOptions}
-                cookingMethodsList={orderedCookingMethods}
-            />
-        );
-    }
-    
-    if (recipe && view === 'generator') {
-      if ('menuName' in recipe) {
-        if ('appetizer' in recipe) {
-          return (
-            <MenuDisplay
-              menu={recipe as MenuRecipe}
-              onClose={handleCloseRecipe}
-              onSave={handleSaveMenu}
-              onAddItemsToShoppingList={handleAddMenuToShoppingList}
-              shouldGenerateImages={shouldGenerateImage}
-              onMenuUpdate={handleMenuUpdate}
-              mealTypes={orderedMealTypes}
-              cookingMethodsList={orderedCookingMethods}
-            />
-          );
-        } else if ('breakfast' in recipe) {
-            return (
+  // FIX: Changed icon type from JSX.Element to React.ReactElement to resolve missing JSX namespace error.
+  const navItems: { id: AppView, label: string, icon: React.ReactElement }[] = [
+    { id: 'generator', label: 'Generátor', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> },
+    { id: 'favorites', label: 'Mentett Receptek', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg> },
+    { id: 'pantry', label: 'Kamra', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" /><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" /></svg> },
+    { id: 'shopping-list', label: 'Bevásárlólista', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+    { id: 'users', label: 'Felhasználók', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg> },
+  ];
+  
+  const currentViewComponent = () => {
+    switch (view) {
+      case 'generator':
+        return recipe === null ? (
+          <RecipeInputForm 
+            onSubmit={handleRecipeSubmit} 
+            isLoading={isLoading} 
+            initialFormData={initialFormData}
+            onFormPopulated={handleFormPopulated}
+            users={users}
+            mealTypes={mealTypes}
+            cuisineOptions={cuisineOptions}
+            cookingMethodsList={cookingMethodsList}
+            cookingMethodCapacities={cookingMethodCapacities}
+            orderedMealTypes={orderedMealTypes}
+            orderedCookingMethods={orderedCookingMethods}
+            orderedCuisineOptions={orderedCuisineOptions}
+            onOpenOptionsEditor={() => setIsOptionsEditorOpen(true)}
+            onOpenUrlImporter={() => setIsImportUrlModalOpen(true)}
+            onOpenRecipeFileImporter={() => {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = 'image/png, image/jpeg, image/webp, application/pdf';
+                fileInput.onchange = (e) => {
+                    const target = e.target as HTMLInputElement;
+                    if (target.files && target.files[0]) {
+                        handleParseFile(target.files[0]);
+                    }
+                };
+                fileInput.click();
+            }}
+            command={formCommand}
+            onCommandProcessed={() => setFormCommand(null)}
+          />
+        ) : alternativeRecipes ? (
+          <RecipeComparisonView
+            originalRecipe={recipe as Recipe}
+            variations={alternativeRecipes}
+            onClose={handleCloseComparisonView}
+            onSave={handleSaveToFavorites}
+            onSaveAll={handleSaveAllRecipes}
+            favorites={favorites}
+            mealTypes={mealTypes}
+            cuisineOptions={cuisineOptions}
+            cookingMethodsList={cookingMethodsList}
+          />
+        ) : 'menuName' in recipe ? (
+            'breakfast' in recipe ? (
                 <DailyMenuDisplay
                     dailyMenu={recipe as DailyMenuRecipe}
                     onClose={handleCloseRecipe}
                     onSave={handleSaveDailyMenu}
-                    onAddItemsToShoppingList={handleAddDailyMenuToShoppingList}
+                    onAddItemsToShoppingList={handleMenuToShoppingList}
                     onDailyMenuUpdate={handleDailyMenuUpdate}
                 />
-            );
-        }
-      }
-      return (
-        <RecipeDisplay
-          recipe={recipe as Recipe}
-          onClose={handleCloseRecipe}
-          isFromFavorites={isFromFavorites}
-          category={currentCategory}
-          favorites={favorites}
-          onSave={handleSaveToFavorites}
-          onAddItemsToShoppingList={handleAddItemsToShoppingList}
-          isLoading={isLoading}
-          onRecipeUpdate={handleRecipeUpdate}
-          users={users}
-          onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
-          shouldGenerateImageInitially={shouldGenerateImage}
-          onGenerateVariations={handleGenerateVariations}
-          mealTypes={orderedMealTypes}
-          cuisineOptions={orderedCuisineOptions}
-          cookingMethodsList={orderedCookingMethods}
-        />
-      );
-    }
-    switch (view) {
+            ) : (
+                <MenuDisplay
+                    menu={recipe as MenuRecipe}
+                    onClose={handleCloseRecipe}
+                    onSave={handleSaveMenu}
+                    onAddItemsToShoppingList={handleMenuToShoppingList}
+                    shouldGenerateImages={shouldGenerateImage}
+                    onMenuUpdate={handleMenuUpdate}
+                    mealTypes={mealTypes}
+                    cookingMethodsList={cookingMethodsList}
+                />
+            )
+        ) : (
+          <div ref={recipeDisplayRef}>
+            <RecipeDisplay
+                recipe={recipe as Recipe}
+                onClose={handleCloseRecipe}
+                isFromFavorites={isFromFavorites}
+                favorites={favorites}
+                onSave={handleSaveToFavorites}
+                onAddItemsToShoppingList={handleAddItemsToShoppingList}
+                isLoading={isLoading}
+                onRecipeUpdate={handleRecipeUpdate}
+                users={users}
+                onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
+                shouldGenerateImageInitially={shouldGenerateImage}
+                onGenerateVariations={handleGenerateVariations}
+                mealTypes={mealTypes}
+                cuisineOptions={cuisineOptions}
+                cookingMethodsList={cookingMethodsList}
+                category={currentCategory}
+                command={recipeCommand}
+                onCommandProcessed={() => setRecipeCommand(null)}
+            />
+          </div>
+        );
       case 'favorites':
-        return (
-          <FavoritesView
-            favorites={favorites}
+        return <FavoritesView 
+            favorites={favorites} 
             users={users}
-            onViewRecipe={handleViewFavorite}
-            onDeleteRecipe={handleDeleteFavorite}
+            onViewRecipe={handleViewFavorite} 
+            onDeleteRecipe={handleDeleteFavorite} 
             onDeleteCategory={handleDeleteCategory}
             onDeleteMenu={handleDeleteMenu}
             expandedCategories={expandedCategories}
@@ -1559,202 +1373,112 @@ const App: React.FC = () => {
             onMoveRecipe={handleMoveFavorite}
             onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
             onUpdateRecipeCategories={handleUpdateRecipeCategories}
-            cuisineOptions={orderedCuisineOptions}
-          />
-        );
+            cuisineOptions={cuisineOptions}
+        />;
       case 'shopping-list':
-        return (
-          <ShoppingListView
+        return <ShoppingListView 
             list={shoppingList}
             onAddItems={handleAddItemsToShoppingList}
             onUpdateItem={handleUpdateShoppingListItem}
             onRemoveItem={handleRemoveShoppingListItem}
             onClearChecked={handleClearCheckedShoppingList}
             onClearAll={handleClearAllShoppingList}
-            onMoveItemToPantryRequest={handleMoveShoppingListItemToPantryRequest}
+            onMoveItemToPantryRequest={handleMoveItemToPantryRequest}
             onReorder={handleReorderShoppingList}
-          />
-        );
+        />;
       case 'pantry':
-        return (
-            <PantryView
-              pantry={pantry}
-              onAddItems={handleAddItemsToPantry}
-              onUpdateItem={handleUpdatePantryItem}
-              onRemoveItem={handleRemovePantryItem}
-              onClearAll={handleClearPantry}
-              onMoveCheckedToPantryRequest={handleMoveCheckedToPantryRequest}
-              onGenerateFromPantryRequest={handleGenerateFromPantryRequest}
-              onGenerateFromSelectedPantryItemsRequest={handleGenerateFromSelectedPantryItemsRequest}
-              shoppingListItems={shoppingList}
-              // FIX: Corrected typo from handleMoveItems to handleMovePantryItems
-              onMoveItems={handleMovePantryItems}
-            />
-        );
-        case 'users':
-            return (
-                <UsersView
-                    users={users}
-                    onSaveUser={handleSaveUser}
-                    onDeleteUser={handleDeleteUser}
-                />
-            );
-      case 'generator':
+        return <PantryView 
+            pantry={pantry}
+            onAddItems={handlePantryAddItem}
+            onUpdateItem={handleUpdatePantryItem}
+            onRemoveItem={handleRemovePantryItem}
+            onClearAll={handleClearPantry}
+            onMoveCheckedToPantryRequest={handleMoveCheckedToPantryRequest}
+            onGenerateFromPantryRequest={handleGenerateFromPantryRequest}
+            onGenerateFromSelectedPantryItemsRequest={handleGenerateFromSelectedPantryItems}
+            shoppingListItems={shoppingList}
+            onMoveItems={handleMovePantryItems}
+        />;
+      case 'users':
+        return <UsersView users={users} onSaveUser={handleSaveUser} onDeleteUser={handleDeleteUser} />;
       default:
-        return (
-          <>
-            <h1 className="text-3xl font-bold text-center text-primary-800">Konyha Miki, az Ön AI-támogatott konyhafőnöke</h1>
-            <p className="text-center text-gray-600 mb-6">AI receptgenerátor - Konyha Miki módra - Mondja el, miből főzne, és én segítek!</p>
-            {isLoading && <LoadingSpinner />}
-            {error && <ErrorMessage message={error} />}
-            {!isLoading && !error && (
-              <RecipeInputForm 
-                onSubmit={handleRecipeSubmit}
-                isLoading={isLoading}
-                initialFormData={initialFormData}
-                onFormPopulated={handleFormPopulated}
-                suggestions={null}
-                users={users}
-                mealTypes={mealTypes}
-                cuisineOptions={cuisineOptions}
-                cookingMethodsList={cookingMethodsList}
-                cookingMethodCapacities={cookingMethodCapacities}
-                orderedMealTypes={orderedMealTypes}
-                orderedCookingMethods={orderedCookingMethods}
-                orderedCuisineOptions={orderedCuisineOptions}
-                onOpenOptionsEditor={() => setIsOptionsEditorOpen(true)}
-                onOpenUrlImporter={() => {
-                  setParsingUrlError(null);
-                  setIsImportUrlModalOpen(true);
-                }}
-                onOpenRecipeFileImporter={() => recipeFileInputRef.current?.click()}
-              />
-            )}
-          </>
-        );
+        return null;
     }
   };
 
-  const navItems: { id: AppView; label: string }[] = [
-    { id: 'generator', label: 'Receptgenerátor' },
-    { id: 'favorites', label: 'Mentett Receptek' },
-    { id: 'pantry', label: 'Kamra' },
-    { id: 'shopping-list', label: 'Bevásárlólista' },
-    { id: 'users', label: 'Felhasználók' },
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
-      <header className="bg-white shadow-md">
-        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-             <img src={konyhaMikiLogo} alt="Konyha Miki Logó" className="h-12" />
-          </div>
-          <button
-            onClick={handleOpenInfoModal}
-            className="bg-primary-100 text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-200 shadow-sm hover:bg-primary-200 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 flex items-center gap-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-            Információ
-          </button>
-        </div>
-      </header>
-      
-      <main className="container mx-auto p-4 md:p-6">
-          <div>
-            <DataManagementControls
-              onExport={handleExport}
-              onImportClick={handleImportClick}
-              onFileChange={handleFileChange}
-              fileInputRef={fileInputRef}
-              hasAnyData={hasAnyData}
-            />
-            <input
-                type="file"
-                ref={recipeFileInputRef}
-                onChange={handleRecipeFileChange}
-                accept="image/*,application/pdf,.pdf"
-                className="hidden"
-                aria-hidden="true"
-            />
-            <nav className="mb-6">
-                <ul className="flex flex-wrap border-b border-gray-200">
-                    {navItems.map(item => (
-                        <li key={item.id} className="-mb-px mr-1">
-                            <button
-                                onClick={() => {
-                                  setView(item.id);
-                                }}
-                                className={`inline-block py-3 px-4 font-semibold rounded-t-lg transition-colors text-sm sm:text-base ${
-                                    view === item.id 
-                                    ? 'border-l border-t border-r border-gray-200 bg-white text-primary-600'
-                                    : 'text-gray-500 hover:text-primary-600 hover:bg-gray-100'
-                                }`}
-                            >
-                                {item.label}
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            </nav>
-          
-            <div>
-              <AppVoiceControl
-                  isSupported={isSupported}
-                  isListening={isListening}
-                  isProcessing={isProcessingVoiceCommandRef.current}
-                  onClick={() => isListening ? stopListening() : startListening()}
-                  permissionState={permissionState as any} // Cast because our enum is more specific
-                  isRateLimited={false} // This feature is not implemented for app-wide control yet
-              />
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 font-sans">
+        <header className="text-center mb-6">
+            <div className="flex justify-center items-center gap-4">
+                <img src={konyhaMikiLogo} alt="Konyha Miki Logó" className="h-20" />
             </div>
-          </div>
-        
-        <div ref={recipeDisplayRef} className="bg-white p-4 md:p-8 rounded-lg shadow-lg">
-          {renderView()}
+        </header>
+        <div className="flex flex-col sm:flex-row justify-between items-center bg-gray-100 p-3 rounded-lg border gap-4 mb-6">
+            <GlobalVoiceController onCommand={handleGlobalCommand} isProcessing={isProcessingVoice} onTranscriptUpdate={handleTranscriptUpdate} />
+            <button 
+                type="button" 
+                onClick={async () => {
+                    setIsLoadingGuide(true);
+                    try {
+                        const content = await generateAppGuide();
+                        setAppGuideContent(content);
+                    } catch (e: any) {
+                        setAppGuideContent(`<p class="text-red-500">Hiba: ${e.message}</p>`);
+                    } finally {
+                        setIsLoadingGuide(false);
+                        setIsInfoModalOpen(true);
+                    }
+                }}
+                className="bg-white text-blue-600 font-semibold py-2 px-4 rounded-lg border border-blue-300 shadow-sm hover:bg-blue-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center gap-2"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                Információ
+            </button>
         </div>
-      </main>
+
+        <nav className="mb-6">
+            <ul className="flex flex-wrap justify-center gap-2">
+            {navItems.map(item => (
+                <li key={item.id}>
+                <button
+                    onClick={() => {
+                        setRecipe(null);
+                        setError(null);
+                        setAlternativeRecipes(null);
+                        setView(item.id);
+                    }}
+                    className={`flex items-center gap-2 font-semibold py-2 px-4 rounded-full transition-colors ${view === item.id ? 'bg-primary-600 text-white shadow-md' : 'bg-white text-gray-700 hover:bg-primary-50'}`}
+                >
+                    {item.icon}
+                    <span className="hidden sm:inline">{item.label}</span>
+                </button>
+                </li>
+            ))}
+            </ul>
+        </nav>
       
-      <footer className="text-center py-6 text-sm text-gray-500">
-          <p>{`© ${new Date().getFullYear()} Konyha Miki. Minden jog fenntartva. v${APP_VERSION}`}</p>
-      </footer>
-      <LocationPromptModal
-        isOpen={isLocationPromptOpen}
-        onClose={() => setIsLocationPromptOpen(false)}
-        onSelect={(location) => {
-            locationCallback(location);
-            setIsLocationPromptOpen(false);
-        }}
-      />
-      <LoadOnStartModal
-        isOpen={isLoadOnStartModalOpen}
-        onClose={() => setIsLoadOnStartModalOpen(false)}
-        onLoad={handleImportClick}
-      />
-      <OptionsEditPanel
-        isOpen={isOptionsEditorOpen}
-        onClose={() => setIsOptionsEditorOpen(false)}
-        onSave={handleSaveOptions}
-        initialMealTypes={orderedMealTypes}
-        initialCuisineOptions={orderedCuisineOptions}
-        initialCookingMethods={orderedCookingMethods}
-        initialCapacities={cookingMethodCapacities}
-      />
-      <InfoModal
-        isOpen={isInfoModalOpen}
-        onClose={() => setIsInfoModalOpen(false)}
-        content={appGuideContent}
-        isLoading={isLoadingGuide}
-      />
-      <ImportUrlModal
-        isOpen={isImportUrlModalOpen}
-        onClose={() => setIsImportUrlModalOpen(false)}
-        onParse={handleParseUrl}
-        isParsing={isParsingUrl}
-        error={parsingUrlError}
-      />
+        {view === 'generator' && <DataManagementControls onExport={handleExport} onImportClick={() => fileInputRef.current?.click()} onFileChange={handleImport} fileInputRef={fileInputRef} hasAnyData={hasAnyData} />}
+        
+        <main>
+            {isLoading || isGeneratingVariations ? (
+                <LoadingSpinner message={isGeneratingVariations ? 'Variációk generálása...' : 'Recept generálása...'} />
+            ) : error ? (
+                <ErrorMessage message={error} />
+            ) : (
+                currentViewComponent()
+            )}
+        </main>
+        
+        <footer className="text-center mt-8 text-xs text-gray-400">
+            <p>Konyha Miki AI Receptgenerátor v{APP_VERSION}</p>
+        </footer>
+
+        {isLocationPromptOpen && <LocationPromptModal isOpen={isLocationPromptOpen} onClose={() => setIsLocationPromptOpen(false)} onSelect={(loc) => { locationCallback(loc); setIsLocationPromptOpen(false); }} />}
+        {isLoadOnStartModalOpen && <LoadOnStartModal isOpen={isLoadOnStartModalOpen} onClose={() => setIsLoadOnStartModalOpen(false)} onLoad={() => fileInputRef.current?.click()} />}
+        <OptionsEditPanel isOpen={isOptionsEditorOpen} onClose={() => setIsOptionsEditorOpen(false)} onSave={handleOptionsSave} initialMealTypes={mealTypes} initialCuisineOptions={cuisineOptions} initialCookingMethods={cookingMethodsList} initialCapacities={cookingMethodCapacities} />
+        <InfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} content={appGuideContent} isLoading={isLoadingGuide} />
+        <ImportUrlModal isOpen={isImportUrlModalOpen} onClose={() => setIsImportUrlModalOpen(false)} onParse={handleParseUrl} isParsing={isParsingUrl} error={parsingUrlError} />
+        {voiceFeedback && <VoiceFeedbackBubble message={voiceFeedback} isProcessing={isProcessingVoice} />}
     </div>
   );
 };

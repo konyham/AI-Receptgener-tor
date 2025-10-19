@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { SpeechRecognition } from '../types';
 
 interface UseSpeechRecognitionOptions {
-  onResult: (transcript: string) => void;
+  onResult: (transcript: string, isFinal: boolean) => void;
   continuous?: boolean;
   interimResults?: boolean;
   onError?: (errorType: string) => void;
@@ -55,11 +55,6 @@ export const useSpeechRecognition = ({
         recognitionRef.current.lang = 'hu-HU';
         recognitionRef.current.start();
       } catch (err) {
-        // The browser's SpeechRecognition API can throw an "InvalidStateError" DOMException
-        // if .start() is called when it is already starting. This can happen in React
-        // due to the asynchronous nature of state updates and effects. We can safely
-        // ignore this specific error, as it means the desired state (listening) is
-        // already being entered.
         if ((err as DOMException).name !== 'InvalidStateError') {
             console.error('Error starting speech recognition:', err);
         }
@@ -94,14 +89,21 @@ export const useSpeechRecognition = ({
     };
 
     recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .slice(event.resultIndex)
-        .map((result) => result[0].transcript)
-        .join('')
-        .trim();
+      let finalTranscript = '';
+      let interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+      
+      const transcript = (finalTranscript || interimTranscript).trim();
+      const isFinal = !!finalTranscript.trim();
 
       if (transcript) {
-        onResultRef.current(transcript);
+        onResultRef.current(transcript, isFinal);
       }
     };
 
@@ -110,6 +112,9 @@ export const useSpeechRecognition = ({
         setPermissionState('denied');
         console.warn("Speech recognition info: Microphone access was denied by the user.");
         onErrorRef.current?.(event.error);
+      } else if (event.error === 'network') {
+        console.warn('Speech recognition network error. This can happen on long continuous sessions.');
+        // This error often triggers an 'onend' event, so the system should try to restart itself.
       } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
         console.warn(`Speech recognition error: ${event.error}`);
         onErrorRef.current?.(event.error);
@@ -117,7 +122,13 @@ export const useSpeechRecognition = ({
     };
 
     return () => {
-      recognition.stop();
+      recognition.onstart = null;
+      recognition.onend = null;
+      recognition.onresult = null;
+      recognition.onerror = null;
+      if (recognitionRef.current) {
+          recognitionRef.current.abort();
+      }
     };
   }, [continuous, interimResults]);
 

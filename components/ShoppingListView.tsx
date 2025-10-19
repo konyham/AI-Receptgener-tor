@@ -83,6 +83,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
       }
   };
 
+  // FIX: Argument of type 'unknown' is not assignable to parameter of type 'ShoppingListItem'.
   const handleDragSort = () => {
     if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
         dragItem.current = null;
@@ -91,8 +92,18 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     };
 
     const reorderedList = [...list];
-    const draggedItemContent = reorderedList.splice(dragItem.current, 1)[0];
-    reorderedList.splice(dragOverItem.current, 0, draggedItemContent);
+    // Remove the dragged item and store it.
+    const [draggedItem] = reorderedList.splice(dragItem.current, 1);
+
+    // If for some reason the item is not found, abort.
+    if (!draggedItem) {
+        dragItem.current = null;
+        dragOverItem.current = null;
+        return;
+    }
+    
+    // Insert the dragged item at the new position.
+    reorderedList.splice(dragOverItem.current, 0, draggedItem);
     
     dragItem.current = null;
     dragOverItem.current = null;
@@ -277,8 +288,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         {list.length > 0 ? (
             categorizedList ? (
                 <div className="space-y-3 p-2">
-                    {/* FIX: Switched from Object.entries to Object.keys to ensure proper type inference for category keys. */}
-                    {Object.keys(categorizedList).map((category) => (
+                    {Object.entries(categorizedList).map(([category, items]: [string, ShoppingListItem[]]) => (
                          <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                             <button
                                 onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
@@ -290,7 +300,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
                             </button>
                              {expandedAIGroups[category] && (
                                 <ul className="divide-y divide-gray-100 bg-white">
-                                    {categorizedList![category].map((item) => {
+                                    {items.map((item) => {
                                         const originalIndex = list.findIndex(li => li.text === item.text);
                                         return renderListItem(item, originalIndex);
                                     })}

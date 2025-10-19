@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption, RecipePace, UserProfile, OptionItem } from '../types';
 import { DIET_OPTIONS, RECIPE_PACE_OPTIONS } from '../constants';
-import { interpretFormCommand, suggestMealType } from '../services/geminiService';
-import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { suggestMealType } from '../services/geminiService';
 import { useNotification } from '../contexts/NotificationContext';
 import { safeSetLocalStorage } from '../utils/storage';
 
@@ -23,6 +22,8 @@ interface RecipeInputFormProps {
   onOpenOptionsEditor: () => void;
   onOpenUrlImporter?: () => void;
   onOpenRecipeFileImporter: () => void;
+  command: FormCommand | null;
+  onCommandProcessed: () => void;
 }
 
 const INGREDIENTS_STORAGE_KEY = 'ai-recipe-generator-saved-ingredients';
@@ -44,6 +45,8 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     onOpenOptionsEditor,
     onOpenUrlImporter,
     onOpenRecipeFileImporter,
+    command,
+    onCommandProcessed,
 }) => {
   const [mode, setMode] = useState<'standard' | 'leftover'>('standard');
   const [ingredients, setIngredients] = useState<string[]>([]);
@@ -61,8 +64,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
   const [useSeasonalIngredients, setUseSeasonalIngredients] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
   const [hasSavedIngredients, setHasSavedIngredients] = useState(false);
   const [isAdviceExpanded, setIsAdviceExpanded] = useState(false);
 
@@ -70,7 +71,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
 
-  const isProcessingRef = useRef(false);
   const { showNotification } = useNotification();
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const suggestionTimeoutRef = useRef<number | null>(null);
@@ -80,22 +80,91 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
   const recipePaceOptions = RECIPE_PACE_OPTIONS;
 
   useEffect(() => {
-    // Clear any existing timer
+    if (command) {
+      handleVoiceCommand(command);
+      onCommandProcessed();
+    }
+  }, [command, onCommandProcessed]);
+
+  const handleVoiceCommand = (command: FormCommand) => {
+    switch(command.action) {
+        case 'add_ingredients':
+            const payload = command.payload as string[];
+            if (payload && payload.length > 0) {
+                const newIngredients = payload.flatMap(item => 
+                    item.split(/,\s*|\s+és\s+/).map(s => s.trim()).filter(Boolean)
+                );
+                if (newIngredients.length > 0) {
+                  setIngredients(prev => [...new Set([...prev, ...newIngredients])]);
+                  showNotification(`Hozzávalók hozzáadva: ${newIngredients.join(', ')}`, 'success');
+                }
+            }
+            break;
+        case 'set_diet':
+            const dietPayload = command.payload as SelectionResult;
+            if (dietPayload?.key) {
+                setDiet(dietPayload.key as DietOption);
+                showNotification(`Diéta beállítva: ${dietPayload.label}`, 'info');
+            }
+            break;
+        case 'set_meal_type':
+            const mealPayload = command.payload as SelectionResult;
+            if (mealPayload?.key) {
+                setMealType(mealPayload.key as MealType);
+                showNotification(`Étkezés típusa: ${mealPayload.label}`, 'info');
+            }
+            break;
+        case 'set_cooking_method':
+            const cookingPayload = command.payload as SelectionResult;
+            if (cookingPayload?.key) {
+                const methodToToggle = cookingPayload.key as CookingMethod;
+                setCookingMethods(prev => {
+                    const isPresent = prev.includes(methodToToggle);
+                    let newState: CookingMethod[];
+                    if (isPresent) {
+                        newState = prev.filter(m => m !== methodToToggle);
+                    } else {
+                        newState = [...prev, methodToToggle];
+                    }
+
+                    if (methodToToggle === CookingMethod.TRADITIONAL && !isPresent) {
+                        return [CookingMethod.TRADITIONAL];
+                    }
+                    if (methodToToggle !== CookingMethod.TRADITIONAL && !isPresent) {
+                        newState = newState.filter(m => m !== CookingMethod.TRADITIONAL);
+                    }
+                    
+                    return newState;
+                });
+                showNotification(`Elkészítés módja módosítva: ${cookingPayload.label}`, 'info');
+            }
+            break;
+        case 'generate_recipe':
+            showNotification('Parancs: Recept generálása...', 'info');
+            triggerSubmitRef.current();
+            break;
+        default:
+            console.log("Ismeretlen űrlap parancs:", command);
+            break;
+    }
+  };
+
+
+  useEffect(() => {
     if (suggestionTimeoutRef.current) {
       clearTimeout(suggestionTimeoutRef.current);
     }
 
     const ingredientsString = ingredients.join(', ');
-    // Only proceed if there's text and no suggestion is currently in flight.
     if ((!ingredientsString && !specialRequest) || isSuggestingMealTypeRef.current) {
       return;
     }
     
     suggestionTimeoutRef.current = window.setTimeout(async () => {
-      isSuggestingMealTypeRef.current = true; // Set flag
+      isSuggestingMealTypeRef.current = true;
       try {
         const suggested = await suggestMealType(ingredientsString, specialRequest, mealTypes);
-        if (suggested && suggested !== mealType) { // Check against current mealType
+        if (suggested && suggested !== mealType) {
           setMealType(suggested as MealType);
           const mealTypeLabel = mealTypes.find(m => m.value === suggested)?.label;
           if (mealTypeLabel) {
@@ -105,11 +174,11 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
       } catch (e) {
         console.error("Meal type suggestion failed:", e);
       } finally {
-        isSuggestingMealTypeRef.current = false; // Reset flag
+        isSuggestingMealTypeRef.current = false;
       }
-    }, 1500); // 1.5 second debounce
+    }, 1500);
 
-    return () => { // cleanup
+    return () => {
         if (suggestionTimeoutRef.current) {
             clearTimeout(suggestionTimeoutRef.current);
         }
@@ -130,17 +199,17 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
         if (initialFormData.diet !== undefined) {
             setDiet(initialFormData.diet);
         } else {
-            setDiet(DietOption.DIABETIC); // Reset to default
+            setDiet(DietOption.DIABETIC);
         }
         if (initialFormData.mealType !== undefined) {
             setMealType(initialFormData.mealType);
         } else {
-            setMealType(MealType.LUNCH); // Reset to default
+            setMealType(MealType.LUNCH);
         }
         if (initialFormData.cuisine !== undefined) {
             setCuisine(initialFormData.cuisine);
         } else {
-            setCuisine(CuisineOption.NONE); // Reset to default
+            setCuisine(CuisineOption.NONE);
         }
         if (initialFormData.recipePace !== undefined) {
             setRecipePace(initialFormData.recipePace);
@@ -150,7 +219,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
         if (initialFormData.cookingMethods !== undefined) {
             setCookingMethods(initialFormData.cookingMethods);
         } else {
-            setCookingMethods([]); // Reset to empty
+            setCookingMethods([]);
         }
         if (initialFormData.numberOfServings !== undefined) {
             setNumberOfServings(initialFormData.numberOfServings);
@@ -180,7 +249,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
   useEffect(() => {
     const saved = localStorage.getItem(INGREDIENTS_STORAGE_KEY);
     setHasSavedIngredients(!!saved);
-    // Auto-load ingredients if they exist
     if (saved) {
       try {
         const loadedIngredients = JSON.parse(saved);
@@ -191,7 +259,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
         console.error("Failed to auto-load ingredients from localStorage:", e);
       }
     }
-  }, []); // Run only on mount
+  }, []);
   
   const addSuggestedIngredient = (ingredient: string) => {
       if (ingredient && !ingredients.includes(ingredient)) {
@@ -226,138 +294,11 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
       } catch (e) {
         console.error("Failed to parse saved ingredients from localStorage:", e);
         showNotification('A mentett hozzávalók listája sérült, ezért nem sikerült betölteni.', 'info');
-        // Do NOT remove the corrupted item, allowing for manual recovery by the user.
       }
     } else {
       showNotification('Nincsenek mentett hozzávalók.', 'info');
     }
   }, [showNotification]);
-
-  const handleSpeechError = useCallback((error: string) => {
-    if (error === 'not-allowed') {
-        showNotification('A mikrofon használata le lett tiltva. A funkció használatához engedélyezze a böngészőben.', 'info');
-    }
-  }, [showNotification]);
-
-  const handleVoiceResult = useCallback(async (transcript: string) => {
-    if (isProcessingRef.current) return;
-
-    isProcessingRef.current = true;
-    setIsProcessing(true);
-
-    try {
-        const lowerTranscript = transcript.toLowerCase().trim();
-        const generateKeywords = [
-            "jöhet a recept",
-            "recept generálása",
-            "készítsük el",
-            "mutasd a receptet",
-            "csinálj egy receptet",
-            "generálj egy receptet"
-        ];
-        
-        let command: FormCommand;
-
-        if (generateKeywords.some(keyword => lowerTranscript.includes(keyword))) {
-            command = { action: 'generate_recipe', payload: null };
-        } else {
-            command = await interpretFormCommand(transcript, mealTypes, cookingMethodsList, DIET_OPTIONS);
-        }
-        
-        switch(command.action) {
-            case 'add_ingredients':
-                const payload = command.payload as string[];
-                if (payload && payload.length > 0) {
-                    const newIngredients = payload.flatMap(item => 
-                        item.split(/,\s*|\s+és\s+/).map(s => s.trim()).filter(Boolean)
-                    );
-                    if (newIngredients.length > 0) {
-                      setIngredients(prev => [...new Set([...prev, ...newIngredients])]);
-                      showNotification(`Hozzávalók hozzáadva: ${newIngredients.join(', ')}`, 'success');
-                    }
-                }
-                break;
-            case 'set_diet':
-                const dietPayload = command.payload as SelectionResult;
-                if (dietPayload?.key) {
-                    setDiet(dietPayload.key as DietOption);
-                    showNotification(`Diéta beállítva: ${dietPayload.label}`, 'info');
-                }
-                break;
-            case 'set_meal_type':
-                const mealPayload = command.payload as SelectionResult;
-                if (mealPayload?.key) {
-                    setMealType(mealPayload.key as MealType);
-                    showNotification(`Étkezés típusa: ${mealPayload.label}`, 'info');
-                }
-                break;
-            case 'set_cooking_method':
-                const cookingPayload = command.payload as SelectionResult;
-                if (cookingPayload?.key) {
-                    const methodToToggle = cookingPayload.key as CookingMethod;
-                    setCookingMethods(prev => {
-                        const isPresent = prev.includes(methodToToggle);
-                        let newState: CookingMethod[];
-                        if (isPresent) {
-                            newState = prev.filter(m => m !== methodToToggle);
-                        } else {
-                            newState = [...prev, methodToToggle];
-                        }
-
-                        // Exclusive logic for 'Traditional'
-                        if (methodToToggle === CookingMethod.TRADITIONAL && !isPresent) {
-                            // If 'Traditional' is checked, uncheck all others.
-                            return [CookingMethod.TRADITIONAL];
-                        }
-                        if (methodToToggle !== CookingMethod.TRADITIONAL && !isPresent) {
-                            // If a machine is checked, uncheck 'Traditional'.
-                            newState = newState.filter(m => m !== CookingMethod.TRADITIONAL);
-                        }
-                        
-                        return newState;
-                    });
-                    showNotification(`Elkészítés módja módosítva: ${cookingPayload.label}`, 'info');
-                }
-                break;
-            case 'generate_recipe':
-                showNotification('Parancs: Recept generálása...', 'info');
-                triggerSubmitRef.current();
-                break;
-            default:
-                console.log("Unknown command or could not interpret:", transcript);
-                break;
-        }
-    } catch (error: any) {
-        console.error("Error interpreting form command:", error);
-        let errorMessage = "Hiba a hangparancs értelmezése közben.";
-        const errorString = (typeof error.message === 'string') ? error.message : JSON.stringify(error);
-        
-        if (errorString.toLowerCase().includes('resource_exhausted') || errorString.includes('429') || errorString.toLowerCase().includes('quota')) {
-            errorMessage = "Túl sok kérés. A hangvezérlés 15 másodpercre szünetel.";
-            setIsRateLimited(true);
-            setTimeout(() => {
-                setIsRateLimited(false);
-                showNotification("A hangvezérlés újra aktív.", 'success');
-            }, 15000); // Re-enable after 15 seconds
-        }
-        showNotification(errorMessage, 'info');
-    } finally {
-        isProcessingRef.current = false;
-        setIsProcessing(false);
-    }
-  }, [showNotification, mealTypes, cookingMethodsList]);
-
-  const {
-    isListening,
-    isSupported,
-    startListening,
-    stopListening,
-    permissionState,
-  } = useSpeechRecognition({
-    onResult: handleVoiceResult,
-    continuous: false,
-    onError: handleSpeechError,
-  });
 
   const removeIngredient = (indexToRemove: number) => {
       setIngredients(ingredients.filter((_, index) => index !== indexToRemove));
@@ -439,7 +380,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
   const triggerSubmit = () => {
     if (isLoading) return;
 
-    // --- User preference aggregation ---
     const selectedUsers = users.filter(u => selectedUserIds.includes(u.id));
     const combinedAllergies = new Set<string>();
     const combinedLikes = new Set<string>();
@@ -493,15 +433,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     triggerSubmit();
   };
   
-  const handleMicClick = () => {
-    if (!isSupported || permissionState === 'denied' || isRateLimited) return;
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
-    }
-  };
-
   const handleCookingMethodChange = (method: string) => {
     setCookingMethods(prev => {
         const isPresent = prev.includes(method as CookingMethod);
@@ -512,13 +443,10 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
             newState = [...prev, method as CookingMethod];
         }
 
-        // Exclusive logic for 'Traditional'
         if (method === CookingMethod.TRADITIONAL && !isPresent) {
-            // If 'Traditional' is checked, uncheck all others.
             return [CookingMethod.TRADITIONAL];
         }
         if (method !== CookingMethod.TRADITIONAL && !isPresent) {
-            // If a machine is checked, uncheck 'Traditional'.
             newState = newState.filter(m => m !== CookingMethod.TRADITIONAL);
         }
         
@@ -657,48 +585,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
         </p>
       </div>
 
-       {isSupported && (
-         <button
-            type="button"
-            onClick={handleMicClick}
-            disabled={permissionState === 'denied' || isLoading || isRateLimited}
-            className={`w-full text-center p-3 rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-                permissionState === 'denied' 
-                ? 'bg-red-50 border-red-200 cursor-not-allowed' 
-                : isRateLimited
-                ? 'bg-yellow-50 border-yellow-300 cursor-not-allowed'
-                : 'bg-primary-100 border-primary-200 hover:bg-primary-200'
-            }`}
-            aria-label={isListening ? 'Leállítás' : 'Hangparancs'}
-        >
-            <div className="flex justify-center items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${permissionState === 'denied' ? 'text-red-500' : (isListening && !isProcessing ? 'text-red-500 animate-pulse' : 'text-primary-700')}`} viewBox="0 0 20 20" fill="currentColor">
-                    {permissionState === 'denied' ? (
-                        <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.523L13.477 14.89zm-2.02-2.02l-7.07-7.07A6.024 6.024 0 004 10v.789l.375.375 2.121 2.121L8.28 15h.789a6.002 6.002 0 006.33-4.885l-1.99 1.99zM10 18a8 8 0 100-16 8 8 0 000 16z" clipRule="evenodd" />
-                    ) : (
-                        <>
-                            <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
-                            <path fillRule="evenodd" d="M7 2a4 4 0 00-4 4v6a4 4 0 108 0V6a4 4 0 00-4-4zM5 6a2 2 0 012-2h2a2 2 0 110 4H7a2 2 0 01-2-2zm10 4a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM4 11a1 1 0 100 2h12a1 1 0 100-2H4z" clipRule="evenodd" />
-                        </>
-                    )}
-                </svg>
-                 {permissionState === 'denied' ? (
-                    <p className="font-semibold text-red-800">Mikrofon letiltva</p>
-                ) : (
-                    <p className="font-semibold text-primary-800">
-                        {isRateLimited ? 'Pihenés... (15s)' : (isProcessing ? 'Értelmezés...' : (isListening ? 'Hallgatom...' : 'Hangvezérlés'))}
-                    </p>
-                )}
-            </div>
-             {permissionState === 'denied' ? (
-                <p className="text-sm mt-1 text-red-700">A hangvezérléshez engedélyezze a mikrofon használatát a böngésző címsorában.</p>
-            ) : (
-                <p className="text-sm mt-1 text-primary-600">
-                    {isRateLimited ? 'Túl sok kérés történt, a funkció átmenetileg szünetel.' : 'Kattintson a Hangparancs gombra és mondja ki a parancsot.'}
-                </p>
-            )}
-        </button>
-      )}
       <div>
         <label htmlFor="ingredient-input" className="block text-lg font-semibold text-gray-700 mb-2">
           {mode === 'standard' ? 'Milyen alapanyagok vannak otthon?' : 'Milyen maradékok vannak? (nyers és főtt egyaránt)'}

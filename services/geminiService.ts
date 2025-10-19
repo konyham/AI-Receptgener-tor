@@ -261,10 +261,10 @@ export const generateRecipe = async (
 
   } catch (e: any) {
     console.error('Error generating recipe:', e);
-    if (e.message.includes('JSON')) {
-        throw new Error('Az AI válasza hibás formátumú volt. Próbálja újra egy kicsit más feltételekkel!');
-    } else if (e.message.toLowerCase().includes('quota')) {
+    if (e.message.toLowerCase().includes('quota')) {
         throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    } else if (e.message.includes('JSON')) {
+        throw new Error('Az AI válasza hibás formátumú volt. Próbálja újra egy kicsit más feltételekkel!');
     }
     throw new Error(`Hiba történt a recept generálása közben: ${e.message}`);
   }
@@ -359,10 +359,10 @@ export const generateMenu = async (
 
   } catch (e: any) {
     console.error('Error generating menu:', e);
-    if (e.message.includes('JSON')) {
-        throw new Error('Az AI válasza hibás formátumú volt. Próbálja újra egy kicsit más feltételekkel!');
-    } else if (e.message.toLowerCase().includes('quota')) {
+    if (e.message.toLowerCase().includes('quota')) {
         throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    } else if (e.message.includes('JSON')) {
+        throw new Error('Az AI válasza hibás formátumú volt. Próbálja újra egy kicsit más feltételekkel!');
     }
     throw new Error(`Hiba történt a menü generálása közben: ${e.message}`);
   }
@@ -456,10 +456,10 @@ export const generateDailyMenu = async (
 
   } catch (e: any) {
     console.error('Error generating daily menu:', e);
-    if (e.message.includes('JSON')) {
-        throw new Error('Az AI válasza hibás formátumú volt. Próbálja újra egy kicsit más feltételekkel!');
-    } else if (e.message.toLowerCase().includes('quota')) {
+    if (e.message.toLowerCase().includes('quota')) {
         throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    } else if (e.message.includes('JSON')) {
+        throw new Error('Az AI válasza hibás formátumú volt. Próbálja újra egy kicsit más feltételekkel!');
     }
     throw new Error(`Hiba történt a napi menü generálása közben: ${e.message}`);
   }
@@ -527,6 +527,9 @@ export const categorizeIngredients = async (ingredients: string[]): Promise<Cate
 
     } catch (e: any) {
         console.error('Error categorizing ingredients:', e);
+        if (e.message.toLowerCase().includes('quota')) {
+            throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+        }
         throw new Error(`Hiba történt az alapanyagok kategorizálása közben: ${e.message}`);
     }
 };
@@ -565,20 +568,28 @@ export const getRecipeModificationSuggestions = async (ingredients: string, reci
     return JSON.parse(response.text) as RecipeSuggestions;
   } catch (e: any) {
     console.error('Error getting recipe modification suggestions:', e);
+    if (e.message.toLowerCase().includes('quota')) {
+        throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    }
     throw new Error('Hiba történt a javaslatok generálása közben.');
   }
 };
 
 export const interpretAppCommand = async (transcript: string, view: AppView, context: any): Promise<AppCommand> => {
   const prompt = `Értelmezd a következő parancsot egy receptalkalmazás kontextusában: "${transcript}".
+  Az egyszerű navigációs és görgetési parancsokat már egy másik rendszer feldolgozta; a te feladatod az ennél összetettebb, adat-alapú parancsok értelmezése.
   A jelenlegi nézet: "${view}".
   Elérhető kategóriák a kedvencekben: ${context.categories.join(', ')}.
   Bevásárlólista elemei: ${context.shoppingListItems.join(', ')}.
   Kamra elemei: ${context.pantryItems.join(', ')}.
 
-  A lehetséges műveletek (action): 'navigate', 'add_shopping_list_item', 'remove_shopping_list_item', 'check_shopping_list_item', 'uncheck_shopping_list_item', 'clear_checked_shopping_list', 'clear_all_shopping_list', 'add_pantry_item', 'remove_pantry_item', 'view_favorite_recipe', 'delete_favorite_recipe', 'filter_favorites', 'clear_favorites_filter', 'expand_category', 'collapse_category', 'unknown'.
-  A lehetséges navigációs célpontok (payload for 'navigate'): 'generator', 'favorites', 'shopping-list', 'pantry', 'users'.
-  A válaszod egy JSON objektum legyen "action" és "payload" kulcsokkal. A payload a parancs tárgya (pl. a hozzáadandó tétel neve).`;
+  A lehetséges műveletek (action): 'add_shopping_list_item', 'remove_shopping_list_item', 'check_shopping_list_item', 'uncheck_shopping_list_item', 'clear_checked_shopping_list', 'clear_all_shopping_list', 'add_pantry_item', 'remove_pantry_item', 'view_favorite_recipe', 'delete_favorite_recipe', 'filter_favorites', 'clear_favorites_filter', 'expand_category', 'collapse_category', 'unknown'.
+  A válaszod egy JSON objektum legyen "action" és "payload" kulcsokkal. A payload a parancs tárgya (pl. a hozzáadandó tétel neve).
+  Példák:
+  - "adj tejet a bevásárlólistához" -> action: 'add_shopping_list_item', payload: 'tej'
+  - "pipáld ki a kenyeret" -> action: 'check_shopping_list_item', payload: 'kenyér'
+  - "mutasd a rántott hús receptjét" -> action: 'view_favorite_recipe', payload: 'rántott hús'
+  `;
 
   const schema = {
     type: Type.OBJECT,
@@ -602,7 +613,10 @@ export const interpretAppCommand = async (transcript: string, view: AppView, con
     return JSON.parse(response.text) as AppCommand;
   } catch (e: any) {
     console.error('Error interpreting app command:', e);
-    throw new Error('Hiba történt a parancs értelmezése közben.');
+    if (e.message && e.message.toLowerCase().includes('quota')) {
+        throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    }
+    throw new Error(`Hiba történt a parancs értelmezése közben: ${e.message}`);
   }
 };
 
@@ -643,6 +657,9 @@ export const interpretFormCommand = async (transcript: string, mealTypes: Option
     return JSON.parse(jsonText) as FormCommand;
   } catch (e: any) {
     console.error('Error interpreting form command:', e);
+    if (e.message.toLowerCase().includes('quota')) {
+        throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    }
     throw new Error('Hiba történt a hangparancs értelmezése közben.');
   }
 };
@@ -659,18 +676,29 @@ export const suggestMealType = async (ingredientsString: string, specialRequest:
         return (response.text ?? '').trim();
     } catch (e: any) {
         console.error('Error suggesting meal type:', e);
+        if (e.message.toLowerCase().includes('quota')) {
+            throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+        }
         return '';
     }
 };
 
 export const interpretUserCommand = async (transcript: string): Promise<VoiceCommandResult> => {
-  const prompt = `Értelmezd a következő hangparancsot egy recept felolvasása közben: "${transcript}".
+  const prompt = `Értelmezd a következő magyar nyelvű hangparancsot egy recept olvasása közben: "${transcript}".
   Lehetséges parancsok (command): 'NEXT', 'PREVIOUS', 'REPEAT', 'STOP', 'READ_INTRO', 'READ_INGREDIENTS', 'START_COOKING', 'START_TIMER', 'UNKNOWN'.
-  - A "következő", "tovább" parancsok 'NEXT'-et jelentenek.
-  - Az "előző", "vissza" parancsok 'PREVIOUS'-t jelentenek.
-  - Az "ismételd", "olvasd újra" parancsok 'REPEAT'-et jelentenek.
-  Ha a parancs 'START_TIMER', és a felhasználó megad időtartamot (pl. "indíts egy 5 perces időzítőt"), akkor a payload objektumban add vissza az órákat, perceket, másodperceket.
-  A válaszod egy JSON objektum legyen { "command": "...", "payload": { "hours": ..., "minutes": ..., "seconds": ... } } formában.`;
+
+  A parancsok értelmezése (szinonimák):
+  - 'NEXT': "következő", "tovább", "menjünk tovább", "lapozz", "lapozzunk tovább", "mutasd a következőt"
+  - 'PREVIOUS': "előző", "vissza", "menjünk vissza", "lapozz vissza", "mutasd az előzőt"
+  - 'REPEAT': "ismételd", "olvasd újra", "mondd újra", "mi volt ez?"
+  - 'STOP': "állj", "leállítás", "bezárás", "elég", "vissza a főmenübe"
+  - 'READ_INTRO': "olvasd a bevezetőt", "mi ez a recept", "mutasd be a receptet"
+  - 'READ_INGREDIENTS': "olvasd a hozzávalókat", "mik a hozzávalók", "hozzávalók listája"
+  - 'START_COOKING': "főzés indítása", "főzés mód", "indítsd a főzést", "kezdjük a főzést"
+  - 'START_TIMER': Ha a parancs időzítő indítására vonatkozik (pl. "indíts egy 5 perces időzítőt"), a payload objektumban add vissza az órákat, perceket, másodperceket.
+  - 'UNKNOWN': Ha a parancs nem felel meg a fentieknek.
+
+  A válaszod egy JSON objektum legyen { "command": "...", "payload": { "hours": ..., "minutes": ..., "seconds": ... } } formában. A payload csak a 'START_TIMER' parancs esetén szükséges.`;
 
   const schema = {
     type: Type.OBJECT,
@@ -701,6 +729,9 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
     return JSON.parse(response.text) as VoiceCommandResult;
   } catch (e: any) {
     console.error('Error interpreting user command:', e);
+    if (e.message.toLowerCase().includes('quota')) {
+        throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    }
     throw new Error('Hiba történt a hangparancs értelmezése közben.');
   }
 };
@@ -751,7 +782,10 @@ export const analyzeInstructionForTimer = async (instructionText: string): Promi
 
   } catch (e: any) {
     console.error('Error analyzing instruction for timer:', e);
-    // Don't throw, just return null to not break the UI.
+    if (e.message.toLowerCase().includes('quota')) {
+        // Don't throw, just return null and log.
+        console.warn('Quota limit reached while analyzing timer instruction.');
+    }
     return null;
   }
 };
@@ -794,6 +828,9 @@ export const calculateRecipeCost = async (recipe: Recipe): Promise<string> => {
     return response.text.trim();
   } catch (e: any) {
     console.error('Error calculating recipe cost:', e);
+    if (e.message.toLowerCase().includes('quota')) {
+        throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    }
     throw new Error('Hiba történt a költségbecslés közben.');
   }
 };
@@ -818,6 +855,9 @@ export const simplifyRecipe = async (recipe: Recipe): Promise<Recipe> => {
     };
   } catch (e: any) {
     console.error('Error simplifying recipe:', e);
+    if (e.message.toLowerCase().includes('quota')) {
+        throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    }
     throw new Error('Hiba történt a recept egyszerűsítése közben.');
   }
 };
@@ -889,6 +929,9 @@ A válaszod egy JSON objektum legyen, ami egy "suggestions" kulcsot tartalmaz. E
     return json as { suggestions: AlternativeRecipeSuggestion[] };
   } catch (e: any) {
     console.error('Error generating alternative recipe suggestions:', e);
+    if (e.message.toLowerCase().includes('quota')) {
+        throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    }
     throw new Error('Hiba történt a receptjavaslatok generálása közben.');
   }
 };
@@ -995,6 +1038,9 @@ A leírás legyen barátságos és segítőkész. A cél, hogy egy új felhaszn�
     return response.text;
   } catch (e: any) {
     console.error('Error generating app guide:', e);
+    if (e.message.toLowerCase().includes('quota')) {
+        throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+    }
     throw new Error(`Hiba történt az útmutató generálása közben: ${e.message}`);
   }
 };
@@ -1029,10 +1075,10 @@ export const parseRecipeFromUrl = async (url: string): Promise<Partial<Recipe>> 
 
     } catch (e: any) {
         console.error('Error parsing recipe from URL:', e);
-        if (e.message.includes('JSON')) {
-            throw new Error('Az AI válasza hibás formátumú volt a weboldal elemzése során. Lehet, hogy a linkelt oldal nem tartalmaz receptet.');
-        } else if (e.message.toLowerCase().includes('quota')) {
+        if (e.message.toLowerCase().includes('quota')) {
             throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+        } else if (e.message.includes('JSON')) {
+            throw new Error('Az AI válasza hibás formátumú volt a weboldal elemzése során. Lehet, hogy a linkelt oldal nem tartalmaz receptet.');
         }
         throw new Error(`Hiba történt a recept URL-ből való beolvasása közben: ${e.message}`);
     }
@@ -1073,10 +1119,10 @@ export const parseRecipeFromFile = async (fileData: {inlineData: { data: string,
 
     } catch (e: any) {
         console.error('Error parsing recipe from file:', e);
-        if (e.message.includes('JSON')) {
-            throw new Error('Az AI válasza hibás formátumú volt a fájl elemzése során. Lehet, hogy a fájl nem volt felismerhető recept.');
-        } else if (e.message.toLowerCase().includes('quota')) {
+        if (e.message.toLowerCase().includes('quota')) {
             throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+        } else if (e.message.includes('JSON')) {
+            throw new Error('Az AI válasza hibás formátumú volt a fájl elemzése során. Lehet, hogy a fájl nem volt felismerhető recept.');
         }
         throw new Error(`Hiba történt a recept fájlból való beolvasása közben: ${e.message}`);
     }

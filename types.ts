@@ -232,6 +232,8 @@ export type AppCommandAction =
   | 'clear_favorites_filter'
   | 'expand_category'
   | 'collapse_category'
+  | 'scroll_up'
+  | 'scroll_down'
   | 'unknown';
 
 export interface AppCommand {
