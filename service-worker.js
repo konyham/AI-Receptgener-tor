@@ -1,4 +1,4 @@
-const CACHE_NAME = 'konyha-miki-cache-v1.4.27';
+const CACHE_NAME = 'konyha-miki-cache-v1.5.0';
 const urlsToCache = [
   '/',
   '/index.html',

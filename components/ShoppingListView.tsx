@@ -277,8 +277,8 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
         {list.length > 0 ? (
             categorizedList ? (
                 <div className="space-y-3 p-2">
-                    {/* FIX: Explicitly type [category, items] to resolve TypeScript inference issue with Object.entries. */}
-                    {Object.entries(categorizedList).map(([category, items]: [string, ShoppingListItem[]]) => (
+                    {/* FIX: Switched from Object.entries to Object.keys to ensure proper type inference for category keys. */}
+                    {Object.keys(categorizedList).map((category) => (
                          <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                             <button
                                 onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
@@ -290,7 +290,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
                             </button>
                              {expandedAIGroups[category] && (
                                 <ul className="divide-y divide-gray-100 bg-white">
-                                    {items.map((item) => {
+                                    {categorizedList![category].map((item) => {
                                         const originalIndex = list.findIndex(li => li.text === item.text);
                                         return renderListItem(item, originalIndex);
                                     })}

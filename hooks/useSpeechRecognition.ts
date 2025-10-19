@@ -4,6 +4,7 @@ import type { SpeechRecognition } from '../types';
 interface UseSpeechRecognitionOptions {
   onResult: (transcript: string) => void;
   continuous?: boolean;
+  interimResults?: boolean;
   onError?: (errorType: string) => void;
 }
 
@@ -12,6 +13,7 @@ type PermissionState = 'prompt' | 'granted' | 'denied' | 'checking';
 export const useSpeechRecognition = ({
   onResult,
   continuous = false,
+  interimResults = false,
   onError,
 }: UseSpeechRecognitionOptions) => {
   const [isListening, setIsListening] = useState(false);
@@ -80,7 +82,7 @@ export const useSpeechRecognition = ({
     recognitionRef.current = recognition;
 
     recognition.continuous = continuous;
-    recognition.interimResults = false;
+    recognition.interimResults = interimResults;
     recognition.lang = 'hu-HU';
 
     recognition.onstart = () => {
@@ -117,7 +119,7 @@ export const useSpeechRecognition = ({
     return () => {
       recognition.stop();
     };
-  }, [continuous]);
+  }, [continuous, interimResults]);
 
   return { isListening, isSupported, startListening, stopListening, permissionState };
 };

@@ -492,8 +492,8 @@ const PantryView: React.FC<PantryViewProps> = ({
 
         {categorizedPantry ? (
           <div className="space-y-3">
-              {/* FIX: Explicitly type [category, items] to resolve TypeScript inference issue with Object.entries. */}
-              {Object.entries(categorizedPantry).map(([category, items]: [string, PantryItemWithIndex[]]) => (
+              {/* FIX: Switched from Object.entries to Object.keys to ensure proper type inference for category keys. */}
+              {Object.keys(categorizedPantry).map((category) => (
                     <div key={category} className="border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                         <button
                             onClick={() => setExpandedAIGroups(prev => ({ ...prev, [category]: !prev[category] }))}
@@ -504,7 +504,7 @@ const PantryView: React.FC<PantryViewProps> = ({
                             <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${expandedAIGroups[category] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                         </button>
                         {expandedAIGroups[category] && (
-                            renderItemList(items)
+                            renderItemList(categorizedPantry[category])
                         )}
                     </div>
                   ))}

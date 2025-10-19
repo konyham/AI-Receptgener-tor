@@ -5,39 +5,45 @@ import { interpretUserCommand, analyzeInstructionForTimer } from '../services/ge
 import { useNotification } from '../contexts/NotificationContext';
 import KitchenTimer from './KitchenTimer';
 
-// Define WakeLock types as they might not be in default lib.
-interface WakeLockSentinel extends EventTarget {
-  type: 'screen';
-  release(): Promise<void>;
-  onrelease: EventListener;
-}
+type VoiceStatus = 'disabled' | 'listening_wake_word' | 'command_prompt' | 'listening_command' | 'processing';
 
-interface CookingAssistantModalProps {
-  recipe: Recipe;
-  onClose: () => void;
-}
-
-const CookingAssistantModal: React.FC<CookingAssistantModalProps> = ({ recipe, onClose }) => {
+const CookingAssistantModal: React.FC<{ recipe: Recipe; onClose: () => void; }> = ({ recipe, onClose }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isTimerOpen, setIsTimerOpen] = useState(false);
   const [timerData, setTimerData] = useState<{ hours?: number; minutes?: number; seconds?: number } | null>(null);
   const [extractedTimerForStep, setExtractedTimerForStep] = useState<{ hours?: number; minutes?: number; seconds?: number } | null>(null);
   const [isAnalyzingTimer, setIsAnalyzingTimer] = useState(false);
-  
+  const [isHandsFreeMode, setIsHandsFreeMode] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('disabled');
+
   const { showNotification } = useNotification();
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  
-  // Screen Wake Lock
+  const commandTimeoutRef = useRef<number | null>(null);
+
+  const playBeep = () => {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    if (!audioContext) return;
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.05);
+    gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.2);
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.2);
+  };
+
   const acquireWakeLock = useCallback(async () => {
-    if ('wakeLock' in navigator && navigator.wakeLock && !wakeLockRef.current) {
+    if ('wakeLock' in navigator && !wakeLockRef.current) {
       try {
         wakeLockRef.current = await navigator.wakeLock.request('screen');
-        wakeLockRef.current.onrelease = () => {
+        wakeLockRef.current.addEventListener('release', () => {
           wakeLockRef.current = null;
-          console.log('Screen Wake Lock was released');
-        };
-        console.log('Screen Wake Lock is active');
+        });
       } catch (err: any) {
         console.error(`${err.name}, ${err.message}`);
       }
@@ -53,49 +59,41 @@ const CookingAssistantModal: React.FC<CookingAssistantModalProps> = ({ recipe, o
 
   useEffect(() => {
     acquireWakeLock();
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        acquireWakeLock();
-      }
-    };
+    const handleVisibilityChange = () => document.visibilityState === 'visible' && acquireWakeLock();
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
     return () => {
       releaseWakeLock();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [acquireWakeLock, releaseWakeLock]);
-  
-  const stopSpeech = useCallback(() => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-  }, []);
-  
+
+  const stopSpeech = useCallback(() => window.speechSynthesis?.cancel(), []);
+
   const speak = useCallback((text: string, onEnd?: () => void) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
     stopSpeech();
-    
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'hu-HU';
     utterance.rate = 0.9;
-    if(onEnd) utterance.onend = onEnd;
+    if (onEnd) utterance.onend = onEnd;
     utteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
   }, [stopSpeech]);
 
   const readCurrentStep = useCallback(() => {
     const stepText = recipe.instructions[currentStep]?.text;
-    if (stepText) {
-      speak(`${currentStep + 1}. lépés: ${stepText}`);
-    }
+    if (stepText) speak(`${currentStep + 1}. lépés: ${stepText}`);
   }, [currentStep, recipe.instructions, speak]);
-  
-  // Voice Commands
-  const handleVoiceResult = useCallback(async (transcript: string) => {
+
+  const handleCommandResult = useCallback(async (transcript: string) => {
+    if (!transcript) { 
+        setVoiceStatus('listening_wake_word');
+        return;
+    }
+    setVoiceStatus('processing');
     try {
       const { command, payload } = await interpretUserCommand(transcript);
-      switch(command) {
+      let executed = true;
+      switch (command) {
         case VoiceCommand.NEXT:
           setCurrentStep(prev => Math.min(prev + 1, recipe.instructions.length - 1));
           break;
@@ -115,38 +113,80 @@ const CookingAssistantModal: React.FC<CookingAssistantModalProps> = ({ recipe, o
           }
           break;
         case VoiceCommand.STOP:
-           speak("Főzés leállítva.");
-           onClose();
-           break;
+          speak("Főzés leállítva.");
+          onClose();
+          break;
         default:
+          executed = false;
           break;
       }
-    } catch(e: any) {
+      if (executed) showNotification(`Parancs: ${transcript}`, 'success');
+    } catch (e: any) {
       showNotification(e.message, 'info');
+    } finally {
+      if (isHandsFreeMode) {
+        setVoiceStatus('listening_wake_word');
+      } else {
+        setVoiceStatus('disabled');
+      }
     }
-  }, [recipe.instructions.length, readCurrentStep, extractedTimerForStep, showNotification, onClose]);
-  
-  // FIX: Removed `isProcessing` from destructuring as it's not returned by the `useSpeechRecognition` hook.
-  const { isListening, startListening, stopListening, permissionState } = useSpeechRecognition({
-    onResult: handleVoiceResult,
+  }, [recipe.instructions.length, readCurrentStep, extractedTimerForStep, showNotification, onClose, isHandsFreeMode, speak]);
+
+  const { startListening: startCommandListening, stopListening: stopCommandListening, isListening: isCommandListening } = useSpeechRecognition({
+    onResult: handleCommandResult,
     continuous: false,
   });
 
-  // Analyze instruction for timer when step changes
+  const handleWakeWordResult = useCallback((transcript: string) => {
+    if (transcript.toLowerCase().includes('oké miki')) {
+      stopWakeWordListening();
+      playBeep();
+      setVoiceStatus('command_prompt');
+      setTimeout(() => setVoiceStatus('listening_command'), 200);
+    }
+  }, [playBeep]);
+
+  const { startListening: startWakeWordListening, stopListening: stopWakeWordListening, isListening: isWakeWordListening } = useSpeechRecognition({
+    onResult: handleWakeWordResult,
+    continuous: true,
+    interimResults: true,
+  });
+
+  useEffect(() => {
+    if (!isHandsFreeMode) {
+        stopWakeWordListening();
+        stopCommandListening();
+        setVoiceStatus('disabled');
+        return;
+    }
+
+    if (voiceStatus === 'listening_wake_word' && !isWakeWordListening) {
+        startWakeWordListening();
+    } else if (voiceStatus === 'listening_command' && !isCommandListening) {
+        startCommandListening();
+        if (commandTimeoutRef.current) clearTimeout(commandTimeoutRef.current);
+        commandTimeoutRef.current = window.setTimeout(() => {
+            if (voiceStatus === 'listening_command') {
+                stopCommandListening();
+                setVoiceStatus('listening_wake_word');
+            }
+        }, 7000); // 7s to give a command
+    }
+    
+    return () => {
+      if (commandTimeoutRef.current) clearTimeout(commandTimeoutRef.current);
+    }
+  }, [isHandsFreeMode, voiceStatus, isWakeWordListening, isCommandListening]);
+
   useEffect(() => {
     const analyze = async () => {
       const currentInstructionText = recipe.instructions[currentStep]?.text;
       if (currentInstructionText) {
         setIsAnalyzingTimer(true);
         setExtractedTimerForStep(null);
-        try {
-          const timer = await analyzeInstructionForTimer(currentInstructionText);
-          setExtractedTimerForStep(timer);
-        } catch (error) {
-          console.error("Timer analysis failed:", error);
-        } finally {
-          setIsAnalyzingTimer(false);
-        }
+        const timer = await analyzeInstructionForTimer(currentInstructionText);
+        setExtractedTimerForStep(timer);
+        setIsAnalyzingTimer(false);
       }
     };
     analyze();
@@ -158,9 +198,26 @@ const CookingAssistantModal: React.FC<CookingAssistantModalProps> = ({ recipe, o
     onClose();
   };
 
+  const handleToggleHandsFree = () => {
+    setIsHandsFreeMode(prev => {
+        if (!prev) setVoiceStatus('listening_wake_word');
+        return !prev;
+    });
+  };
+
+  let statusText = "Kihangosított mód kikapcsolva";
+  if (isHandsFreeMode) {
+    switch (voiceStatus) {
+      case 'listening_wake_word': statusText = "Figyelek az 'Oké, Miki!' parancsra..."; break;
+      case 'command_prompt': statusText = "Parancsra vár..."; break;
+      case 'listening_command': statusText = "Hallgatom a parancsot..."; break;
+      case 'processing': statusText = "Parancs feldolgozása..."; break;
+      default: statusText = "Kihangosított mód aktív";
+    }
+  }
+
   const totalSteps = recipe.instructions.length;
   const currentInstruction = recipe.instructions[currentStep];
-
   const formatTimerButtonText = (timer: { hours?: number; minutes?: number; seconds?: number }) => {
     const parts = [];
     if (timer.hours) parts.push(`${timer.hours} óra`);
@@ -171,51 +228,54 @@ const CookingAssistantModal: React.FC<CookingAssistantModalProps> = ({ recipe, o
 
   return (
     <>
-        <div className="fixed inset-0 bg-white z-50 flex flex-col p-4 sm:p-8 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="assistant-title">
-            <header className="flex-shrink-0 mb-6">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <h2 id="assistant-title" className="text-3xl font-bold text-primary-800">Főzési Asszisztens</h2>
-                        <p className="text-lg text-gray-600">{recipe.recipeName}</p>
+      <div className="fixed inset-0 bg-white z-50 flex flex-col p-4 sm:p-8 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="assistant-title">
+        <header className="flex-shrink-0 mb-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 id="assistant-title" className="text-3xl font-bold text-primary-800">Főzési Asszisztens</h2>
+              <p className="text-lg text-gray-600">{recipe.recipeName}</p>
+            </div>
+            <button onClick={handleClose} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Bezárás</button>
+          </div>
+        </header>
+
+        <main className="flex-grow flex flex-col justify-center items-center text-center">
+          <p className="text-gray-500 font-semibold mb-4 text-2xl">{currentStep + 1}. Lépés / {totalSteps}</p>
+          <div className="w-full max-w-3xl min-h-[200px] flex items-center justify-center p-6 bg-primary-50 rounded-lg">
+            <p className="text-3xl md:text-4xl lg:text-5xl font-serif text-gray-800 leading-snug">{currentInstruction?.text}</p>
+          </div>
+        </main>
+
+        <footer className="flex-shrink-0 space-y-4">
+          <div className="flex justify-center items-center gap-4">
+            {isAnalyzingTimer ? (
+              <div className="text-gray-500">Időzítő keresése...</div>
+            ) : extractedTimerForStep && (
+              <button onClick={() => { setTimerData(extractedTimerForStep); setIsTimerOpen(true); }} className="bg-blue-500 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-blue-600 transition-transform hover:scale-105">
+                Időzítő Indítása ({formatTimerButtonText(extractedTimerForStep)})
+              </button>
+            )}
+          </div>
+          <div className="flex items-center justify-center gap-4">
+            <button onClick={() => setCurrentStep(p => Math.max(0, p - 1))} disabled={currentStep === 0} className="text-lg bg-gray-200 text-gray-800 font-bold py-4 px-8 rounded-lg disabled:opacity-50">Előző</button>
+            <div className="flex flex-col items-center gap-2">
+                <label className="flex items-center cursor-pointer">
+                    <div className="relative">
+                        <input type="checkbox" className="sr-only" checked={isHandsFreeMode} onChange={handleToggleHandsFree} />
+                        <div className={`block w-14 h-8 rounded-full transition ${isHandsFreeMode ? 'bg-primary-600' : 'bg-gray-300'}`}></div>
+                        <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${isHandsFreeMode ? 'transform translate-x-6' : ''}`}></div>
                     </div>
-                    <button onClick={handleClose} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Bezárás</button>
+                </label>
+                <div className={`text-sm text-center w-48 h-10 flex items-center justify-center font-semibold ${voiceStatus === 'command_prompt' ? 'text-blue-600 animate-pulse' : 'text-gray-500'}`}>
+                    {statusText}
                 </div>
-            </header>
-
-            <main className="flex-grow flex flex-col justify-center items-center text-center">
-                <p className="text-gray-500 font-semibold mb-4 text-2xl">{currentStep + 1}. Lépés / {totalSteps}</p>
-                <div className="w-full max-w-3xl min-h-[200px] flex items-center justify-center p-6 bg-primary-50 rounded-lg">
-                    <p className="text-3xl md:text-4xl lg:text-5xl font-serif text-gray-800 leading-snug">{currentInstruction?.text}</p>
-                </div>
-            </main>
-
-            <footer className="flex-shrink-0 space-y-4">
-                <div className="flex justify-center items-center gap-4">
-                    {isAnalyzingTimer ? (
-                        <div className="text-gray-500">Időzítő keresése...</div>
-                    ) : extractedTimerForStep && (
-                        <button 
-                            onClick={() => { setTimerData(extractedTimerForStep); setIsTimerOpen(true); }}
-                            className="bg-blue-500 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-blue-600 transition-transform hover:scale-105"
-                        >
-                            Időzítő Indítása ({formatTimerButtonText(extractedTimerForStep)})
-                        </button>
-                    )}
-                </div>
-                <div className="flex items-center justify-center gap-4">
-                    <button onClick={() => setCurrentStep(p => Math.max(0, p - 1))} disabled={currentStep === 0} className="text-lg bg-gray-200 text-gray-800 font-bold py-4 px-8 rounded-lg disabled:opacity-50">Előző</button>
-                    <button onClick={isListening ? stopListening : startListening} className={`p-4 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white' : 'bg-primary-600 text-white'}`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
-                           <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
-                           <path fillRule="evenodd" d="M7 2a4 4 0 00-4 4v6a4 4 0 108 0V6a4 4 0 00-4-4zM5 6a2 2 0 012-2h2a2 2 0 110 4H7a2 2 0 01-2-2zm10 4a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM4 11a1 1 0 100 2h12a1 1 0 100-2H4z" clipRule="evenodd" />
-                        </svg>
-                    </button>
-                    <button onClick={() => setCurrentStep(p => Math.min(totalSteps - 1, p + 1))} disabled={currentStep === totalSteps - 1} className="text-lg bg-gray-200 text-gray-800 font-bold py-4 px-8 rounded-lg disabled:opacity-50">Következő</button>
-                </div>
-                 <p className="text-center text-gray-500 text-sm">Hangparancsok: "következő", "előző", "ismételd meg", "időzítő indítása"</p>
-            </footer>
-        </div>
-        {isTimerOpen && <KitchenTimer onClose={() => setIsTimerOpen(false)} initialValues={timerData} />}
+            </div>
+            <button onClick={() => setCurrentStep(p => Math.min(totalSteps - 1, p + 1))} disabled={currentStep === totalSteps - 1} className="text-lg bg-gray-200 text-gray-800 font-bold py-4 px-8 rounded-lg disabled:opacity-50">Következő</button>
+          </div>
+          <p className="text-center text-gray-500 text-sm">Parancsok: "következő", "előző", "ismételd meg", "időzítő indítása"</p>
+        </footer>
+      </div>
+      {isTimerOpen && <KitchenTimer onClose={() => setIsTimerOpen(false)} initialValues={timerData} />}
     </>
   );
 };
