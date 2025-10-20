@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -247,12 +248,11 @@ const PantryView: React.FC<PantryViewProps> = ({
         return item.storageType === storageFilter;
       })
       .sort((a: PantryItemWithIndex, b: PantryItemWithIndex) => {
-        // FIX: Explicitly typing the 'urgency' object with Record<StorageType, number> ensures
-        // TypeScript understands that `a.storageType` is a valid key, resolving the index type error.
+        // FIX: Explicitly typing the 'urgency' object with Record<StorageType, number> ensures TypeScript understands that `a.storageType` is a valid key, resolving the index type error.
         const urgency: Record<StorageType, number> = {
-          'refrigerator': 1,
-          'pantry': 2,
-          'freezer': 3,
+          [StorageType.REFRIGERATOR]: 1,
+          [StorageType.PANTRY]: 2,
+          [StorageType.FREEZER]: 3,
         };
         
         const urgencyA = urgency[a.storageType];

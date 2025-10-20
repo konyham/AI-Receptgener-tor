@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef } from 'react';
 import { ShoppingListItem, StorageType, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -92,13 +93,12 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     };
     
     const reorderedList = [...list];
-    // FIX: Correctly handle the array returned by `splice` to avoid incorrect type inference by TypeScript.
+    // FIX: Replaced array destructuring with direct array handling. This is to avoid a potential TypeScript type inference issue where the dragged item was being incorrectly typed as `unknown`, causing an error when re-inserting it into the list.
     const draggedItems = reorderedList.splice(dragItem.current, 1);
     
     // If an item was successfully removed, insert it at the new position.
     if (draggedItems.length > 0) {
-        const draggedItem = draggedItems[0];
-        reorderedList.splice(dragOverItem.current, 0, draggedItem);
+        reorderedList.splice(dragOverItem.current, 0, draggedItems[0] as ShoppingListItem);
     }
     
     // Reset refs and update state.

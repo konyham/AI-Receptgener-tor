@@ -516,7 +516,15 @@ const App: React.FC = () => {
     setIsFromFavorites(false);
     setInitialFormData(null);
     setCurrentCategory(null);
-    setView('generator');
+  };
+  
+  const handleRecipeDisplayClose = () => {
+    handleCloseRecipe();
+    if (isFromFavorites) {
+        setView('favorites');
+    } else {
+        setView('generator');
+    }
   };
 
   const handleFormPopulated = () => {
@@ -1371,7 +1379,13 @@ const App: React.FC = () => {
         {navItems.map(item => (
           <button
             key={item.id}
-            onClick={() => { setView(item.id); handleCloseRecipe(); }}
+            onClick={() => {
+                // Only close recipe if navigating away from the generator
+                if (view === 'generator' && item.id !== 'generator') {
+                    handleCloseRecipe();
+                }
+                setView(item.id);
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded-md font-semibold transition-colors text-sm sm:text-base ${view === item.id ? 'bg-primary-600 text-white shadow' : 'text-gray-600 hover:bg-primary-50'}`}
           >
             {item.icon}
@@ -1386,7 +1400,6 @@ const App: React.FC = () => {
             {!recipe && !alternativeRecipes && (
               <>
                 <DataManagementControls
-                    // FIX: Cannot find name 'onExport'. Changed to handleExport.
                     onExport={handleExport}
                     onImportClick={() => fileInputRef.current?.click()}
                     onFileChange={handleImport}
@@ -1424,7 +1437,7 @@ const App: React.FC = () => {
                 <div ref={recipeDisplayRef}>
                     <RecipeDisplay
                         recipe={recipe as Recipe}
-                        onClose={handleCloseRecipe}
+                        onClose={handleRecipeDisplayClose}
                         isFromFavorites={isFromFavorites}
                         favorites={favorites}
                         onSave={handleSaveToFavorites}
@@ -1448,7 +1461,7 @@ const App: React.FC = () => {
                 <div ref={recipeDisplayRef}>
                     <MenuDisplay
                         menu={recipe as MenuRecipe}
-                        onClose={handleCloseRecipe}
+                        onClose={() => { handleCloseRecipe(); setView('generator'); }}
                         onSave={handleSaveMenu}
                         onAddItemsToShoppingList={handleMenuToShoppingList}
                         shouldGenerateImages={shouldGenerateImage}
@@ -1462,7 +1475,7 @@ const App: React.FC = () => {
                 <div ref={recipeDisplayRef}>
                     <DailyMenuDisplay
                         dailyMenu={recipe as DailyMenuRecipe}
-                        onClose={handleCloseRecipe}
+                        onClose={() => { handleCloseRecipe(); setView('generator'); }}
                         onSave={handleSaveDailyMenu}
                         onAddItemsToShoppingList={handleMenuToShoppingList}
                         onDailyMenuUpdate={handleDailyMenuUpdate}
