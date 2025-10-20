@@ -306,6 +306,7 @@ const App: React.FC = () => {
     }
   }, [showNotification]);
 
+
   useEffect(() => {
     loadData();
   }, [loadData]);
@@ -1131,28 +1132,27 @@ const App: React.FC = () => {
         };
         const jsonString = JSON.stringify(backupData, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json' });
+        
         const now = new Date();
-        const dateString = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`;
-        const fileName = `konyha_miki_recept_backup_${dateString}.json`;
+        const year = now.getFullYear();
+        const month = (now.getMonth() + 1).toString().padStart(2, '0');
+        const day = now.getDate().toString().padStart(2, '0');
+        const hours = now.getHours().toString().padStart(2, '0');
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const fileName = `konyhamiki_mentes_${year}-${month}-${day}_${hours}-${minutes}.json`;
 
-        if ('showSaveFilePicker' in window) {
-            const handle = await window.showSaveFilePicker({
-                suggestedName: fileName,
-                types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }],
-            });
-            const writable = await handle.createWritable();
-            await writable.write(blob);
-            await writable.close();
-        } else {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
+        // The 'showSaveFilePicker' API is not allowed in the cross-origin iframe environment.
+        // We will consistently use the fallback method (creating and clicking a download link),
+        // which is more reliable here.
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
         showNotification('Adatok sikeresen elmentve!', 'success');
     } catch (e: any) {
         if (e.name !== 'AbortError') {

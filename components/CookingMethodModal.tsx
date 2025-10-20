@@ -90,6 +90,7 @@ const CookingMethodModal: React.FC<CookingMethodModalProps> = ({
             return (
               <button
                 key={option.value}
+                type="button"
                 onClick={() => handleToggle(option.value)}
                 className={`w-full text-left flex items-center gap-3 p-3 border rounded-lg transition-colors ${
                   isSelected 
@@ -110,10 +111,11 @@ const CookingMethodModal: React.FC<CookingMethodModalProps> = ({
         </div>
         
         <div className="mt-6 flex justify-end gap-3 border-t pt-4 flex-shrink-0">
-          <button onClick={onClose} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">
+          <button type="button" onClick={onClose} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">
             Mégse
           </button>
           <button
+            type="button"
             onClick={handleSave}
             className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-primary-700"
           >

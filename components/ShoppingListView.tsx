@@ -1,5 +1,11 @@
 
 
+
+
+
+
+
+
 import React, { useState, useRef } from 'react';
 import { ShoppingListItem, StorageType, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -85,6 +91,8 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
       }
   };
 
+  // FIX: The type of `draggedItem` was being inferred as `unknown`, causing a type error.
+  // By splitting the splice and access into two steps, we help TypeScript correctly infer the type.
   const handleDragSort = () => {
     if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
         dragItem.current = null;
@@ -93,12 +101,14 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     };
     
     const reorderedList = [...list];
-    // FIX: Replaced array destructuring with direct array handling. This is to avoid a potential TypeScript type inference issue where the dragged item was being incorrectly typed as `unknown`, causing an error when re-inserting it into the list.
-    const draggedItems = reorderedList.splice(dragItem.current, 1);
+    // FIX: `splice` returns an array of removed items. We were inserting this array as a single
+    // element, causing a type mismatch. The fix is to extract the single item from the array.
+    const removedItems = reorderedList.splice(dragItem.current, 1);
     
     // If an item was successfully removed, insert it at the new position.
-    if (draggedItems.length > 0) {
-        reorderedList.splice(dragOverItem.current, 0, draggedItems[0] as ShoppingListItem);
+    if (removedItems.length > 0) {
+      const draggedItem = removedItems[0];
+      reorderedList.splice(dragOverItem.current, 0, draggedItem);
     }
     
     // Reset refs and update state.

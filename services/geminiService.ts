@@ -795,9 +795,14 @@ export const analyzeInstructionForTimer = async (instructionText: string): Promi
 };
 
 export const generateRecipeImage = async (recipe: Recipe, cookingMethodLabels: string[]): Promise<string> => {
-  // A felhasználó panaszkodott, hogy a képek irrelevánsak vagy szöveget tartalmaznak.
-  // Ezt egy sokkal specifikusabb és erősebb prompttal javítjuk.
-  const prompt = `Fotórealisztikus kép a következő ételről: "${recipe.recipeName}". Az étel egy egyszerű, fehér tányéron van, letisztult, elmosódott háttérrel. A stílus: ételfotó, természetes fények, makró. FONTOS: A képen KIZÁRÓLAG az étel legyen, semmi más. SZIGORÚAN TILOS a képre bármilyen szöveget, betűt, logót, vízjelet, embert, kezet, vagy bármilyen díszítő elemet tenni, ami nem maga az étel. A fókusz az étel textúráján és megjelenésén van.`;
+  // A felhasználó panaszkodott, hogy a képek irrelevánsak. A promptot megerősítettük, hogy több kontextust adjon az ételről.
+  const prompt = `Tárgy: Ételfotó generálása.
+Stílus: Professzionális ételfotó, fotórealisztikus, makró, éttermi minőségű tálalás, egyszerű, letisztult, elmosódott háttér.
+Étel neve: "${recipe.recipeName}"
+Étel leírása: "${recipe.description}"
+Főbb hozzávalók: "${recipe.ingredients.slice(0, 5).join(', ')}"
+Utasítás: Generálj egy képet, ami PONTOSAN a fent leírt ételt ábrázolja. Az étel legyen a kép egyetlen és központi témája. A tálalás legyen gusztusos, mintha egy szakácskönyvben szerepelne.
+SZIGORÚAN TILOS: A képen nem lehet semmilyen szöveg, betű, logó, ember, kéz, állat vagy az ételhez nem kapcsolódó tárgy. A kép kizárólag az ételt mutassa be egy egyszerű tányéron.`;
   
   try {
     const response = await ai.models.generateImages({

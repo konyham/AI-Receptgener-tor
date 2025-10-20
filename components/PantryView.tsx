@@ -1,5 +1,11 @@
 
 
+
+
+
+
+
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -248,15 +254,18 @@ const PantryView: React.FC<PantryViewProps> = ({
         return item.storageType === storageFilter;
       })
       .sort((a: PantryItemWithIndex, b: PantryItemWithIndex) => {
-        // FIX: Explicitly typing the 'urgency' object with Record<StorageType, number> ensures TypeScript understands that `a.storageType` is a valid key, resolving the index type error.
-        const urgency: Record<StorageType, number> = {
-          [StorageType.REFRIGERATOR]: 1,
-          [StorageType.PANTRY]: 2,
-          [StorageType.FREEZER]: 3,
+        // FIX: Replaced object indexing with a switch statement to provide a more robust and type-safe way to determine sorting order, avoiding potential type inference errors with object keys.
+        const getUrgencyValue = (type: StorageType): number => {
+          switch (type) {
+            case StorageType.REFRIGERATOR: return 1;
+            case StorageType.PANTRY: return 2;
+            case StorageType.FREEZER: return 3;
+            default: return 99; // Should be unreachable
+          }
         };
-        
-        const urgencyA = urgency[a.storageType];
-        const urgencyB = urgency[b.storageType];
+
+        const urgencyA = getUrgencyValue(a.storageType);
+        const urgencyB = getUrgencyValue(b.storageType);
 
         if (urgencyA !== urgencyB) {
             return urgencyA - urgencyB;
@@ -309,10 +318,12 @@ const PantryView: React.FC<PantryViewProps> = ({
     }
   };
   
-  const storageTypeLabels: Record<string, { label: string; icon: string }> = {
-    'freezer': { label: "Fagyasztó", icon: "❄️" },
-    'refrigerator': { label: "Hűtő", icon: "🧊" },
-    'pantry': { label: "Kamra", icon: "🥫" },
+  // FIX: Changed the Record key from `string` to `StorageType` and used computed property names
+  // to create a more type-safe object, resolving the "cannot be used as an index type" error.
+  const storageTypeLabels: Record<StorageType, { label: string; icon: string }> = {
+    [StorageType.FREEZER]: { label: "Fagyasztó", icon: "❄️" },
+    [StorageType.REFRIGERATOR]: { label: "Hűtő", icon: "🧊" },
+    [StorageType.PANTRY]: { label: "Kamra", icon: "🥫" },
   };
 
   const filterOptions: {value: StorageType | 'all', label: string}[] = [
