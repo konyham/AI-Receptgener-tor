@@ -405,8 +405,9 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     }
     const finalSpecialRequest = [specialRequest.trim(), userPreferencesRequest.trim()].filter(Boolean).join(' ');
     
+    // FIX: Add explicit type annotation to the 'map' callback parameter 'm' to resolve a type inference issue.
     const orderedSelectedMethods = orderedCookingMethods
-        .map(m => m.value)
+        .map((m: OptionItem) => m.value)
         .filter(value => cookingMethods.includes(value));
 
     onSubmit({
@@ -433,26 +434,26 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     triggerSubmit();
   };
   
-  const handleCookingMethodChange = (method: string) => {
+  const handleCookingMethodToggle = (methodValue: CookingMethod) => {
     setCookingMethods(prev => {
-        const isPresent = prev.includes(method as CookingMethod);
-        let newState: CookingMethod[];
-        if (isPresent) {
-            newState = prev.filter(m => m !== method);
-        } else {
-            newState = [...prev, method as CookingMethod];
+        const isPresent = prev.includes(methodValue);
+
+        if (methodValue === TRADITIONAL_COOKING_METHOD) {
+            return isPresent ? [] : [TRADITIONAL_COOKING_METHOD];
         }
 
-        if (method === TRADITIONAL_COOKING_METHOD && !isPresent) {
-            return [TRADITIONAL_COOKING_METHOD];
-        }
-        if (method !== TRADITIONAL_COOKING_METHOD && !isPresent) {
-            newState = newState.filter(m => m !== TRADITIONAL_COOKING_METHOD);
+        let newState = prev.filter(m => m !== TRADITIONAL_COOKING_METHOD);
+
+        if (isPresent) {
+            newState = newState.filter(m => m !== methodValue);
+        } else {
+            newState.push(methodValue);
         }
         
         return newState;
     });
   };
+
 
   const handleUserSelectionChange = (userId: string) => {
     setSelectedUserIds(prev =>
@@ -831,53 +832,60 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
           )}
         </div>
         <div>
-            <label className="block text-lg font-semibold text-gray-700 mb-2">Étkezés</label>
-            <div className="space-y-2">
+            <label htmlFor="meal-type-select" className="block text-lg font-semibold text-gray-700 mb-2">Étkezés</label>
+            <select
+                id="meal-type-select"
+                value={mealType}
+                onChange={(e) => setMealType(e.target.value as MealType)}
+                className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
+            >
                 {orderedMealTypes.map((option) => (
-                    <label 
-                      key={option.value}
-                      htmlFor={`meal-type-${option.value}`} 
-                      className="flex items-center p-3 border rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500"
-                    >
-                        <input type="radio" id={`meal-type-${option.value}`} name="meal-type" value={option.value} checked={mealType === option.value} onChange={(e) => setMealType(e.target.value as MealType)} className="h-5 w-5 border-gray-300 text-primary-600 focus:ring-primary-500" />
-                        <span className="ml-3 text-gray-700 font-medium">{option.label}</span>
-                    </label>
+                    <option key={option.value} value={option.value}>
+                        {option.label}
+                    </option>
                 ))}
-            </div>
+            </select>
         </div>
       </div>
 
       <div>
-        <label className="block text-lg font-semibold text-gray-700 mb-2">Nemzetközi konyha (nem kötelező)</label>
-        <div className="space-y-2">
+        <label htmlFor="cuisine-select" className="block text-lg font-semibold text-gray-700 mb-2">Nemzetközi konyha (nem kötelező)</label>
+        <select
+            id="cuisine-select"
+            value={cuisine}
+            onChange={(e) => setCuisine(e.target.value as CuisineOption)}
+            className="w-full p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
+        >
             {orderedCuisineOptions.map((option) => (
-                <label 
-                    key={option.value}
-                    htmlFor={`cuisine-option-${option.value}`} 
-                    className="flex items-center p-3 border rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500"
-                >
-                    <input type="radio" id={`cuisine-option-${option.value}`} name="cuisine-option" value={option.value} checked={cuisine === option.value} onChange={() => setCuisine(option.value as CuisineOption)} className="h-5 w-5 rounded-full border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer" />
-                    <span className="ml-3 text-gray-700 font-medium flex-grow">{option.label}</span>
-                </label>
+                <option key={option.value} value={option.value}>
+                    {option.label}
+                </option>
             ))}
-        </div>
+        </select>
       </div>
 
       <div className="mt-6">
         <label className="block text-lg font-semibold text-gray-700 mb-2">Elkészítés módja</label>
-        <div className="space-y-2">
-            {orderedCookingMethods.map((option) => (
-                <label 
-                    key={option.value}
-                    htmlFor={`cooking-method-${option.value}`} 
-                    className="flex items-center p-3 border rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500"
-                >
-                    <input type="checkbox" id={`cooking-method-${option.value}`} value={option.value} checked={cookingMethods.includes(option.value as CookingMethod)} onChange={() => handleCookingMethodChange(option.value)} className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer" />
-                    <span className="ml-3 text-gray-700 font-medium flex-grow">{option.label}</span>
-                </label>
-            ))}
+        <div className="flex flex-wrap gap-2 p-2 border border-gray-300 rounded-lg bg-gray-50">
+            {orderedCookingMethods.map((option) => {
+                const isSelected = cookingMethods.includes(option.value);
+                return (
+                    <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleCookingMethodToggle(option.value)}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500
+                            ${isSelected 
+                                ? 'bg-primary-100 border-primary-400 text-primary-800' 
+                                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                            }`}
+                        aria-pressed={isSelected}
+                    >
+                        {option.label}
+                    </button>
+                );
+            })}
         </div>
-         <p className="text-sm text-gray-500 mt-2">A kiválasztott elkészítési módok sorrendje befolyásolhatja a receptet.</p>
       </div>
 
        <div>

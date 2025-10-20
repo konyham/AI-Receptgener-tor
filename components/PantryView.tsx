@@ -246,7 +246,8 @@ const PantryView: React.FC<PantryViewProps> = ({
         if (storageFilter === 'all') return true;
         return item.storageType === storageFilter;
       })
-      .sort((a, b) => {
+      // FIX: Add explicit type annotation to sort callback parameters to fix type inference issue.
+      .sort((a: PantryItemWithIndex, b: PantryItemWithIndex) => {
         // FIX: Replaced enum-based object keys with string literals to avoid type resolution issues.
         const urgency: Record<string, number> = {
           'refrigerator': 1,

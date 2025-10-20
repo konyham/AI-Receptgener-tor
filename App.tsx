@@ -225,8 +225,27 @@ const App: React.FC = () => {
 
   const [mealTypes, setMealTypes] = useState<OptionItem[]>(() => loadFromLocalStorage(MEAL_TYPES_STORAGE_KEY, MEAL_TYPES));
   const [cuisineOptions, setCuisineOptions] = useState<OptionItem[]>(() => loadFromLocalStorage(CUISINE_OPTIONS_STORAGE_KEY, CUISINE_OPTIONS));
-  const [cookingMethodsList, setCookingMethodsList] = useState<OptionItem[]>(() => loadFromLocalStorage(COOKING_METHODS_STORAGE_KEY, COOKING_METHODS));
-  const [cookingMethodCapacities, setCookingMethodCapacities] = useState<Record<string, number | null>>(() => loadFromLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, COOKING_METHOD_CAPACITIES));
+  const [cookingMethodsList, setCookingMethodsList] = useState<OptionItem[]>(() => {
+    const savedMethods = loadFromLocalStorage<OptionItem[]>(COOKING_METHODS_STORAGE_KEY, []);
+    const defaultMethods = COOKING_METHODS;
+
+    // Use a Map to merge, ensuring no duplicate values.
+    const mergedMap = new Map<string, OptionItem>();
+
+    // Add default methods first to establish a base order and include any new ones from updates.
+    defaultMethods.forEach(item => mergedMap.set(item.value, item));
+    
+    // Add/overwrite with user's saved methods. This preserves user's custom labels and their custom items.
+    savedMethods.forEach(item => mergedMap.set(item.value, item));
+
+    return Array.from(mergedMap.values());
+  });
+  const [cookingMethodCapacities, setCookingMethodCapacities] = useState<Record<string, number | null>>(() => {
+      const savedCapacities = loadFromLocalStorage<Record<string, number | null>>(COOKING_METHOD_CAPACITIES_STORAGE_KEY, COOKING_METHOD_CAPACITIES);
+      // Merge defaults into saved. Saved values take precedence.
+      const merged = { ...COOKING_METHOD_CAPACITIES, ...savedCapacities };
+      return merged;
+  });
   
   const [orderedMealTypes, setOrderedMealTypes] = useState<OptionItem[]>([]);
   const [orderedCookingMethods, setOrderedCookingMethods] = useState<OptionItem[]>([]);
@@ -1176,8 +1195,30 @@ const App: React.FC = () => {
         userService.saveUsers(mergedUsers);
         setUsers(mergedUsers);
 
-        // Import custom options
-        if (data.mealTypes) handleOptionsSave(data.mealTypes, data.cuisineOptions || cuisineOptions, data.cookingMethods || cookingMethodsList, data.cookingMethodCapacities || cookingMethodCapacities, data.mealTypesOrder, data.cuisineOptionsOrder, data.cookingMethodsOrder, true);
+        // Merge and save custom options
+        const mergeOptions = (defaults: readonly OptionItem[], current: OptionItem[], imported: OptionItem[] = []): OptionItem[] => {
+            const mergedMap = new Map<string, OptionItem>();
+            defaults.forEach(item => mergedMap.set(item.value, item));
+            current.forEach(item => mergedMap.set(item.value, item));
+            imported.forEach(item => mergedMap.set(item.value, item));
+            return Array.from(mergedMap.values());
+        };
+
+        const mergedMealTypes = mergeOptions(MEAL_TYPES, mealTypes, data.mealTypes);
+        const mergedCuisineOptions = mergeOptions(CUISINE_OPTIONS, cuisineOptions, data.cuisineOptions);
+        const mergedCookingMethods = mergeOptions(COOKING_METHODS, cookingMethodsList, data.cookingMethods);
+        const mergedCapacities = { ...COOKING_METHOD_CAPACITIES, ...cookingMethodCapacities, ...(data.cookingMethodCapacities || {}) };
+        
+        handleOptionsSave(
+            mergedMealTypes,
+            mergedCuisineOptions,
+            mergedCookingMethods,
+            mergedCapacities,
+            data.mealTypesOrder || mergedMealTypes.map(o => o.value),
+            data.cuisineOptionsOrder || mergedCuisineOptions.map(o => o.value),
+            data.cookingMethodsOrder || mergedCookingMethods.map(o => o.value),
+            true // silent save
+        );
 
         const totalNew = newRecipesCount + newShopItems + newPantryItems + newUsers;
         showNotification(`Adatok sikeresen betöltve! ${totalNew} új tétel hozzáadva.`, 'success');

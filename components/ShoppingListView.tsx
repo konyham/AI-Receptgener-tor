@@ -296,7 +296,8 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
                             </button>
                              {expandedAIGroups[category] && (
                                 <ul className="divide-y divide-gray-100 bg-white">
-                                    {items.map((item) => {
+                                    {/* FIX: Add explicit type annotation to 'item' to fix type inference issue. */}
+                                    {items.map((item: ShoppingListItem) => {
                                         const originalIndex = list.findIndex(li => li.text === item.text);
                                         return renderListItem(item, originalIndex);
                                     })}
