@@ -1,11 +1,5 @@
 
 
-
-
-
-
-
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
