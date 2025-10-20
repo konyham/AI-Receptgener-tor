@@ -967,7 +967,7 @@ const App: React.FC = () => {
                     const shouldBeExpanded = action === 'expand_category';
                     if (isExpanded !== shouldBeExpanded) {
                         // FIX: Changed handleToggleCategory to the correct state setter logic.
-                        setExpandedCategories(prev => ({...prev, [category]: !prev[category]}));
+                        setExpandedCategories(prev => ({...prev, [category]: shouldBeExpanded}));
                     }
                  }
                 break;
@@ -1262,112 +1262,189 @@ const App: React.FC = () => {
     }
   };
 
+    const handleShowAppGuide = async () => {
+        const GUIDE_CONTENT_KEY = 'app-guide-content';
+        const GUIDE_VERSION_KEY = 'app-guide-version';
+
+        const cachedContent = localStorage.getItem(GUIDE_CONTENT_KEY);
+        const cachedVersion = localStorage.getItem(GUIDE_VERSION_KEY);
+
+        if (cachedContent && cachedVersion === APP_VERSION) {
+            setAppGuideContent(cachedContent);
+            setIsInfoModalOpen(true);
+            return;
+        }
+
+        setIsInfoModalOpen(true);
+        setIsLoadingGuide(true);
+        try {
+            const content = await generateAppGuide();
+            setAppGuideContent(content);
+            localStorage.setItem(GUIDE_CONTENT_KEY, content);
+            localStorage.setItem(GUIDE_VERSION_KEY, APP_VERSION);
+        } catch (e: any) {
+            setAppGuideContent(`<p class="text-red-500">Hiba az útmutató betöltése közben: ${e.message}</p>`);
+        } finally {
+            setIsLoadingGuide(false);
+        }
+    };
+
   // FIX: Changed icon type from JSX.Element to React.ReactElement to resolve missing JSX namespace error.
   const navItems: { id: AppView, label: string, icon: React.ReactElement }[] = [
-    { id: 'generator', label: 'Generátor', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> },
-    { id: 'favorites', label: 'Mentett Receptek', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg> },
-    { id: 'pantry', label: 'Kamra', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" /><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" /></svg> },
+    { id: 'generator', label: 'Generátor', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.636-6.364l-.707-.707M12 21v-1m-6.364-1.636l.707-.707M6 17.001L6 17" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8s-3-5.5-4-5.5S8 8 8 8s-1.5 2.5-1.5 4.5C6.5 15.001 9 17 12 17s5.5-1.999 5.5-4.5C17.5 10.5 16 8 16 8z" /></svg> },
+    { id: 'favorites', label: 'Mentettek', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg> },
     { id: 'shopping-list', label: 'Bevásárlólista', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
-    { id: 'users', label: 'Felhasználók', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg> },
+    { id: 'pantry', label: 'Kamra', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg> },
+    { id: 'users', label: 'Felhasználók', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
   ];
-  
-  const currentViewComponent = () => {
-    switch (view) {
-      case 'generator':
-        return recipe === null ? (
-          <RecipeInputForm 
-            onSubmit={handleRecipeSubmit} 
-            isLoading={isLoading} 
-            initialFormData={initialFormData}
-            onFormPopulated={handleFormPopulated}
-            users={users}
-            mealTypes={mealTypes}
-            cuisineOptions={cuisineOptions}
-            cookingMethodsList={cookingMethodsList}
-            cookingMethodCapacities={cookingMethodCapacities}
-            orderedMealTypes={orderedMealTypes}
-            orderedCookingMethods={orderedCookingMethods}
-            orderedCuisineOptions={orderedCuisineOptions}
-            onOpenOptionsEditor={() => setIsOptionsEditorOpen(true)}
-            onOpenUrlImporter={() => setIsImportUrlModalOpen(true)}
-            onOpenRecipeFileImporter={() => {
-                const fileInput = document.createElement('input');
-                fileInput.type = 'file';
-                fileInput.accept = 'image/png, image/jpeg, image/webp, application/pdf';
-                fileInput.onchange = (e) => {
-                    const target = e.target as HTMLInputElement;
-                    if (target.files && target.files[0]) {
-                        handleParseFile(target.files[0]);
-                    }
-                };
-                fileInput.click();
-            }}
-            command={formCommand}
-            onCommandProcessed={() => setFormCommand(null)}
-          />
-        ) : alternativeRecipes ? (
-          <RecipeComparisonView
-            originalRecipe={recipe as Recipe}
-            variations={alternativeRecipes}
-            onClose={handleCloseComparisonView}
-            onSave={handleSaveToFavorites}
-            onSaveAll={handleSaveAllRecipes}
-            favorites={favorites}
-            mealTypes={mealTypes}
-            cuisineOptions={cuisineOptions}
-            cookingMethodsList={cookingMethodsList}
-          />
-        ) : 'menuName' in recipe ? (
-            'breakfast' in recipe ? (
-                <DailyMenuDisplay
-                    dailyMenu={recipe as DailyMenuRecipe}
-                    onClose={handleCloseRecipe}
-                    onSave={handleSaveDailyMenu}
-                    onAddItemsToShoppingList={handleMenuToShoppingList}
-                    onDailyMenuUpdate={handleDailyMenuUpdate}
+
+  const handleWakeLockActivate = useCallback(async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        await (navigator as any).wakeLock.request('screen');
+        showNotification('Képernyőzár feloldva a hangvezérlés idejére.', 'info');
+      }
+    } catch (err: any) {
+      console.error(`Wake Lock failed: ${err.name}, ${err.message}`);
+    }
+  }, [showNotification]);
+
+
+  return (
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 font-sans">
+      <header className="text-center mb-6">
+        <div className="flex justify-center items-center gap-4 mb-4">
+          <img src={konyhaMikiLogo} alt="Konyha Miki Logó" className="h-16" />
+        </div>
+        <div className="flex justify-center items-center gap-4">
+            <GlobalVoiceController onCommand={handleGlobalCommand} isProcessing={isProcessingVoice} onTranscriptUpdate={handleTranscriptUpdate} onActivate={handleWakeLockActivate} />
+        </div>
+      </header>
+
+      <nav className="flex justify-center flex-wrap gap-2 mb-6 p-2 bg-gray-100 rounded-lg">
+        {navItems.map(item => (
+          <button
+            key={item.id}
+            onClick={() => { setView(item.id); handleCloseRecipe(); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md font-semibold transition-colors text-sm sm:text-base ${view === item.id ? 'bg-primary-600 text-white shadow' : 'text-gray-600 hover:bg-primary-50'}`}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+      </nav>
+      
+      <main className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg">
+        {view === 'generator' && (
+          <div className="space-y-6">
+            {!recipe && !alternativeRecipes && (
+              <>
+                <DataManagementControls
+                    // FIX: Cannot find name 'onExport'. Changed to handleExport.
+                    onExport={handleExport}
+                    onImportClick={() => fileInputRef.current?.click()}
+                    onFileChange={handleImport}
+                    fileInputRef={fileInputRef}
+                    hasAnyData={hasAnyData}
                 />
-            ) : (
-                <MenuDisplay
-                    menu={recipe as MenuRecipe}
-                    onClose={handleCloseRecipe}
-                    onSave={handleSaveMenu}
-                    onAddItemsToShoppingList={handleMenuToShoppingList}
-                    shouldGenerateImages={shouldGenerateImage}
-                    onMenuUpdate={handleMenuUpdate}
+                <RecipeInputForm
+                    onSubmit={handleRecipeSubmit}
+                    isLoading={isLoading}
+                    initialFormData={initialFormData}
+                    onFormPopulated={handleFormPopulated}
+                    users={users}
                     mealTypes={mealTypes}
+                    cuisineOptions={cuisineOptions}
+                    cookingMethodsList={cookingMethodsList}
+                    cookingMethodCapacities={cookingMethodCapacities}
+                    orderedMealTypes={orderedMealTypes}
+                    orderedCuisineOptions={orderedCuisineOptions}
+                    orderedCookingMethods={orderedCookingMethods}
+                    onOpenOptionsEditor={() => setIsOptionsEditorOpen(true)}
+                    onOpenUrlImporter={() => setIsImportUrlModalOpen(true)}
+                    onOpenRecipeFileImporter={() => recipeFileInputRef.current?.click()}
+                    command={formCommand}
+                    onCommandProcessed={() => setFormCommand(null)}
+                />
+                <input type="file" ref={recipeFileInputRef} onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleParseFile(file);
+                }} accept="image/png, image/jpeg, image/webp, application/pdf" className="hidden" />
+              </>
+            )}
+            {isLoading && <LoadingSpinner message={isGeneratingVariations ? 'Variációk generálása...' : 'Recept generálása...'}/>}
+            {error && !isLoading && <ErrorMessage message={error} />}
+            {recipe && 'recipeName' in recipe && (
+                <div ref={recipeDisplayRef}>
+                    <RecipeDisplay
+                        recipe={recipe as Recipe}
+                        onClose={handleCloseRecipe}
+                        isFromFavorites={isFromFavorites}
+                        favorites={favorites}
+                        onSave={handleSaveToFavorites}
+                        onAddItemsToShoppingList={handleAddItemsToShoppingList}
+                        isLoading={isLoading}
+                        onRecipeUpdate={handleRecipeUpdate}
+                        users={users}
+                        onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
+                        shouldGenerateImageInitially={shouldGenerateImage}
+                        onGenerateVariations={handleGenerateVariations}
+                        mealTypes={mealTypes}
+                        cuisineOptions={cuisineOptions}
+                        cookingMethodsList={cookingMethodsList}
+                        category={currentCategory}
+                        command={recipeCommand}
+                        onCommandProcessed={() => setRecipeCommand(null)}
+                    />
+                </div>
+            )}
+            {recipe && 'menuName' in recipe && 'appetizer' in recipe && (
+                <div ref={recipeDisplayRef}>
+                    <MenuDisplay
+                        menu={recipe as MenuRecipe}
+                        onClose={handleCloseRecipe}
+                        onSave={handleSaveMenu}
+                        onAddItemsToShoppingList={handleMenuToShoppingList}
+                        shouldGenerateImages={shouldGenerateImage}
+                        onMenuUpdate={handleMenuUpdate}
+                        mealTypes={mealTypes}
+                        cookingMethodsList={cookingMethodsList}
+                    />
+                </div>
+            )}
+            {recipe && 'menuName' in recipe && 'breakfast' in recipe && (
+                <div ref={recipeDisplayRef}>
+                    <DailyMenuDisplay
+                        dailyMenu={recipe as DailyMenuRecipe}
+                        onClose={handleCloseRecipe}
+                        onSave={handleSaveDailyMenu}
+                        onAddItemsToShoppingList={handleMenuToShoppingList}
+                        onDailyMenuUpdate={handleDailyMenuUpdate}
+                    />
+                </div>
+            )}
+            {alternativeRecipes && recipe && 'recipeName' in recipe && (
+                <RecipeComparisonView
+                    originalRecipe={recipe as Recipe}
+                    variations={alternativeRecipes}
+                    onClose={handleCloseComparisonView}
+                    onSave={handleSaveToFavorites}
+                    onSaveAll={handleSaveAllRecipes}
+                    favorites={favorites}
+                    mealTypes={mealTypes}
+                    cuisineOptions={cuisineOptions}
                     cookingMethodsList={cookingMethodsList}
                 />
-            )
-        ) : (
-          <div ref={recipeDisplayRef}>
-            <RecipeDisplay
-                recipe={recipe as Recipe}
-                onClose={handleCloseRecipe}
-                isFromFavorites={isFromFavorites}
-                favorites={favorites}
-                onSave={handleSaveToFavorites}
-                onAddItemsToShoppingList={handleAddItemsToShoppingList}
-                isLoading={isLoading}
-                onRecipeUpdate={handleRecipeUpdate}
-                users={users}
-                onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
-                shouldGenerateImageInitially={shouldGenerateImage}
-                onGenerateVariations={handleGenerateVariations}
-                mealTypes={mealTypes}
-                cuisineOptions={cuisineOptions}
-                cookingMethodsList={cookingMethodsList}
-                category={currentCategory}
-                command={recipeCommand}
-                onCommandProcessed={() => setRecipeCommand(null)}
-            />
+            )}
           </div>
-        );
-      case 'favorites':
-        return <FavoritesView 
-            favorites={favorites} 
+        )}
+        
+        {view === 'favorites' && (
+          <FavoritesView
+            favorites={favorites}
             users={users}
-            onViewRecipe={handleViewFavorite} 
-            onDeleteRecipe={handleDeleteFavorite} 
+            onViewRecipe={handleViewFavorite}
+            onDeleteRecipe={handleDeleteFavorite}
             onDeleteCategory={handleDeleteCategory}
             onDeleteMenu={handleDeleteMenu}
             expandedCategories={expandedCategories}
@@ -1380,9 +1457,11 @@ const App: React.FC = () => {
             onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
             onUpdateRecipeCategories={handleUpdateRecipeCategories}
             cuisineOptions={cuisineOptions}
-        />;
-      case 'shopping-list':
-        return <ShoppingListView 
+          />
+        )}
+
+        {view === 'shopping-list' && (
+          <ShoppingListView
             list={shoppingList}
             onAddItems={handleAddItemsToShoppingList}
             onUpdateItem={handleUpdateShoppingListItem}
@@ -1391,9 +1470,11 @@ const App: React.FC = () => {
             onClearAll={handleClearAllShoppingList}
             onMoveItemToPantryRequest={handleMoveItemToPantryRequest}
             onReorder={handleReorderShoppingList}
-        />;
-      case 'pantry':
-        return <PantryView 
+          />
+        )}
+        
+        {view === 'pantry' && (
+          <PantryView
             pantry={pantry}
             onAddItems={handlePantryAddItem}
             onUpdateItem={handleUpdatePantryItem}
@@ -1401,98 +1482,77 @@ const App: React.FC = () => {
             onClearAll={handleClearPantry}
             onMoveCheckedToPantryRequest={handleMoveCheckedToPantryRequest}
             onGenerateFromPantryRequest={handleGenerateFromPantryRequest}
-            onGenerateFromSelectedPantryItemsRequest={handleGenerateFromSelectedPantryItems}
             shoppingListItems={shoppingList}
             onMoveItems={handleMovePantryItems}
-        />;
-      case 'users':
-        return <UsersView users={users} onSaveUser={handleSaveUser} onDeleteUser={handleDeleteUser} />;
-      default:
-        return null;
-    }
-  };
+            onGenerateFromSelectedPantryItemsRequest={handleGenerateFromSelectedPantryItems}
+          />
+        )}
 
-  return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6 font-sans">
-        <header className="text-center mb-6">
-            <div className="flex justify-center items-center gap-4">
-                <img src={konyhaMikiLogo} alt="Konyha Miki Logó" className="h-20" />
-            </div>
-        </header>
-        <div className="flex flex-col sm:flex-row justify-between items-center bg-gray-100 p-3 rounded-lg border gap-4 mb-6">
-            <GlobalVoiceController
-                onCommand={handleGlobalCommand}
-                isProcessing={isProcessingVoice}
-                onTranscriptUpdate={handleTranscriptUpdate}
-                onActivate={() => {
-                    const message = `Kihangosított mód aktív! Néhány parancs, ami nem használja az AI-t: ${LOCAL_COMMAND_EXAMPLES.map(c => `'${c}'`).join(', ')}`;
-                    showNotification(message, 'info', 10000);
-                }}
-            />
-            <button 
-                type="button" 
-                onClick={async () => {
-                    setIsLoadingGuide(true);
-                    try {
-                        const content = await generateAppGuide();
-                        setAppGuideContent(content);
-                    } catch (e: any) {
-                        setAppGuideContent(`<p class="text-red-500">Hiba: ${e.message}</p>`);
-                    } finally {
-                        setIsLoadingGuide(false);
-                        setIsInfoModalOpen(true);
-                    }
-                }}
-                className="bg-white text-blue-600 font-semibold py-2 px-4 rounded-lg border border-blue-300 shadow-sm hover:bg-blue-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center gap-2"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
-                Információ
-            </button>
-        </div>
-
-        <nav className="mb-6">
-            <ul className="flex flex-wrap justify-center gap-2">
-            {navItems.map(item => (
-                <li key={item.id}>
-                <button
-                    onClick={() => {
-                        setRecipe(null);
-                        setError(null);
-                        setAlternativeRecipes(null);
-                        setView(item.id);
-                    }}
-                    className={`flex items-center gap-2 font-semibold py-2 px-4 rounded-full transition-colors ${view === item.id ? 'bg-primary-600 text-white shadow-md' : 'bg-white text-gray-700 hover:bg-primary-50'}`}
-                >
-                    {item.icon}
-                    <span className="hidden sm:inline">{item.label}</span>
-                </button>
-                </li>
-            ))}
-            </ul>
-        </nav>
+        {view === 'users' && (
+          <UsersView
+            users={users}
+            onSaveUser={handleSaveUser}
+            onDeleteUser={handleDeleteUser}
+          />
+        )}
+      </main>
       
-        {view === 'generator' && <DataManagementControls onExport={handleExport} onImportClick={() => fileInputRef.current?.click()} onFileChange={handleImport} fileInputRef={fileInputRef} hasAnyData={hasAnyData} />}
-        
-        <main>
-            {isLoading || isGeneratingVariations ? (
-                <LoadingSpinner message={isGeneratingVariations ? 'Variációk generálása...' : 'Recept generálása...'} />
-            ) : error ? (
-                <ErrorMessage message={error} />
-            ) : (
-                currentViewComponent()
-            )}
-        </main>
-        
-        <footer className="text-center mt-8 text-xs text-gray-400">
-            <p>Konyha Miki AI Receptgenerátor v{APP_VERSION}</p>
-        </footer>
+      <footer className="text-center mt-6 text-sm text-gray-500 space-y-2">
+         <p>
+            <button onClick={handleShowAppGuide} className="hover:underline text-primary-700 font-semibold">Információ a receptgenerátorról</button>
+         </p>
+         <p>AI Receptgenerátor - Konyha Miki módra | Verzió: {APP_VERSION}</p>
+         <p className="px-4">
+            Figyelem: Az AI által generált receptek tájékoztató jellegűek. Főzés előtt mindig ellenőrizze az összetevőket és az elkészítési lépéseket. Különös óvatossággal járjon el allergia, intolerancia, vagy speciális diéta esetén! Maradékok felhasználásakor mindig tartsa be az élelmiszerbiztonsági előírásokat!
+         </p>
+          <div className="pt-2">
+            <h4 className="font-semibold">Hangparancs példák:</h4>
+            <p className="text-xs text-gray-400">{LOCAL_COMMAND_EXAMPLES.join(' | ')}</p>
+          </div>
+      </footer>
 
-        {isLocationPromptOpen && <LocationPromptModal isOpen={isLocationPromptOpen} onClose={() => setIsLocationPromptOpen(false)} onSelect={(loc) => { locationCallback(loc); setIsLocationPromptOpen(false); }} />}
-        {isLoadOnStartModalOpen && <LoadOnStartModal isOpen={isLoadOnStartModalOpen} onClose={() => setIsLoadOnStartModalOpen(false)} onLoad={() => fileInputRef.current?.click()} />}
-        <OptionsEditPanel isOpen={isOptionsEditorOpen} onClose={() => setIsOptionsEditorOpen(false)} onSave={handleOptionsSave} initialMealTypes={mealTypes} initialCuisineOptions={cuisineOptions} initialCookingMethods={cookingMethodsList} initialCapacities={cookingMethodCapacities} />
-        <InfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} content={appGuideContent} isLoading={isLoadingGuide} />
-        <ImportUrlModal isOpen={isImportUrlModalOpen} onClose={() => setIsImportUrlModalOpen(false)} onParse={handleParseUrl} isParsing={isParsingUrl} error={parsingUrlError} />
-        {voiceFeedback && <VoiceFeedbackBubble message={voiceFeedback} isProcessing={isProcessingVoice} />}
+      {isLocationPromptOpen && (
+          <LocationPromptModal
+            isOpen={isLocationPromptOpen}
+            onClose={() => setIsLocationPromptOpen(false)}
+            onSelect={(location) => {
+                locationCallback(location);
+                setIsLocationPromptOpen(false);
+            }}
+          />
+      )}
+      <LoadOnStartModal 
+        isOpen={isLoadOnStartModalOpen}
+        onClose={() => setIsLoadOnStartModalOpen(false)}
+        onLoad={() => fileInputRef.current?.click()}
+      />
+      <OptionsEditPanel 
+        isOpen={isOptionsEditorOpen}
+        onClose={() => setIsOptionsEditorOpen(false)}
+        onSave={(newMealTypes, newCuisineOptions, newCookingMethods, newCapacities) => handleOptionsSave(newMealTypes, newCuisineOptions, newCookingMethods, newCapacities)}
+        initialMealTypes={mealTypes}
+        initialCuisineOptions={cuisineOptions}
+        initialCookingMethods={cookingMethodsList}
+        initialCapacities={cookingMethodCapacities}
+      />
+      {isInfoModalOpen && (
+        <InfoModal
+            isOpen={isInfoModalOpen}
+            onClose={() => setIsInfoModalOpen(false)}
+            content={appGuideContent}
+            isLoading={isLoadingGuide}
+        />
+      )}
+      <ImportUrlModal
+        isOpen={isImportUrlModalOpen}
+        onClose={() => setIsImportUrlModalOpen(false)}
+        onParse={handleParseUrl}
+        isParsing={isParsingUrl}
+        error={parsingUrlError}
+      />
+       {voiceFeedback && (
+        <VoiceFeedbackBubble message={voiceFeedback} isProcessing={isProcessingVoice} />
+      )}
     </div>
   );
 };

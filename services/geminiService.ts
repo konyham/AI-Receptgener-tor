@@ -345,6 +345,7 @@ export const generateMenu = async (
       },
     });
     
+    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
     const json = JSON.parse(response.text);
     const menu = json as MenuRecipe;
     
@@ -443,6 +444,7 @@ export const generateDailyMenu = async (
       },
     });
     
+    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
     const json = JSON.parse(response.text);
     const menu = json as DailyMenuRecipe;
     
@@ -769,6 +771,7 @@ export const analyzeInstructionForTimer = async (instructionText: string): Promi
       },
     });
 
+    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
     const jsonText = response.text.trim();
     if (jsonText.toLowerCase() === 'null') {
       return null;
@@ -1035,6 +1038,7 @@ A leírás legyen barátságos és segítőkész. A cél, hogy egy új felhaszn�
       model: 'gemini-2.5-flash',
       contents: prompt,
     });
+    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
     return response.text;
   } catch (e: any) {
     console.error('Error generating app guide:', e);
@@ -1070,6 +1074,7 @@ export const parseRecipeFromUrl = async (url: string): Promise<Partial<Recipe>> 
             },
         });
 
+        // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
         const json = JSON.parse(response.text);
         return json as Partial<Recipe>;
 
@@ -1114,6 +1119,7 @@ export const parseRecipeFromFile = async (fileData: {inlineData: { data: string,
             },
         });
 
+        // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
         const json = JSON.parse(response.text);
         return json as Partial<Recipe>;
 
