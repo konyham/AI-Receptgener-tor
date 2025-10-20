@@ -6,6 +6,10 @@
   "display": "standalone",
   "background_color": "#fbf6ef",
   "theme_color": "#854d24",
+  "scope": "/",
+  "id": "/",
+  "orientation": "any",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "https://storage.googleapis.com/genai-assets/konyha-miki-icons/icon-192x192.png",

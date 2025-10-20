@@ -265,4 +265,6 @@ export interface SpeechRecognition {
   onend: () => void;
   onresult: (event: any) => void;
   onerror: (event: any) => void;
+  // FIX: Added the 'abort' method to the SpeechRecognition interface to match the Web Speech API and resolve a type error in the useSpeechRecognition hook.
+  abort(): void;
 }

@@ -248,7 +248,7 @@ export const generateRecipe = async (
       },
     });
     
-    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+    // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
     const json = JSON.parse(response.text);
 
     return {
@@ -346,7 +346,7 @@ export const generateMenu = async (
       },
     });
     
-    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+    // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
     const json = JSON.parse(response.text);
     const menu = json as MenuRecipe;
     
@@ -445,7 +445,7 @@ export const generateDailyMenu = async (
       },
     });
     
-    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+    // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
     const json = JSON.parse(response.text);
     const menu = json as DailyMenuRecipe;
     
@@ -516,7 +516,7 @@ export const categorizeIngredients = async (ingredients: string[]): Promise<Cate
             },
         });
         
-        // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+        // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
         const json = JSON.parse(response.text);
         
         // Ensure the response matches the expected structure
@@ -567,7 +567,7 @@ export const getRecipeModificationSuggestions = async (ingredients: string, reci
         responseSchema: schema,
       },
     });
-    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+    // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
     return JSON.parse(response.text) as RecipeSuggestions;
   } catch (e: any) {
     console.error('Error getting recipe modification suggestions:', e);
@@ -580,7 +580,7 @@ export const getRecipeModificationSuggestions = async (ingredients: string, reci
 
 export const interpretAppCommand = async (transcript: string, view: AppView, context: any): Promise<AppCommand> => {
   const prompt = `Értelmezd a következő parancsot egy receptalkalmazás kontextusában: "${transcript}".
-  Az egyszerű navigációs és görgetési parancsokat már egy másik rendszer feldolgozta; a te feladatod az ennél összetettebb, adat-alapú parancsok értelmezése.
+  Az egyszerű navigációs és görgetési parancsokat már egy másik rendszer feldgozta; a te feladatod az ennél összetettebb, adat-alapú parancsok értelmezése.
   A jelenlegi nézet: "${view}".
   Elérhető kategóriák a kedvencekben: ${context.categories.join(', ')}.
   Bevásárlólista elemei: ${context.shoppingListItems.join(', ')}.
@@ -612,7 +612,7 @@ export const interpretAppCommand = async (transcript: string, view: AppView, con
         responseSchema: schema,
       },
     });
-    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+    // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
     return JSON.parse(response.text) as AppCommand;
   } catch (e: any) {
     console.error('Error interpreting app command:', e);
@@ -648,7 +648,7 @@ export const interpretFormCommand = async (transcript: string, mealTypes: Option
       }
     });
     
-    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+    // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
     let jsonText = response.text.trim();
     // Handle potential markdown code block fences
     if (jsonText.startsWith('```json')) {
@@ -675,7 +675,7 @@ export const suggestMealType = async (ingredientsString: string, specialRequest:
             model: 'gemini-2.5-flash',
             contents: prompt,
         });
-        // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+        // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
         return (response.text ?? '').trim();
     } catch (e: any) {
         console.error('Error suggesting meal type:', e);
@@ -728,7 +728,7 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
         responseSchema: schema,
       },
     });
-    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+    // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
     return JSON.parse(response.text) as VoiceCommandResult;
   } catch (e: any) {
     console.error('Error interpreting user command:', e);
@@ -772,7 +772,7 @@ export const analyzeInstructionForTimer = async (instructionText: string): Promi
       },
     });
 
-    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+    // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
     const jsonText = response.text.trim();
     if (jsonText.toLowerCase() === 'null') {
       return null;
@@ -833,7 +833,7 @@ export const calculateRecipeCost = async (recipe: Recipe): Promise<string> => {
       model: 'gemini-2.5-flash',
       contents: prompt,
     });
-    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+    // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
     return response.text.trim();
   } catch (e: any) {
     console.error('Error calculating recipe cost:', e);
@@ -856,7 +856,7 @@ export const simplifyRecipe = async (recipe: Recipe): Promise<Recipe> => {
         responseSchema: recipeSchema,
       },
     });
-    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+    // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
     const simplified = JSON.parse(response.text);
     return {
       ...recipe, // Keep original meta-data
@@ -933,7 +933,7 @@ A válaszod egy JSON objektum legyen, ami egy "suggestions" kulcsot tartalmaz. E
         responseSchema: schema,
       },
     });
-    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+    // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
     const json = JSON.parse(response.text);
     return json as { suggestions: AlternativeRecipeSuggestion[] };
   } catch (e: any) {
@@ -1044,7 +1044,7 @@ A leírás legyen barátságos és segítőkész. A cél, hogy egy új felhaszn�
       model: 'gemini-2.5-flash',
       contents: prompt,
     });
-    // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+    // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
     return response.text;
   } catch (e: any) {
     console.error('Error generating app guide:', e);
@@ -1080,7 +1080,7 @@ export const parseRecipeFromUrl = async (url: string): Promise<Partial<Recipe>> 
             },
         });
 
-        // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+        // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
         const json = JSON.parse(response.text);
         return json as Partial<Recipe>;
 
@@ -1125,7 +1125,7 @@ export const parseRecipeFromFile = async (fileData: {inlineData: { data: string,
             },
         });
 
-        // FIX: Access the .text property for the JSON string as per Gemini API guidelines.
+        // FIX: Incorrectly accessing `response.json`. The correct property is `response.text` as per Gemini API guidelines.
         const json = JSON.parse(response.text);
         return json as Partial<Recipe>;
 
