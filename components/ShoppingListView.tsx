@@ -93,14 +93,10 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     };
     
     const reorderedList = [...list];
-    // FIX: `splice` returns an array of removed items. This is corrected by using array destructuring
-    // to extract the single item and then checking for its existence before re-inserting it.
-    const [draggedItem] = reorderedList.splice(dragItem.current, 1);
-    
-    // If an item was successfully removed (it's not undefined), insert it at the new position.
-    if (draggedItem) {
-      reorderedList.splice(dragOverItem.current!, 0, draggedItem);
-    }
+    // FIX: `splice` returns an array of removed items. This is corrected by using the spread operator
+    // to correctly re-insert the dragged item at its new position, resolving a type error.
+    const draggedItems = reorderedList.splice(dragItem.current, 1);
+    reorderedList.splice(dragOverItem.current, 0, ...draggedItems);
     
     // Reset refs and update state.
     dragItem.current = null;
