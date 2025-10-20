@@ -1195,19 +1195,19 @@ const App: React.FC = () => {
         userService.saveUsers(mergedUsers);
         setUsers(mergedUsers);
 
-        // Merge and save custom options
-        const mergeOptions = (defaults: readonly OptionItem[], current: OptionItem[], imported: OptionItem[] = []): OptionItem[] => {
+        // FIX: The import logic now correctly merges default options with imported options,
+        // preventing defaults from being deleted if they are not present in the import file.
+        const mergeImportedOptions = (defaults: readonly OptionItem[], imported: OptionItem[] = []): OptionItem[] => {
             const mergedMap = new Map<string, OptionItem>();
-            defaults.forEach(item => mergedMap.set(item.value, item));
-            current.forEach(item => mergedMap.set(item.value, item));
-            imported.forEach(item => mergedMap.set(item.value, item));
+            defaults.forEach(item => mergedMap.set(item.value, item)); // Load defaults first
+            imported.forEach(item => mergedMap.set(item.value, item)); // Overwrite/add with imported
             return Array.from(mergedMap.values());
         };
 
-        const mergedMealTypes = mergeOptions(MEAL_TYPES, mealTypes, data.mealTypes);
-        const mergedCuisineOptions = mergeOptions(CUISINE_OPTIONS, cuisineOptions, data.cuisineOptions);
-        const mergedCookingMethods = mergeOptions(COOKING_METHODS, cookingMethodsList, data.cookingMethods);
-        const mergedCapacities = { ...COOKING_METHOD_CAPACITIES, ...cookingMethodCapacities, ...(data.cookingMethodCapacities || {}) };
+        const mergedMealTypes = mergeImportedOptions(MEAL_TYPES, data.mealTypes);
+        const mergedCuisineOptions = mergeImportedOptions(CUISINE_OPTIONS, data.cuisineOptions);
+        const mergedCookingMethods = mergeImportedOptions(COOKING_METHODS, data.cookingMethods);
+        const mergedCapacities = { ...COOKING_METHOD_CAPACITIES, ...(data.cookingMethodCapacities || {}) };
         
         handleOptionsSave(
             mergedMealTypes,

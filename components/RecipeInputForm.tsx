@@ -4,6 +4,7 @@ import { DIET_OPTIONS, RECIPE_PACE_OPTIONS } from '../constants';
 import { suggestMealType } from '../services/geminiService';
 import { useNotification } from '../contexts/NotificationContext';
 import { safeSetLocalStorage } from '../utils/storage';
+import CookingMethodModal from './CookingMethodModal';
 
 interface RecipeInputFormProps {
   onSubmit: (params: { ingredients: string, excludedIngredients: string, diet: DietOption, mealType: MealType, cuisine: CuisineOption, cookingMethods: CookingMethod[], specialRequest: string, withCost: boolean, withImage: boolean, numberOfServings: number, recipePace: RecipePace, mode: 'standard' | 'leftover', useSeasonalIngredients: boolean }) => void;
@@ -71,6 +72,8 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
 
+  const [isCookingMethodModalOpen, setIsCookingMethodModalOpen] = useState(false);
+
   const { showNotification } = useNotification();
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const suggestionTimeoutRef = useRef<number | null>(null);
@@ -120,18 +123,17 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
                 const methodToToggle = cookingPayload.key as CookingMethod;
                 setCookingMethods(prev => {
                     const isPresent = prev.includes(methodToToggle);
-                    let newState: CookingMethod[];
-                    if (isPresent) {
-                        newState = prev.filter(m => m !== methodToToggle);
-                    } else {
-                        newState = [...prev, methodToToggle];
+
+                    if (methodToToggle === TRADITIONAL_COOKING_METHOD) {
+                        return isPresent ? [] : [TRADITIONAL_COOKING_METHOD];
                     }
 
-                    if (methodToToggle === TRADITIONAL_COOKING_METHOD && !isPresent) {
-                        return [TRADITIONAL_COOKING_METHOD];
-                    }
-                    if (methodToToggle !== TRADITIONAL_COOKING_METHOD && !isPresent) {
-                        newState = newState.filter(m => m !== TRADITIONAL_COOKING_METHOD);
+                    let newState = prev.filter(m => m !== TRADITIONAL_COOKING_METHOD);
+
+                    if (isPresent) {
+                        newState = newState.filter(m => m !== methodToToggle);
+                    } else {
+                        newState.push(methodToToggle);
                     }
                     
                     return newState;
@@ -405,7 +407,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     }
     const finalSpecialRequest = [specialRequest.trim(), userPreferencesRequest.trim()].filter(Boolean).join(' ');
     
-    // FIX: Add explicit type annotation to the 'map' callback parameter 'm' to resolve a type inference issue.
     const orderedSelectedMethods = orderedCookingMethods
         .map((m: OptionItem) => m.value)
         .filter(value => cookingMethods.includes(value));
@@ -433,27 +434,6 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     e.preventDefault();
     triggerSubmit();
   };
-  
-  const handleCookingMethodToggle = (methodValue: CookingMethod) => {
-    setCookingMethods(prev => {
-        const isPresent = prev.includes(methodValue);
-
-        if (methodValue === TRADITIONAL_COOKING_METHOD) {
-            return isPresent ? [] : [TRADITIONAL_COOKING_METHOD];
-        }
-
-        let newState = prev.filter(m => m !== TRADITIONAL_COOKING_METHOD);
-
-        if (isPresent) {
-            newState = newState.filter(m => m !== methodValue);
-        } else {
-            newState.push(methodValue);
-        }
-        
-        return newState;
-    });
-  };
-
 
   const handleUserSelectionChange = (userId: string) => {
     setSelectedUserIds(prev =>
@@ -864,29 +844,33 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
         </select>
       </div>
 
-      <div className="mt-6">
+      <div>
         <label className="block text-lg font-semibold text-gray-700 mb-2">Elkészítés módja</label>
-        <div className="flex flex-wrap gap-2 p-2 border border-gray-300 rounded-lg bg-gray-50">
-            {orderedCookingMethods.map((option) => {
-                const isSelected = cookingMethods.includes(option.value);
+        <div className="p-3 border border-gray-300 rounded-lg bg-gray-50 min-h-[50px] space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {cookingMethods.length > 0 ? (
+              cookingMethods.map(methodValue => {
+                const method = cookingMethodsList.find(m => m.value === methodValue);
                 return (
-                    <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => handleCookingMethodToggle(option.value)}
-                        className={`px-4 py-2 text-sm font-medium rounded-lg border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500
-                            ${isSelected 
-                                ? 'bg-primary-100 border-primary-400 text-primary-800' 
-                                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
-                            }`}
-                        aria-pressed={isSelected}
-                    >
-                        {option.label}
-                    </button>
+                  <span key={methodValue} className="flex items-center gap-2 bg-primary-200 text-primary-800 text-sm font-medium pl-3 pr-2 py-1 rounded-full">
+                    {method?.label || methodValue}
+                  </span>
                 );
-            })}
+              })
+            ) : (
+              <p className="text-gray-500 text-sm">Hagyományos (alapértelmezett)</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsCookingMethodModalOpen(true)}
+            className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            Módok kiválasztása...
+          </button>
         </div>
       </div>
+
 
        <div>
         <label htmlFor="numberOfServings" className="block text-lg font-semibold text-gray-700 mb-2">
@@ -972,6 +956,13 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
           {isLoading ? 'Recept generálása...' : (ingredients.length === 0 && mode === 'standard' ? 'Jöhet a meglepetés recept!' : 'Jöhet a recept!')}
         </button>
       </div>
+      <CookingMethodModal
+        isOpen={isCookingMethodModalOpen}
+        onClose={() => setIsCookingMethodModalOpen(false)}
+        onSave={setCookingMethods}
+        options={orderedCookingMethods}
+        initialSelection={cookingMethods}
+      />
     </form>
   );
 };

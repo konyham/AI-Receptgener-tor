@@ -83,7 +83,6 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
       }
   };
 
-  // FIX: Rewrote drag sort logic to be more explicit and type-safe, avoiding potential 'unknown' type errors from splice.
   const handleDragSort = () => {
     if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
         dragItem.current = null;
@@ -92,11 +91,13 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     };
     
     const reorderedList = [...list];
-    // Remove the dragged item using splice. Destructuring the result array ensures `draggedItem` is correctly typed.
-    const [draggedItem] = reorderedList.splice(dragItem.current, 1);
+    // FIX: Argument of type 'unknown' is not assignable to parameter of type 'ShoppingListItem'.
+    // Avoid destructuring from splice result, which can lead to incorrect type inference in some TypeScript configurations.
+    const draggedItems = reorderedList.splice(dragItem.current, 1);
     
-    // If an item was successfully removed (is not undefined), insert it at the new position.
-    if (draggedItem) {
+    // If an item was successfully removed, insert it at the new position.
+    if (draggedItems.length > 0) {
+        const draggedItem = draggedItems[0];
         reorderedList.splice(dragOverItem.current, 0, draggedItem);
     }
     
@@ -296,7 +297,6 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
                             </button>
                              {expandedAIGroups[category] && (
                                 <ul className="divide-y divide-gray-100 bg-white">
-                                    {/* FIX: Add explicit type annotation to 'item' to fix type inference issue. */}
                                     {items.map((item: ShoppingListItem) => {
                                         const originalIndex = list.findIndex(li => li.text === item.text);
                                         return renderListItem(item, originalIndex);

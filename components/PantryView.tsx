@@ -122,7 +122,6 @@ const PantryView: React.FC<PantryViewProps> = ({
   const [activeLocation, setActiveLocation] = useState<PantryLocation>(PANTRY_LOCATIONS[0]);
   const [editingItem, setEditingItem] = useState<{ item: PantryItem } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  // FIX: Using a more specific key type `PantryLocation` and value `Set<number>` resolves potential indexing and type inference issues.
   const [selectedItems, setSelectedItems] = useState<Record<PantryLocation, Set<number>>>({ Tiszadada: new Set<number>(), Vásárosnamény: new Set<number>() });
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [storageFilter, setStorageFilter] = useState<StorageType | 'all'>('all');
@@ -246,10 +245,11 @@ const PantryView: React.FC<PantryViewProps> = ({
         if (storageFilter === 'all') return true;
         return item.storageType === storageFilter;
       })
-      // FIX: Add explicit type annotation to sort callback parameters to fix type inference issue.
       .sort((a: PantryItemWithIndex, b: PantryItemWithIndex) => {
-        // FIX: Replaced enum-based object keys with string literals to avoid type resolution issues.
-        const urgency: Record<string, number> = {
+        // FIX: Type 'unknown' cannot be used as an index type.
+        // By using Record<StorageType, number>, we inform TypeScript that the keys of 'urgency'
+        // are from the StorageType enum, resolving the indexing error.
+        const urgency: Record<StorageType, number> = {
           'refrigerator': 1,
           'pantry': 2,
           'freezer': 3,
@@ -309,7 +309,6 @@ const PantryView: React.FC<PantryViewProps> = ({
     }
   };
   
-  // FIX: Replaced enum-based object keys with string literals to avoid type resolution issues.
   const storageTypeLabels: Record<string, { label: string; icon: string }> = {
     'freezer': { label: "Fagyasztó", icon: "❄️" },
     'refrigerator': { label: "Hűtő", icon: "🧊" },
