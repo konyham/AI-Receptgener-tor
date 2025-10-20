@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -246,9 +247,8 @@ const PantryView: React.FC<PantryViewProps> = ({
         return item.storageType === storageFilter;
       })
       .sort((a: PantryItemWithIndex, b: PantryItemWithIndex) => {
-        // FIX: Type 'unknown' cannot be used as an index type.
-        // By using Record<StorageType, number>, we inform TypeScript that the keys of 'urgency'
-        // are from the StorageType enum, resolving the indexing error.
+        // FIX: Explicitly typing the 'urgency' object with Record<StorageType, number> ensures
+        // TypeScript understands that `a.storageType` is a valid key, resolving the index type error.
         const urgency: Record<StorageType, number> = {
           'refrigerator': 1,
           'pantry': 2,

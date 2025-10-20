@@ -16,7 +16,6 @@ import OptionsEditPanel from './components/OptionsEditPanel';
 import InfoModal from './components/InfoModal';
 import ImportUrlModal from './components/ImportUrlModal';
 import RecipeComparisonView from './components/RecipeComparisonView';
-import VoiceFeedbackBubble from './components/VoiceFeedbackBubble';
 import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile, generateRecipeVariations, interpretFormCommand, interpretUserCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
@@ -1611,9 +1610,6 @@ const App: React.FC = () => {
         isParsing={isParsingUrl}
         error={parsingUrlError}
       />
-       {voiceFeedback && (
-        <VoiceFeedbackBubble message={voiceFeedback} isProcessing={isProcessingVoice} />
-      )}
     </div>
   );
 };

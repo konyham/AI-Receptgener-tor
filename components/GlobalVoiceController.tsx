@@ -32,13 +32,18 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
 
     if (mode === 'LISTENING_FOR_WAKE_WORD' && transcript.toLowerCase().includes('oké miki')) {
       stopListening();
+      setMode('AWAITING_COMMAND');
       speak("Hallgatom...", () => {
+        // Csak a beszéd befejezése után kezdjük a figyelést
+        startListening();
         setMode('LISTENING_FOR_COMMAND');
       });
     } else if (mode === 'LISTENING_FOR_COMMAND' && isFinal && transcript.trim() && transcript !== lastTranscript.current) {
       if (commandTimeoutRef.current) clearTimeout(commandTimeoutRef.current);
       lastTranscript.current = transcript;
+      stopListening();
       onCommand(transcript);
+      // Parancs feldolgozása után azonnal álljunk vissza a vezényszó figyelésére
       setMode('LISTENING_FOR_WAKE_WORD');
     }
   };
@@ -46,6 +51,8 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
   const handleSpeechError = (error: string) => {
       if (error === 'not-allowed') {
           showNotification('A mikrofon használata le van tiltva. A funkcióhoz engedélyezze a böngészőben.', 'info');
+          setIsHandsFreeActive(false);
+          setMode('IDLE');
       }
   };
 
@@ -56,38 +63,50 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
     onError: handleSpeechError,
   });
 
+  // Állapotgép vezérlő logikája
   useEffect(() => {
-    if (isHandsFreeActive && permissionState === 'granted' && !isListening) {
-      startListening();
-      setMode('LISTENING_FOR_WAKE_WORD');
-    } else if (!isHandsFreeActive && isListening) {
+    if (!isHandsFreeActive && isListening) {
       stopListening();
       setMode('IDLE');
+    } else if (isHandsFreeActive && permissionState === 'granted' && !isListening) {
+      // Csak akkor indítsuk újra a figyelést, ha a megfelelő állapotban vagyunk
+      // (pl. nem várunk a "Hallgatom..." befejezésére)
+      if (mode === 'LISTENING_FOR_WAKE_WORD') {
+        startListening();
+      }
     }
-  }, [isHandsFreeActive, isListening, permissionState, startListening, stopListening]);
+  }, [isHandsFreeActive, isListening, permissionState, mode, startListening, stopListening]);
+
 
   useEffect(() => {
     if (mode === 'LISTENING_FOR_COMMAND') {
       if (commandTimeoutRef.current) clearTimeout(commandTimeoutRef.current);
+      // Időzítő, hogy visszatérjünk a vezényszó figyeléséhez, ha nem érkezik parancs
       commandTimeoutRef.current = window.setTimeout(() => {
+        if(isListening) stopListening();
         setMode('LISTENING_FOR_WAKE_WORD');
+        onTranscriptUpdate(null);
       }, 8000);
     }
     return () => {
       if (commandTimeoutRef.current) clearTimeout(commandTimeoutRef.current);
     };
-  }, [mode]);
+  }, [mode, isListening, stopListening, onTranscriptUpdate]);
   
   const toggleHandsFree = () => {
-      if (permissionState !== 'granted') {
+      if (permissionState !== 'granted' && !isHandsFreeActive) {
           showNotification("A hangvezérléshez engedélyezze a mikrofon használatát.", "info");
       }
-      if (isHandsFreeActive) {
-        onTranscriptUpdate(null);
-      } else {
+      
+      const newActiveState = !isHandsFreeActive;
+      setIsHandsFreeActive(newActiveState);
+
+      if (newActiveState) {
         onActivate();
+        setMode('LISTENING_FOR_WAKE_WORD'); // Kezdőállapot beállítása az indításhoz
+      } else {
+        onTranscriptUpdate(null);
       }
-      setIsHandsFreeActive(prev => !prev);
   }
 
   let statusText = "Kikapcsolva";
@@ -95,6 +114,7 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
     if (isProcessing) statusText = "Feldolgozás...";
     else if (mode === 'LISTENING_FOR_WAKE_WORD') statusText = "Figyelek az 'Oké, Miki!'-re...";
     else if (mode === 'LISTENING_FOR_COMMAND') statusText = "Hallgatom a parancsot...";
+    else if (mode === 'AWAITING_COMMAND') statusText = 'Válasz...';
   }
   if (permissionState === 'denied') statusText = "Mikrofon letiltva";
 

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { ShoppingListItem, StorageType, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -91,8 +92,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     };
     
     const reorderedList = [...list];
-    // FIX: Argument of type 'unknown' is not assignable to parameter of type 'ShoppingListItem'.
-    // Avoid destructuring from splice result, which can lead to incorrect type inference in some TypeScript configurations.
+    // FIX: Correctly handle the array returned by `splice` to avoid incorrect type inference by TypeScript.
     const draggedItems = reorderedList.splice(dragItem.current, 1);
     
     // If an item was successfully removed, insert it at the new position.
