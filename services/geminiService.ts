@@ -23,6 +23,7 @@ import {
   AlternativeRecipeSuggestion,
   MenuRecipe,
   DailyMenuRecipe,
+  TRADITIONAL_COOKING_METHOD,
 } from '../types';
 
 // FIX: Initialize the GoogleGenAI client with API key from environment variables as per guidelines.
@@ -188,7 +189,7 @@ export const generateRecipe = async (
         }
     }
 
-    const machineMethods = cookingMethods.filter(cm => cm !== CookingMethod.TRADITIONAL);
+    const machineMethods = cookingMethods.filter(cm => cm !== TRADITIONAL_COOKING_METHOD);
     if (machineMethods.length > 0) {
         const capacities = machineMethods
             .map(cm => ({ name: customCookingMethods.find(c => c.value === cm)?.label || cm, capacity: customCookingMethodCapacities[cm] }))

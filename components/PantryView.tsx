@@ -122,7 +122,8 @@ const PantryView: React.FC<PantryViewProps> = ({
   const [activeLocation, setActiveLocation] = useState<PantryLocation>(PANTRY_LOCATIONS[0]);
   const [editingItem, setEditingItem] = useState<{ item: PantryItem } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedItems, setSelectedItems] = useState<Record<PantryLocation, Set<number>>>({ Tiszadada: new Set(), Vásárosnamény: new Set() });
+  // FIX: Using a more specific key type `PantryLocation` and value `Set<number>` resolves potential indexing and type inference issues.
+  const [selectedItems, setSelectedItems] = useState<Record<PantryLocation, Set<number>>>({ Tiszadada: new Set<number>(), Vásárosnamény: new Set<number>() });
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [storageFilter, setStorageFilter] = useState<StorageType | 'all'>('all');
 
@@ -157,8 +158,7 @@ const PantryView: React.FC<PantryViewProps> = ({
   };
 
   const handleToggleSelectItem = (originalIndex: number) => {
-    // FIX: Explicitly typed the `prev` parameter to `Record<PantryLocation, Set<number>>` to resolve an error where it was being inferred as `unknown`, preventing property access.
-    setSelectedItems((prev: Record<PantryLocation, Set<number>>) => {
+    setSelectedItems(prev => {
         const newSelection = new Set(prev[activeLocation]);
         if (newSelection.has(originalIndex)) {
             newSelection.delete(originalIndex);
@@ -247,10 +247,11 @@ const PantryView: React.FC<PantryViewProps> = ({
         return item.storageType === storageFilter;
       })
       .sort((a, b) => {
-        const urgency: Record<StorageType, number> = {
-          [StorageType.REFRIGERATOR]: 1,
-          [StorageType.PANTRY]: 2,
-          [StorageType.FREEZER]: 3,
+        // FIX: Replaced enum-based object keys with string literals to avoid type resolution issues.
+        const urgency: Record<string, number> = {
+          'refrigerator': 1,
+          'pantry': 2,
+          'freezer': 3,
         };
         
         const urgencyA = urgency[a.storageType];
@@ -307,10 +308,11 @@ const PantryView: React.FC<PantryViewProps> = ({
     }
   };
   
-  const storageTypeLabels: Record<StorageType, { label: string; icon: string }> = {
-    [StorageType.FREEZER]: { label: "Fagyasztó", icon: "❄️" },
-    [StorageType.REFRIGERATOR]: { label: "Hűtő", icon: "🧊" },
-    [StorageType.PANTRY]: { label: "Kamra", icon: "🥫" },
+  // FIX: Replaced enum-based object keys with string literals to avoid type resolution issues.
+  const storageTypeLabels: Record<string, { label: string; icon: string }> = {
+    'freezer': { label: "Fagyasztó", icon: "❄️" },
+    'refrigerator': { label: "Hűtő", icon: "🧊" },
+    'pantry': { label: "Kamra", icon: "🥫" },
   };
 
   const filterOptions: {value: StorageType | 'all', label: string}[] = [

@@ -1,16 +1,34 @@
 // FIX: This file has been cleaned up to only contain constant definitions, importing its types from the now-correct `types.ts` file. This resolves circular dependencies.
-import { DietOption, MealType, CookingMethod, CuisineOption, RecipePace } from './types';
+import { DietOption, MealType, TRADITIONAL_COOKING_METHOD, CuisineOption, RecipePace } from './types';
 
-export const APP_VERSION = '1.5.5';
+export const APP_VERSION = '1.5.7';
 
-export const LOCAL_COMMAND_EXAMPLES = [
+export const ALL_LOCAL_COMMAND_EXAMPLES = [
+  // Navigáció
   'Menj a kedvencekhez',
+  'Nyisd meg a kamrát',
+  'Irány a bevásárlólista',
+  // Görgetés
   'Görgess lejjebb',
+  'Lapozz feljebb',
+  // Bevásárlólista
   'Töröld a kipipáltakat',
-  'Jöhet a recept',
+  'Töröld az egész listát',
+  // Recept generálás
+  'Jöhet a recept!',
+  'Készítsd el a receptet',
+  // Recept nézet
   'Következő lépés',
-  'Indíts egy 5 perces időzítőt'
+  'Előző lépés',
+  'Ismételd',
+  'Olvasd a hozzávalókat',
+  'Főzés indítása',
+  'Állj',
+  // Időzítő
+  'Indíts egy 5 perces időzítőt',
+  'Állíts be 30 másodperces időzítőt'
 ];
+
 
 export const MEAL_TYPES_STORAGE_KEY = 'ai-recipe-generator-meal-types';
 export const CUISINE_OPTIONS_STORAGE_KEY = 'ai-recipe-generator-cuisine-options';
@@ -66,12 +84,26 @@ export const CUISINE_OPTIONS: { value: CuisineOption; label: string }[] = [
   { value: CuisineOption.AMERICAN, label: 'Amerikai' },
 ];
 
-export const COOKING_METHODS: { value: CookingMethod; label: string }[] = [
-  { value: CookingMethod.TRADITIONAL, label: 'Hagyományos' },
+export const COOKING_METHODS: { value: string; label: string }[] = [
+  { value: TRADITIONAL_COOKING_METHOD, label: 'Hagyományos' },
+  { value: 'air-fryer', label: 'Forrólevegős fritőz' },
+  { value: 'slow-cooker', label: 'Lassú főző (Slow cooker)' },
+  { value: 'pressure-cooker', label: 'Kukta (Pressure cooker)' },
+  { value: 'baking', label: 'Sütőben sütés' },
+  { value: 'grilling', label: 'Grillezés' },
+  { value: 'steaming', label: 'Párolás' },
+  { value: 'frying', label: 'Serpenyőben sütés' },
 ];
 
 export const COOKING_METHOD_CAPACITIES: Record<string, number | null> = {
-  [CookingMethod.TRADITIONAL]: null, // Nincs gyakorlati korlát
+  [TRADITIONAL_COOKING_METHOD]: null, // Nincs gyakorlati korlát
+  'air-fryer': 4,
+  'slow-cooker': 8,
+  'pressure-cooker': 6,
+  'baking': null,
+  'grilling': null,
+  'steaming': null,
+  'frying': null,
 };
 
 export const RECIPE_PACE_OPTIONS: { value: RecipePace; label: string; description: string }[] = [

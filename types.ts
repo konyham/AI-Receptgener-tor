@@ -54,9 +54,8 @@ export enum CuisineOption {
     AMERICAN = 'american',
 }
 
-export enum CookingMethod {
-  TRADITIONAL = 'traditional',
-}
+export type CookingMethod = string;
+export const TRADITIONAL_COOKING_METHOD: CookingMethod = 'traditional';
 
 export enum RecipePace {
   NORMAL = 'normal',

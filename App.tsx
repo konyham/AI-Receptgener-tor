@@ -63,7 +63,7 @@ import {
     COOKING_METHODS_ORDER_KEY,
     CUISINE_OPTIONS_ORDER_KEY,
     APP_VERSION,
-    LOCAL_COMMAND_EXAMPLES,
+    ALL_LOCAL_COMMAND_EXAMPLES,
 } from './constants';
 import { safeSetLocalStorage } from './utils/storage';
 import { konyhaMikiLogo } from './assets';
@@ -237,6 +237,7 @@ const App: React.FC = () => {
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [appGuideContent, setAppGuideContent] = useState('');
   const [isLoadingGuide, setIsLoadingGuide] = useState(false);
+  const [isExamplesExpanded, setIsExamplesExpanded] = useState(false);
 
   const [isImportUrlModalOpen, setIsImportUrlModalOpen] = useState(false);
   const [isParsingUrl, setIsParsingUrl] = useState(false);
@@ -1312,14 +1313,19 @@ const App: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 font-sans">
-      <header className="text-center mb-6">
-        <div className="flex justify-center items-center gap-4 mb-4">
-          <img src={konyhaMikiLogo} alt="Konyha Miki Logó" className="h-16" />
-        </div>
-        <div className="flex justify-center items-center gap-4">
-            <GlobalVoiceController onCommand={handleGlobalCommand} isProcessing={isProcessingVoice} onTranscriptUpdate={handleTranscriptUpdate} onActivate={handleWakeLockActivate} />
-        </div>
+      <header className="flex justify-between items-center mb-4">
+        <img src={konyhaMikiLogo} alt="Konyha Miki Logó" className="h-16" />
+        <button
+          onClick={handleShowAppGuide}
+          className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+        >
+          Információ
+        </button>
       </header>
+      
+      <div className="flex justify-center items-center gap-4 mb-6">
+        <GlobalVoiceController onCommand={handleGlobalCommand} isProcessing={isProcessingVoice} onTranscriptUpdate={handleTranscriptUpdate} onActivate={handleWakeLockActivate} />
+      </div>
 
       <nav className="flex justify-center flex-wrap gap-2 mb-6 p-2 bg-gray-100 rounded-lg">
         {navItems.map(item => (
@@ -1498,16 +1504,30 @@ const App: React.FC = () => {
       </main>
       
       <footer className="text-center mt-6 text-sm text-gray-500 space-y-2">
-         <p>
-            <button onClick={handleShowAppGuide} className="hover:underline text-primary-700 font-semibold">Információ a receptgenerátorról</button>
-         </p>
          <p>AI Receptgenerátor - Konyha Miki módra | Verzió: {APP_VERSION}</p>
          <p className="px-4">
             Figyelem: Az AI által generált receptek tájékoztató jellegűek. Főzés előtt mindig ellenőrizze az összetevőket és az elkészítési lépéseket. Különös óvatossággal járjon el allergia, intolerancia, vagy speciális diéta esetén! Maradékok felhasználásakor mindig tartsa be az élelmiszerbiztonsági előírásokat!
          </p>
           <div className="pt-2">
-            <h4 className="font-semibold">Hangparancs példák:</h4>
-            <p className="text-xs text-gray-400">{LOCAL_COMMAND_EXAMPLES.join(' | ')}</p>
+             <button
+                type="button"
+                onClick={() => setIsExamplesExpanded(!isExamplesExpanded)}
+                className="w-full max-w-md mx-auto flex justify-between items-center text-left p-3 bg-gray-100 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500"
+                aria-expanded={isExamplesExpanded}
+                aria-controls="examples-content"
+            >
+                <span className="font-semibold text-gray-700">Hangparancs példák (API hívás nélkül)</span>
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${isExamplesExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+            </button>
+            {isExamplesExpanded && (
+                <div id="examples-content" className="mt-2 p-4 max-w-md mx-auto bg-gray-50 border rounded-lg text-gray-700 text-left text-xs animate-fade-in">
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 list-disc list-inside">
+                        {ALL_LOCAL_COMMAND_EXAMPLES.map((cmd, i) => <li key={i}>{cmd}</li>)}
+                    </ul>
+                </div>
+            )}
           </div>
       </footer>
 

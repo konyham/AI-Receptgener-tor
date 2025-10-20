@@ -83,25 +83,24 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
       }
   };
 
+  // FIX: Rewrote drag sort logic to be more explicit and type-safe, avoiding potential 'unknown' type errors from splice.
   const handleDragSort = () => {
     if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
         dragItem.current = null;
         dragOverItem.current = null;
         return;
     };
-
-    // FIX: Refactored logic to be more explicit and avoid type inference issues.
-    const reorderedList = [...list];
-    // Remove the dragged item. .splice() returns an array of removed items.
-    const removedItems = reorderedList.splice(dragItem.current, 1);
     
-    // Ensure an item was actually removed before proceeding.
-    if (removedItems.length > 0) {
-        const draggedItem = removedItems[0];
-        // Insert the dragged item at the new position.
+    const reorderedList = [...list];
+    // Remove the dragged item using splice. Destructuring the result array ensures `draggedItem` is correctly typed.
+    const [draggedItem] = reorderedList.splice(dragItem.current, 1);
+    
+    // If an item was successfully removed (is not undefined), insert it at the new position.
+    if (draggedItem) {
         reorderedList.splice(dragOverItem.current, 0, draggedItem);
     }
     
+    // Reset refs and update state.
     dragItem.current = null;
     dragOverItem.current = null;
     onReorder(reorderedList);

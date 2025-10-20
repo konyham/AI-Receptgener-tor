@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption, RecipePace, UserProfile, OptionItem } from '../types';
+import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption, RecipePace, UserProfile, OptionItem, TRADITIONAL_COOKING_METHOD } from '../types';
 import { DIET_OPTIONS, RECIPE_PACE_OPTIONS } from '../constants';
 import { suggestMealType } from '../services/geminiService';
 import { useNotification } from '../contexts/NotificationContext';
@@ -127,11 +127,11 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
                         newState = [...prev, methodToToggle];
                     }
 
-                    if (methodToToggle === CookingMethod.TRADITIONAL && !isPresent) {
-                        return [CookingMethod.TRADITIONAL];
+                    if (methodToToggle === TRADITIONAL_COOKING_METHOD && !isPresent) {
+                        return [TRADITIONAL_COOKING_METHOD];
                     }
-                    if (methodToToggle !== CookingMethod.TRADITIONAL && !isPresent) {
-                        newState = newState.filter(m => m !== CookingMethod.TRADITIONAL);
+                    if (methodToToggle !== TRADITIONAL_COOKING_METHOD && !isPresent) {
+                        newState = newState.filter(m => m !== TRADITIONAL_COOKING_METHOD);
                     }
                     
                     return newState;
@@ -407,7 +407,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     
     const orderedSelectedMethods = orderedCookingMethods
         .map(m => m.value)
-        .filter(value => cookingMethods.includes(value as CookingMethod));
+        .filter(value => cookingMethods.includes(value));
 
     onSubmit({
         ingredients: ingredients.join(', '),
@@ -416,7 +416,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
         mealType,
         cuisine: cuisine as CuisineOption,
         recipePace,
-        cookingMethods: orderedSelectedMethods as CookingMethod[],
+        cookingMethods: orderedSelectedMethods,
         specialRequest: finalSpecialRequest,
         withCost,
         withImage,
@@ -443,11 +443,11 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
             newState = [...prev, method as CookingMethod];
         }
 
-        if (method === CookingMethod.TRADITIONAL && !isPresent) {
-            return [CookingMethod.TRADITIONAL];
+        if (method === TRADITIONAL_COOKING_METHOD && !isPresent) {
+            return [TRADITIONAL_COOKING_METHOD];
         }
-        if (method !== CookingMethod.TRADITIONAL && !isPresent) {
-            newState = newState.filter(m => m !== CookingMethod.TRADITIONAL);
+        if (method !== TRADITIONAL_COOKING_METHOD && !isPresent) {
+            newState = newState.filter(m => m !== TRADITIONAL_COOKING_METHOD);
         }
         
         return newState;
@@ -464,7 +464,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     
   const selectedDietInfo = dietOptions.find(d => d.value === diet);
   
-  const machineMethods = cookingMethods.filter(cm => cm !== CookingMethod.TRADITIONAL);
+  const machineMethods = cookingMethods.filter(cm => cm !== TRADITIONAL_COOKING_METHOD);
   const capacityInfo = machineMethods
     .map(cm => ({
         method: cookingMethodsList.find(m => m.value === cm),

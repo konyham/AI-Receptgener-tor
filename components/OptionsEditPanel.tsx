@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { OptionItem, CookingMethod } from '../types';
+import { OptionItem, TRADITIONAL_COOKING_METHOD } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 
 interface OptionsEditPanelProps {
@@ -113,7 +113,7 @@ const EditableOptionList: React.FC<{
                                 value={capacities?.[item.value] || ''}
                                 onChange={(e) => handleUpdateCapacity(item.value, e.target.value)}
                                 className="w-20 p-1 border border-gray-300 rounded-md disabled:bg-gray-100"
-                                disabled={item.value === CookingMethod.TRADITIONAL}
+                                disabled={item.value === TRADITIONAL_COOKING_METHOD}
                                 aria-label={`${item.label} kapacitása`}
                             />
                         )}
