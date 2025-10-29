@@ -268,6 +268,7 @@ const App: React.FC = () => {
   const [formCommand, setFormCommand] = useState<FormCommand | null>(null);
   const [recipeCommand, setRecipeCommand] = useState<VoiceCommandResult | null>(null);
   const [forceSpeakTrigger, setForceSpeakTrigger] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
 
   const { showNotification } = useNotification();
@@ -279,6 +280,86 @@ const App: React.FC = () => {
     document.documentElement.lang = 'hu';
     document.title = 'AI recept generátor - Konyha Miki módra';
   }, []);
+
+  const toggleFullscreen = async () => {
+    const docEl = document.documentElement as any;
+    const doc = document as any;
+
+    if (!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
+      try {
+        if (docEl.requestFullscreen) {
+          await docEl.requestFullscreen();
+        } else if (docEl.mozRequestFullScreen) { // Firefox
+          await docEl.mozRequestFullScreen();
+        } else if (docEl.webkitRequestFullscreen) { // Chrome, Safari, Opera
+          await docEl.webkitRequestFullscreen();
+        } else if (docEl.msRequestFullscreen) { // IE/Edge
+          await docEl.msRequestFullscreen();
+        }
+      } catch (err: any) {
+        console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+        showNotification('A teljes képernyős mód nem engedélyezett ezen az eszközön.', 'info');
+      }
+    } else {
+      try {
+        if (doc.exitFullscreen) {
+          await doc.exitFullscreen();
+        } else if (doc.mozCancelFullScreen) { // Firefox
+          await doc.mozCancelFullScreen();
+        } else if (doc.webkitExitFullscreen) { // Chrome, Safari, Opera
+          await doc.webkitExitFullscreen();
+        } else if (doc.msExitFullscreen) { // IE/Edge
+          await doc.msExitFullscreen();
+        }
+      } catch (err: any) {
+        console.error(`Error attempting to exit full-screen mode: ${err.message} (${err.name})`);
+      }
+    }
+  };
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            const doc = document as any;
+            setIsFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement));
+        };
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+        document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+            document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+            document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+        };
+    }, []);
+
+    useEffect(() => {
+        const enterFullscreenOnLoad = async () => {
+            setTimeout(async () => {
+                const docEl = document.documentElement as any;
+                const doc = document as any;
+                if (!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
+                    try {
+                        if (docEl.requestFullscreen) {
+                            await docEl.requestFullscreen();
+                        } else if (docEl.mozRequestFullScreen) {
+                            await docEl.mozRequestFullScreen();
+                        } else if (docEl.webkitRequestFullscreen) {
+                            await docEl.webkitRequestFullscreen();
+                        } else if (docEl.msRequestFullscreen) {
+                            await docEl.msRequestFullscreen();
+                        }
+                    } catch (err) {
+                        console.log("Could not automatically enter fullscreen on load. This is expected behavior in most browsers and requires user interaction.");
+                    }
+                }
+            }, 500);
+        };
+        enterFullscreenOnLoad();
+    }, []);
 
   const loadData = useCallback(() => {
     try {
@@ -1386,12 +1467,35 @@ const App: React.FC = () => {
     <div className="max-w-4xl mx-auto p-4 sm:p-6 font-sans">
       <header className="flex justify-between items-center mb-4">
         <img src={konyhaMikiLogo} alt="Konyha Miki Logó" className="h-16" />
-        <button
-          onClick={handleShowAppGuide}
-          className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-        >
-          Információ
-        </button>
+        <div className="flex items-center gap-2">
+            <button
+                onClick={toggleFullscreen}
+                className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 flex items-center gap-2"
+                aria-label={isFullscreen ? 'Kilépés a teljes képernyős módból' : 'Váltás teljes képernyős módra'}
+            >
+                {isFullscreen ? (
+                    <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5 5a1 1 0 011-1h2a1 1 0 110 2H6v1a1 1 0 11-2 0V6a1 1 0 011-1zm10 0a1 1 0 011 1v1a1 1 0 11-2 0V6h-1a1 1 0 110-2h2zM5 14a1 1 0 011 1v1h1a1 1 0 110 2H6a1 1 0 01-1-1v-2zm10 0a1 1 0 011 1v2a1 1 0 01-1 1h-1a1 1 0 110-2h1v-1z" clipRule="evenodd" />
+                        </svg>
+                        <span>Ablak mód</span>
+                    </>
+                ) : (
+                    <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M3 4a1 1 0 011-1h2a1 1 0 110 2H5v1a1 1 0 11-2 0V4zm14 0a1 1 0 00-1-1h-2a1 1 0 100 2h1v1a1 1 0 102 0V4zM4 17a1 1 0 01-1-1v-2a1 1 0 112 0v1h1a1 1 0 110 2H4zM16 17a1 1 0 001-1v-1a1 1 0 10-2 0v1h-1a1 1 0 100 2h2z" clipRule="evenodd" />
+                        </svg>
+                        <span>Teljes képernyő</span>
+                    </>
+                )}
+            </button>
+            <button
+            onClick={handleShowAppGuide}
+            className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            >
+            Információ
+            </button>
+        </div>
       </header>
       
       <div className="flex justify-center items-center gap-4 mb-6">
