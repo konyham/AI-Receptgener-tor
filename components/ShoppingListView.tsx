@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef } from 'react';
 import { ShoppingListItem, StorageType, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -93,10 +91,13 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     };
     
     const reorderedList = [...list];
-    // FIX: `splice` returns an array of removed items. This is corrected by using the spread operator
-    // to correctly re-insert the dragged item at its new position, resolving a type error.
-    const draggedItems = reorderedList.splice(dragItem.current, 1);
-    reorderedList.splice(dragOverItem.current, 0, ...draggedItems);
+    // FIX: `splice` returns an array of removed items. We use array destructuring
+    // to correctly re-insert the removed item, which is more type-safe. The `if` guard
+    // prevents attempting to insert `undefined` if something goes wrong.
+    const [draggedItem] = reorderedList.splice(dragItem.current, 1);
+    if (draggedItem) {
+      reorderedList.splice(dragOverItem.current, 0, draggedItem);
+    }
     
     // Reset refs and update state.
     dragItem.current = null;

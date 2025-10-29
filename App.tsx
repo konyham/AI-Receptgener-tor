@@ -47,6 +47,8 @@ import {
   DailyMenuRecipe,
   FormCommand,
   VoiceCommandResult,
+  // FIX: Added missing VoiceCommand import to resolve type errors.
+  VoiceCommand,
 } from './types';
 import {
     DIET_OPTIONS,
@@ -265,6 +267,7 @@ const App: React.FC = () => {
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
   const [formCommand, setFormCommand] = useState<FormCommand | null>(null);
   const [recipeCommand, setRecipeCommand] = useState<VoiceCommandResult | null>(null);
+  const [forceSpeakTrigger, setForceSpeakTrigger] = useState(0);
 
 
   const { showNotification } = useNotification();
@@ -1057,9 +1060,15 @@ const App: React.FC = () => {
                     } else { // Viewing a recipe
                         const localRecipeCmd = interpretLocalRecipeCommand(transcript);
                         if (localRecipeCmd) {
+                            if (localRecipeCmd.command === VoiceCommand.REPEAT) {
+                                setForceSpeakTrigger(Math.random());
+                            }
                             setRecipeCommand(localRecipeCmd);
                         } else {
                             const result = await interpretUserCommand(transcript);
+                            if (result.command === VoiceCommand.REPEAT) {
+                                setForceSpeakTrigger(Math.random());
+                            }
                             setRecipeCommand(result);
                         }
                     }
@@ -1116,6 +1125,9 @@ const App: React.FC = () => {
   const handleExport = async () => {
     try {
         const images = await imageStore.getAllImages();
+        const appGuideContent = localStorage.getItem('app-guide-content') || undefined;
+        const appGuideVersion = localStorage.getItem('app-guide-version') || undefined;
+
         const backupData: BackupData = {
             favorites: favorites,
             shoppingList: shoppingList,
@@ -1126,9 +1138,11 @@ const App: React.FC = () => {
             cuisineOptions: cuisineOptions,
             cookingMethods: cookingMethodsList,
             cookingMethodCapacities: cookingMethodCapacities,
-            mealTypesOrder: mealTypes.map(o => o.value),
-            cuisineOptionsOrder: cuisineOptions.map(o => o.value),
-            cookingMethodsOrder: cookingMethodsList.map(o => o.value),
+            mealTypesOrder: orderedMealTypes.map(o => o.value),
+            cuisineOptionsOrder: orderedCuisineOptions.map(o => o.value),
+            cookingMethodsOrder: orderedCookingMethods.map(o => o.value),
+            appGuideContent,
+            appGuideVersion,
         };
         const jsonString = JSON.stringify(backupData, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json' });
@@ -1141,9 +1155,6 @@ const App: React.FC = () => {
         const minutes = now.getMinutes().toString().padStart(2, '0');
         const fileName = `konyhamiki_mentes_${year}-${month}-${day}_${hours}-${minutes}.json`;
 
-        // The 'showSaveFilePicker' API is not allowed in the cross-origin iframe environment.
-        // We will consistently use the fallback method (creating and clicking a download link),
-        // which is more reliable here.
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -1194,6 +1205,11 @@ const App: React.FC = () => {
             }
         }
         
+        if (data.appGuideContent && data.appGuideVersion) {
+            localStorage.setItem('app-guide-content', data.appGuideContent);
+            localStorage.setItem('app-guide-version', data.appGuideVersion);
+        }
+
         setFavorites(mergedFavorites);
         shoppingListService.saveShoppingList(mergedList);
         setShoppingList(mergedList);
@@ -1202,12 +1218,10 @@ const App: React.FC = () => {
         userService.saveUsers(mergedUsers);
         setUsers(mergedUsers);
 
-        // FIX: The import logic now correctly merges default options with imported options,
-        // preventing defaults from being deleted if they are not present in the import file.
         const mergeImportedOptions = (defaults: readonly OptionItem[], imported: OptionItem[] = []): OptionItem[] => {
             const mergedMap = new Map<string, OptionItem>();
-            defaults.forEach(item => mergedMap.set(item.value, item)); // Load defaults first
-            imported.forEach(item => mergedMap.set(item.value, item)); // Overwrite/add with imported
+            defaults.forEach(item => mergedMap.set(item.value, item));
+            imported.forEach(item => mergedMap.set(item.value, item));
             return Array.from(mergedMap.values());
         };
 
@@ -1224,7 +1238,7 @@ const App: React.FC = () => {
             data.mealTypesOrder || mergedMealTypes.map(o => o.value),
             data.cuisineOptionsOrder || mergedCuisineOptions.map(o => o.value),
             data.cookingMethodsOrder || mergedCookingMethods.map(o => o.value),
-            true // silent save
+            true
         );
 
         const totalNew = newRecipesCount + newShopItems + newPantryItems + newUsers;
@@ -1236,7 +1250,7 @@ const App: React.FC = () => {
       }
     };
     reader.readAsText(file);
-    if (event.target) event.target.value = ''; // Reset input to allow re-importing same file
+    if (event.target) event.target.value = '';
   };
 
   const handleOptionsSave = (
@@ -1258,7 +1272,6 @@ const App: React.FC = () => {
     safeSetLocalStorage(COOKING_METHOD_CAPACITIES_STORAGE_KEY, newCapacities);
     setCookingMethodCapacities(newCapacities);
     
-    // Also save the order
     safeSetLocalStorage(MEAL_TYPES_ORDER_KEY, mealTypesOrder || newMealTypes.map(o => o.value));
     safeSetLocalStorage(CUISINE_OPTIONS_ORDER_KEY, cuisineOptionsOrder || newCuisineOptions.map(o => o.value));
     safeSetLocalStorage(COOKING_METHODS_ORDER_KEY, cookingMethodsOrder || newCookingMethods.map(o => o.value));
@@ -1311,31 +1324,41 @@ const App: React.FC = () => {
     }
   };
 
-    const handleShowAppGuide = async () => {
+    const forceRegenerateGuide = async (showNotificationOnSuccess = true) => {
         const GUIDE_CONTENT_KEY = 'app-guide-content';
         const GUIDE_VERSION_KEY = 'app-guide-version';
-
-        const cachedContent = localStorage.getItem(GUIDE_CONTENT_KEY);
-        const cachedVersion = localStorage.getItem(GUIDE_VERSION_KEY);
-
-        if (cachedContent && cachedVersion === APP_VERSION) {
-            setAppGuideContent(cachedContent);
-            setIsInfoModalOpen(true);
-            return;
-        }
-
-        setIsInfoModalOpen(true);
+    
         setIsLoadingGuide(true);
         try {
             const content = await generateAppGuide();
             setAppGuideContent(content);
             localStorage.setItem(GUIDE_CONTENT_KEY, content);
             localStorage.setItem(GUIDE_VERSION_KEY, APP_VERSION);
+            if (showNotificationOnSuccess) {
+                showNotification('Információs útmutató sikeresen újragenerálva!', 'success');
+            }
         } catch (e: any) {
             setAppGuideContent(`<p class="text-red-500">Hiba az útmutató betöltése közben: ${e.message}</p>`);
         } finally {
             setIsLoadingGuide(false);
         }
+    };
+
+    const handleShowAppGuide = async () => {
+        const GUIDE_CONTENT_KEY = 'app-guide-content';
+        const GUIDE_VERSION_KEY = 'app-guide-version';
+
+        const cachedContent = localStorage.getItem(GUIDE_CONTENT_KEY);
+        const cachedVersion = localStorage.getItem(GUIDE_VERSION_KEY);
+        
+        setIsInfoModalOpen(true);
+
+        if (cachedContent && cachedVersion === APP_VERSION) {
+            setAppGuideContent(cachedContent);
+            return;
+        }
+        
+        await forceRegenerateGuide(false);
     };
 
   // FIX: Changed icon type from JSX.Element to React.ReactElement to resolve missing JSX namespace error.
@@ -1394,18 +1417,19 @@ const App: React.FC = () => {
         ))}
       </nav>
       
+      <DataManagementControls
+        onExport={handleExport}
+        onImportClick={() => fileInputRef.current?.click()}
+        onFileChange={handleImport}
+        fileInputRef={fileInputRef}
+        hasAnyData={hasAnyData}
+      />
+      
       <main className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg">
         {view === 'generator' && (
           <div className="space-y-6">
             {!recipe && !alternativeRecipes && (
               <>
-                <DataManagementControls
-                    onExport={handleExport}
-                    onImportClick={() => fileInputRef.current?.click()}
-                    onFileChange={handleImport}
-                    fileInputRef={fileInputRef}
-                    hasAnyData={hasAnyData}
-                />
                 <RecipeInputForm
                     onSubmit={handleRecipeSubmit}
                     isLoading={isLoading}
@@ -1448,12 +1472,14 @@ const App: React.FC = () => {
                         onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
                         shouldGenerateImageInitially={shouldGenerateImage}
                         onGenerateVariations={handleGenerateVariations}
+                        isGeneratingVariations={isGeneratingVariations}
                         mealTypes={mealTypes}
                         cuisineOptions={cuisineOptions}
                         cookingMethodsList={cookingMethodsList}
                         category={currentCategory}
                         command={recipeCommand}
                         onCommandProcessed={() => setRecipeCommand(null)}
+                        forceSpeakTrigger={forceSpeakTrigger}
                     />
                 </div>
             )}
@@ -1614,6 +1640,7 @@ const App: React.FC = () => {
             onClose={() => setIsInfoModalOpen(false)}
             content={appGuideContent}
             isLoading={isLoadingGuide}
+            onRegenerate={() => forceRegenerateGuide(true)}
         />
       )}
       <ImportUrlModal

@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -247,6 +245,7 @@ const PantryView: React.FC<PantryViewProps> = ({
         if (storageFilter === 'all') return true;
         return item.storageType === storageFilter;
       })
+      // FIX: Corrected sort callback parameter type from PantryItem to PantryItemWithIndex.
       .sort((a: PantryItemWithIndex, b: PantryItemWithIndex) => {
         // FIX: Replaced object indexing with a switch statement to provide a more robust and type-safe way to determine sorting order, avoiding potential type inference errors with object keys.
         const getUrgencyValue = (type: StorageType): number => {
@@ -312,8 +311,7 @@ const PantryView: React.FC<PantryViewProps> = ({
     }
   };
   
-  // FIX: Changed the Record key from `string` to `StorageType` and used computed property names
-  // to create a more type-safe object, resolving the "cannot be used as an index type" error.
+  // FIX: Changed the Record key from `string` to `StorageType` to provide better type safety and fix indexing errors.
   const storageTypeLabels: Record<StorageType, { label: string; icon: string }> = {
     [StorageType.FREEZER]: { label: "Fagyasztó", icon: "❄️" },
     [StorageType.REFRIGERATOR]: { label: "Hűtő", icon: "🧊" },

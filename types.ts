@@ -180,6 +180,8 @@ export interface BackupData {
   mealTypesOrder: string[];
   cuisineOptionsOrder: string[];
   cookingMethodsOrder: string[];
+  appGuideContent?: string;
+  appGuideVersion?: string;
 }
 
 export type FormAction = 'add_ingredients' | 'set_diet' | 'set_meal_type' | 'set_cooking_method' | 'generate_recipe' | 'unknown';

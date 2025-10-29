@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { InstructionStep } from '../types';
 
 interface CookingModeViewProps {
@@ -8,6 +8,7 @@ interface CookingModeViewProps {
   currentStep: number;
   onStepChange: (newStep: number) => void;
   recipeName: string;
+  forceSpeakTrigger: number;
 }
 
 const CookingModeView: React.FC<CookingModeViewProps> = ({
@@ -17,10 +18,101 @@ const CookingModeView: React.FC<CookingModeViewProps> = ({
   currentStep,
   onStepChange,
   recipeName,
+  forceSpeakTrigger,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const currentInstruction = instructions[currentStep];
 
+  const [words, setWords] = useState<string[]>([]);
+  const [wordBoundaries, setWordBoundaries] = useState<number[]>([]);
+  const [currentWordIndex, setCurrentWordIndex] = useState(-1);
+  const wordRefs = useRef<(HTMLSpanElement | null)[]>([]);
+
+  // Speech synthesis effect with highlighting
+  useEffect(() => {
+    if (!isOpen || !currentInstruction?.text) {
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    setCurrentWordIndex(-1);
+
+    const textToSpeak = `${currentStep + 1}. lépés: ${currentInstruction.text}`;
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = 'hu-HU';
+    utterance.rate = 0.9;
+    
+    // Process words and boundaries for highlighting
+    const processedWords: string[] = [];
+    const boundaries: number[] = [];
+    let currentIndex = 0;
+    // Split by spaces, but keep the spaces to reconstruct the text perfectly
+    textToSpeak.split(/(\s+)/).forEach(part => {
+        if (part.trim().length > 0) { // It's a word
+            boundaries.push(currentIndex);
+        }
+        processedWords.push(part);
+        currentIndex += part.length;
+    });
+
+    setWords(processedWords);
+    setWordBoundaries(boundaries);
+    wordRefs.current = new Array(processedWords.length).fill(null);
+
+    utterance.onboundary = (event) => {
+        const charIndex = event.charIndex;
+        let boundaryIndex = -1;
+
+        // Find which word boundary the speech has passed
+        for (let i = boundaries.length - 1; i >= 0; i--) {
+            if (charIndex >= boundaries[i]) {
+                boundaryIndex = i;
+                break;
+            }
+        }
+        
+        // Map the boundary index back to the full 'words' array index
+        let wordArrayIndex = 0;
+        let boundaryCounter = 0;
+        for(let i = 0; i < processedWords.length; i++) {
+            if (processedWords[i].trim().length > 0) {
+                if(boundaryCounter === boundaryIndex) {
+                    wordArrayIndex = i;
+                    break;
+                }
+                boundaryCounter++;
+            }
+        }
+        
+        if (boundaryIndex !== -1) {
+            setCurrentWordIndex(wordArrayIndex);
+        }
+    };
+
+    utterance.onend = () => {
+      setCurrentWordIndex(-1);
+    };
+
+    window.speechSynthesis.speak(utterance);
+
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, [isOpen, currentStep, forceSpeakTrigger]);
+
+  // Auto-scrolling effect for the highlighted word
+  useEffect(() => {
+    if (currentWordIndex !== -1) {
+      const currentWordElement = wordRefs.current[currentWordIndex];
+      currentWordElement?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'center'
+      });
+    }
+  }, [currentWordIndex]);
+
+  // Keyboard and focus management effect
   useEffect(() => {
     if (!isOpen) return;
 
@@ -73,9 +165,20 @@ const CookingModeView: React.FC<CookingModeViewProps> = ({
           </p>
         </header>
 
-        <main className="flex-grow flex flex-col items-center justify-center overflow-y-auto text-center">
+        <main className="flex-grow flex flex-col items-center justify-start pt-6 overflow-y-auto text-center">
           <p className="text-3xl md:text-5xl lg:text-6xl font-serif text-gray-800 leading-tight">
-            {currentInstruction?.text}
+             {words.length > 0
+                ? words.map((word, index) => (
+                    <span 
+                        key={index}
+                        ref={el => { if (wordRefs.current) wordRefs.current[index] = el; }}
+                        className={`transition-colors duration-200 ${index === currentWordIndex ? 'bg-yellow-200 rounded' : ''}`}
+                    >
+                        {word}
+                    </span>
+                ))
+                : currentInstruction?.text
+            }
           </p>
           {currentInstruction?.imageUrl && (
             <img

@@ -27,12 +27,14 @@ interface RecipeDisplayProps {
   onUpdateFavoriteStatus: (recipeName: string, category: string, favoritedByIds: string[]) => void;
   shouldGenerateImageInitially: boolean;
   onGenerateVariations: (recipe: Recipe) => void;
+  isGeneratingVariations: boolean;
   mealTypes: OptionItem[];
   cuisineOptions: OptionItem[];
   cookingMethodsList: OptionItem[];
   category: string | null;
   command: VoiceCommandResult | null;
   onCommandProcessed: () => void;
+  forceSpeakTrigger: number;
 }
 
 const addWatermark = (imageUrl: string, recipe: Recipe, allMealTypes: OptionItem[], allCookingMethods: OptionItem[]): Promise<string> => {
@@ -239,12 +241,14 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
   onUpdateFavoriteStatus,
   shouldGenerateImageInitially,
   onGenerateVariations,
+  isGeneratingVariations,
   mealTypes,
   cuisineOptions,
   cookingMethodsList,
   category,
   command,
   onCommandProcessed,
+  forceSpeakTrigger,
 }) => {
     const { showNotification } = useNotification();
     const originalRecipeRef = useRef(recipe);
@@ -346,12 +350,6 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                 break;
         }
     };
-
-    useEffect(() => {
-        if (isCookingModeActive) { // Only read aloud if cooking mode is on
-            readCurrentStep();
-        }
-    }, [instructionStep, isCookingModeActive, readCurrentStep]);
 
     useEffect(() => {
         const resolveInstructionImages = async () => {
@@ -671,9 +669,13 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
                         <span className="text-xs font-semibold text-gray-700">Időzítő</span>
                     </ActionButton>
-                    <ActionButton onClick={() => onGenerateVariations(recipe)} label="Recept variációk">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-                        <span className="text-xs font-semibold text-gray-700">Variációk</span>
+                    <ActionButton onClick={() => onGenerateVariations(recipe)} disabled={isGeneratingVariations} label="Recept variációk">
+                        {isGeneratingVariations ? (
+                            <svg className="animate-spin h-6 w-6 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                        )}
+                        <span className="text-xs font-semibold text-gray-700">{isGeneratingVariations ? "Generálás..." : "Variációk"}</span>
                     </ActionButton>
                     <ActionButton onClick={handlePrint} label="Recept nyomtatása">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor">
@@ -802,6 +804,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                 currentStep={instructionStep}
                 onStepChange={setInstructionStep}
                 recipeName={editableRecipe.recipeName}
+                forceSpeakTrigger={forceSpeakTrigger}
               />
             )}
         </div>

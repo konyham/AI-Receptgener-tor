@@ -733,7 +733,7 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
   } catch (e: any) {
     console.error('Error interpreting user command:', e);
     if (e.message.toLowerCase().includes('quota')) {
-        throw new Error('Elérte a napi ingyenes korlátot. Kérjük, próbálja újra később.');
+        throw new Error('Elérte a napi ingyyenes korlátot. Kérjük, próbálja újra később.');
     }
     throw new Error('Hiba történt a hangparancs értelmezése közben.');
   }
@@ -1032,7 +1032,12 @@ Az útmutatónak az alábbi funkciókat kell bemutatnia, az aktuális verzió al
 2.  **Fontosabb funkciók:**
     *   **Adatkezelés:** A "Mentés Fájlba" és "Betöltés Fájlból" funkciók, amelyekkel a felhasználók biztonsági mentést készíthetnek minden adatukról (receptek, listák, profilok).
     *   **Recept Importálás:** Mutasd be, hogy a felhasználók beolvashatnak recepteket külső forrásokból. Ez magában foglalja a receptek importálását weboldal linkjéről (URL), vagy képfájloból. A kép lehet egy elmentett fotó, vagy egy frissen, a telefon kamerájával készített kép egy szakácskönyvről, újságról, vagy akár a nagymama kézzel írt receptfüzetéről. Az AI megpróbálja kinyerni az adatokat és kitölteni a receptgenerátor űrlapot.
-    *   **Hangvezérlés:** Magyarázd el röviden, hogy a főbb navigációs és űrlapkitöltési műveletek hanggal is vezérelhetők.
+    *   **Hangvezérlés és Főzési Asszisztens:** Az alkalmazás szinte teljesen vezérelhető hanggal a "Kihangosított mód" bekapcsolásával. Magyarázd el részletesen:
+        <ul class="list-disc list-inside space-y-1 pl-6">
+            <li>Mondja ki a varázsszót: <strong>"Oké, Miki!"</strong>, hogy az alkalmazás figyelni kezdjen a parancsára.</li>
+            <li>Navigáljon a nézetek között (pl. "Menj a kedvencekhez!"), vagy töltse ki a receptgenerátor űrlapot beszéd segítségével (pl. "Adj hozzá csirkemellet és rizst!").</li>
+            <li>A recept megnyitása után a <strong>"Főzés Mód"</strong> elindításával a felület átalakul egy nagy, könnyen olvasható kijelzővé. Az alkalmazás felolvassa az aktuális lépést, és hangparancsokkal (pl. "következő", "előző", "ismételd", "állj") lépkedhet az utasítások között anélkül, hogy a képernyőhöz kellene érnie.</li>
+        </ul>
     *   **Kép- és Menügenerálás:** Említsd meg, hogy az AI képes ételfotókat generálni a receptekhez, sőt, komplett 4 fogásos (előétel, leves, főétel, desszert) vagy napi menüket (reggeli, ebéd, vacsora) is tud készíteni. Az elkészítési lépésekhez már nem generál képet a rendszer.
     *   **Recept Variációk:** Mutasd be, hogy egy elkészült receptnél a "Variációk" gombra kattintva az AI nem csak ötleteket ad, hanem legenerálja a teljes recept-alternatívákat. Ezeket egy új, füles felületen lehet kényelmesen összehasonlítani az eredetivel, és lehetőség van az összes vagy csak a kiválasztott variációk elmentésére.
     *   **Testreszabás:** A felhasználók szerkeszthetik az étkezés típusok, konyhák és elkészítési módok listáját az "Opciók szerkesztése" gombbal.
