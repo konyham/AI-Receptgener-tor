@@ -203,6 +203,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<AppView>('generator');
   const [recipe, setRecipe] = useState<Recipe | MenuRecipe | DailyMenuRecipe | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Recept generálása...');
   const [error, setError] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<Favorites>({});
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
@@ -214,7 +215,6 @@ const App: React.FC = () => {
   const [shouldGenerateImage, setShouldGenerateImage] = useState(false);
   
   const [alternativeRecipes, setAlternativeRecipes] = useState<Recipe[] | null>(null);
-  const [isGeneratingVariations, setIsGeneratingVariations] = useState(false);
 
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   const [filterCategory, setFilterCategory] = useState('all');
@@ -507,6 +507,14 @@ const App: React.FC = () => {
     setAlternativeRecipes(null);
     setView('generator');
 
+    if (params.mealType === MealType.MENU) {
+      setLoadingMessage('Menü generálása...');
+    } else if (params.mealType === MealType.DAILY_MENU) {
+      setLoadingMessage('Napi menü generálása...');
+    } else {
+      setLoadingMessage('Recept generálása...');
+    }
+
     try {
        if (params.mealType === MealType.MENU) {
             const generatedMenu = await generateMenu(
@@ -617,7 +625,8 @@ const App: React.FC = () => {
   };
   
   const handleGenerateVariations = async (originalRecipe: Recipe) => {
-    setIsGeneratingVariations(true);
+    setIsLoading(true);
+    setLoadingMessage('Variációk generálása...');
     setError(null);
     try {
       const variations = await generateRecipeVariations(
@@ -631,7 +640,7 @@ const App: React.FC = () => {
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setIsGeneratingVariations(false);
+      setIsLoading(false);
     }
   };
 
@@ -1559,7 +1568,7 @@ const App: React.FC = () => {
                 }} accept="image/png, image/jpeg, image/webp, application/pdf" className="hidden" />
               </>
             )}
-            {isLoading && <LoadingSpinner message={isGeneratingVariations ? 'Variációk generálása...' : 'Recept generálása...'}/>}
+            {isLoading && <LoadingSpinner message={loadingMessage}/>}
             {error && !isLoading && <ErrorMessage message={error} />}
             {recipe && 'recipeName' in recipe && (
                 <div ref={recipeDisplayRef}>
@@ -1576,7 +1585,7 @@ const App: React.FC = () => {
                         onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
                         shouldGenerateImageInitially={shouldGenerateImage}
                         onGenerateVariations={handleGenerateVariations}
-                        isGeneratingVariations={isGeneratingVariations}
+                        isGeneratingVariations={isLoading}
                         mealTypes={mealTypes}
                         cuisineOptions={cuisineOptions}
                         cookingMethodsList={cookingMethodsList}

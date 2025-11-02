@@ -1,7 +1,9 @@
+
 import React, { useState, useRef } from 'react';
 import { ShoppingListItem, StorageType, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import ShoppingListItemActionModal from './ShoppingListItemActionModal';
+import LoadingSpinner from './LoadingSpinner';
 import { categorizeIngredients } from '../services/geminiService';
 
 interface ShoppingListViewProps {
@@ -91,12 +93,14 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
     };
     
     const reorderedList = [...list];
-    // FIX: `splice` returns an array of removed items. We use array destructuring
-    // to correctly re-insert the removed item, which is more type-safe. The `if` guard
-    // prevents attempting to insert `undefined` if something goes wrong.
-    const [draggedItem] = reorderedList.splice(dragItem.current, 1);
-    if (draggedItem) {
-      reorderedList.splice(dragOverItem.current, 0, draggedItem);
+    // FIX: The `splice` method returns an array of removed items. By using array destructuring,
+    // we get the first (and only) removed item. A guard clause then ensures we only attempt
+    // to re-insert the item if it's not undefined, fixing a potential type error.
+    const [draggedItemContent] = reorderedList.splice(dragItem.current, 1);
+    // FIX: Add a guard to ensure draggedItemContent is not undefined before attempting to re-insert it.
+    // This resolves the TypeScript error about assigning an incompatible type.
+    if (draggedItemContent) {
+      reorderedList.splice(dragOverItem.current, 0, draggedItemContent);
     }
     
     // Reset refs and update state.
@@ -241,6 +245,7 @@ const ShoppingListView: React.FC<ShoppingListViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {isCategorizing && <LoadingSpinner message="Tételek kategorizálása..." />}
       <h2 className="text-2xl font-bold text-center text-primary-800">Bevásárlólista</h2>
       
       <form onSubmit={handleAddItem} className="flex gap-2">

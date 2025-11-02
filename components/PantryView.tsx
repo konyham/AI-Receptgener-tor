@@ -1,7 +1,9 @@
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PantryItem, Favorites, BackupData, ShoppingListItem, PantryLocation, PANTRY_LOCATIONS, StorageType, UserProfile, OptionItem, CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import * as imageStore from '../services/imageStore';
+import LoadingSpinner from './LoadingSpinner';
 import MoveItemsModal from './MoveItemsModal';
 import { categorizeIngredients } from '../services/geminiService';
 
@@ -348,7 +350,8 @@ const PantryView: React.FC<PantryViewProps> = ({
                     <p className={`border-l-4 pl-2 ${urgency.colorClass}`}>
                        {urgency.label}
                     </p>
-                    <p>{storageTypeLabels[item.storageType].icon} {storageTypeLabels[item.storageType].label}</p>
+                    {/* FIX: Explicitly cast `item.storageType` to `StorageType` to resolve the "unknown index type" error. This ensures TypeScript correctly uses the enum type to access the `storageTypeLabels` record. */}
+                    <p>{storageTypeLabels[item.storageType as StorageType].icon} {storageTypeLabels[item.storageType as StorageType].label}</p>
                   </div>
                 </div>
               </div>
@@ -368,6 +371,7 @@ const PantryView: React.FC<PantryViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {isCategorizing && <LoadingSpinner message="Kamra tételeinek kategorizálása..." />}
       <h2 className="text-2xl font-bold text-center text-primary-800">Kamra Tartalma</h2>
       
         <div className="mb-4">
