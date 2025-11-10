@@ -1,7 +1,7 @@
 // FIX: This file has been cleaned up to only contain constant definitions, importing its types from the now-correct `types.ts` file.
 import { DietOption, MealType, TRADITIONAL_COOKING_METHOD, CuisineOption, RecipePace } from './types';
 
-export const APP_VERSION = '1.9.0';
+export const APP_VERSION = '1.13.0';
 
 export const LOADING_TIPS = [
   'Tudta? A tompa kés balesetveszélyesebb, mint az éles. Tartsa késeit mindig élesen!',
@@ -15,7 +15,7 @@ export const LOADING_TIPS = [
   'A fokhagymát nyomja át, vagy vágja apróra 10 perccel a felhasználás előtt, hogy aktiválódjon az allicin.',
   'A tésztát mindig bő, lobogó, sós vízben főzze a legjobb eredményért.',
   'Ha bort használ a főzéshez, olyat válasszon, amit szívesen meg is inna.',
-  'A salátaöntetet csak közvetlenül tálalás előtt adja a salátához, hogy a levelek ropogósak maradjanak.',
+  'A salátaöntetet csak közvetlenül tálalás előtt adja a salátához, hogy a levelek ropósak maradjanak.',
 ];
 
 export const ALL_LOCAL_COMMAND_EXAMPLES = [
@@ -60,7 +60,7 @@ export const DIET_OPTIONS: { value: DietOption; label: string; description: stri
   { value: DietOption.VEGAN, label: 'Vegán', description: 'Minden állati eredetű terméket (hús, tej, tojás, méz) mellőző étrend.' },
   { value: DietOption.GLUTEN_FREE, label: 'Gluténmentes', description: 'A glutént tartalmazó gabonaféléket (búza, árpa, rozs) és az ezekből készült termékeket kerüli.' },
   { value: DietOption.KETOGENIC, label: 'Ketogén', description: 'Nagyon alacsony szénhidrát-, magas zsír- és mérsékelt fehérjetartalmú diéta, melynek célja a test ketózis állapotba hozása.' },
-  { value: DietOption.PALEO, label: 'Paleo', description: 'A feldolgozott élelmiszereket, gabonaféléket, hüvelyeseket és tejtermékeket kerüli, a hangsúly a húson, zöldségeken, gyümölcsökön van.' },
+  { value: DietOption.PALEO, label: 'Paleo', description: 'A feldgozott élelmiszereket, gabonaféléket, hüvelyeseket és tejtermékeket kerüli, a hangsúly a húson, zöldségeken, gyümölcsökön van.' },
   { value: DietOption.ZONE, label: 'Zóna', description: 'A makrotápanyagok (szénhidrát, fehérje, zsír) meghatározott arányára (40-30-30) fókuszál minden étkezésnél.' },
   { value: DietOption.CANDIDA, label: 'Candida', description: 'Célja a candida gomba elszaporodásának visszaszorítása a cukor, élesztő, finomított szénhidrátok és bizonyos tejtermékek kerülésével.' },
   { value: DietOption.MACROBIOTIC, label: 'Makrobiotikus', description: 'A jin és jang elvén alapuló, főként teljes kiőrlésű gabonákra, zöldségekre és hüvelyesekre épülő, feldolgozott élelmiszereket kerülő étrend.' },

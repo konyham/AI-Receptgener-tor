@@ -264,6 +264,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
         }
     }, [recipe, isEditing]);
 
+    const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
     const [generatingImageError, setGeneratingImageError] = useState<string | null>(null);
@@ -285,6 +286,38 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
 
     const [instructionStep, setInstructionStep] = useState(0);
     const [resolvedInstructions, setResolvedInstructions] = useState<InstructionStep[]>([]);
+
+    useEffect(() => {
+        setCheckedIngredients(new Set());
+    }, [recipe]);
+
+    const handleIngredientCheck = (ingredient: string) => {
+        setCheckedIngredients(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(ingredient)) {
+                newSet.delete(ingredient);
+            } else {
+                newSet.add(ingredient);
+            }
+            return newSet;
+        });
+    };
+
+    const handleSelectAllIngredients = () => {
+        if (checkedIngredients.size === editableRecipe.ingredients.length) {
+            setCheckedIngredients(new Set());
+        } else {
+            setCheckedIngredients(new Set(editableRecipe.ingredients));
+        }
+    };
+
+    const handleAddSelectedToShoppingList = () => {
+        const itemsToAdd = Array.from(checkedIngredients);
+        if (itemsToAdd.length > 0) {
+            onAddItemsToShoppingList(itemsToAdd);
+            setCheckedIngredients(new Set()); // Clear selection after adding
+        }
+    };
 
     useEffect(() => {
         if (command) {
@@ -670,13 +703,9 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
                         <span className="text-xs font-semibold text-gray-700">Időzítő</span>
                     </ActionButton>
-                    <ActionButton onClick={() => onGenerateVariations(recipe)} disabled={isGeneratingVariations} label="Recept variációk">
-                        {isGeneratingVariations ? (
-                            <svg className="animate-spin h-6 w-6 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-                        )}
-                        <span className="text-xs font-semibold text-gray-700">{isGeneratingVariations ? "Generálás..." : "Variációk"}</span>
+                    <ActionButton onClick={() => onGenerateVariations(recipe)} label="Recept variációk">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                        <span className="text-xs font-semibold text-gray-700">Variációk</span>
                     </ActionButton>
                     <ActionButton onClick={handlePrint} label="Recept nyomtatása">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor">
@@ -696,7 +725,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                                 <div className="relative">
                                     {isGeneratingImage ? (
                                         <div className="aspect-[4/3] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4 border animate-pulse-bg">
-                                            <LoadingSpinner message="Ételkép feldolgozása..." inline />
+                                            <svg className="animate-spin h-10 w-10 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                         </div>
                                     ) : activeImageUrl ? (
                                         <img src={activeImageUrl} alt={`Fotó a receptről: ${editableRecipe.recipeName}`} className="w-full aspect-[4/3] object-cover rounded-lg shadow-md" />
@@ -724,7 +753,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                             <div>
                                 {isGeneratingImage ? (
                                     <div className="aspect-[4/3] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4 border animate-pulse-bg">
-                                        <LoadingSpinner message="Ételkép feldolgozása..." inline />
+                                        <svg className="animate-spin h-10 w-10 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                        <p className="mt-4 text-lg font-semibold text-gray-700">Ételkép feldolgozása...</p>
                                     </div>
                                 ) : generatingImageError ? (
                                     <div className="aspect-[4/3] rounded-lg bg-red-50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-red-300">
@@ -757,6 +787,57 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/png, image/jpeg, image/webp" className="hidden" aria-hidden="true" />
                     </div>
                     <RecipeDetails recipe={editableRecipe} mealTypes={mealTypes} cuisineOptions={cuisineOptions} cookingMethodsList={cookingMethodsList} />
+                    {isEditing ? (
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-800">Hozzávalók</h3>
+                             <textarea 
+                                value={editableRecipe.ingredients.join('\n')} 
+                                onChange={e => setEditableRecipe(prev => ({...prev, ingredients: e.target.value.split('\n')}))} 
+                                rows={10} 
+                                className="text-gray-700 w-full bg-yellow-50 border-2 border-primary-200 rounded-lg p-3 mt-2"
+                            />
+                        </div>
+                    ) : (
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <h3 className="text-xl font-bold text-gray-800">Hozzávalók</h3>
+                                <button
+                                    onClick={handleAddSelectedToShoppingList}
+                                    disabled={checkedIngredients.size === 0}
+                                    className="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H4.72l-.38-1.522A1 1 0 003 1z" /></svg>
+                                    Kijelöltek a listára ({checkedIngredients.size})
+                                </button>
+                            </div>
+                            <div className="bg-primary-50 p-4 rounded-lg border border-primary-100 mt-2">
+                                <label className="flex items-center gap-3 cursor-pointer font-semibold pb-2 border-b border-primary-200">
+                                    <input
+                                        type="checkbox"
+                                        checked={editableRecipe.ingredients.length > 0 && checkedIngredients.size === editableRecipe.ingredients.length}
+                                        onChange={handleSelectAllIngredients}
+                                        className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                    />
+                                    Összes kijelölése
+                                </label>
+                                <ul className="space-y-2 pt-2">
+                                    {editableRecipe.ingredients.map((ing, i) => (
+                                        <li key={i}>
+                                            <label className="flex items-center gap-3 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checkedIngredients.has(ing)}
+                                                    onChange={() => handleIngredientCheck(ing)}
+                                                    className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                />
+                                                <span className="text-gray-700">{ing}</span>
+                                            </label>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div className="space-y-6">
                     <div className="flex justify-between items-center">

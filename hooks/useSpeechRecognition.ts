@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { SpeechRecognition } from '../types';
+// FIX: Corrected import path to be relative.
+import type { SpeechRecognition, SpeechRecognitionErrorEvent } from '../types';
 
 interface UseSpeechRecognitionOptions {
   onResult: (transcript: string, isFinal: boolean) => void;
@@ -65,8 +66,9 @@ export const useSpeechRecognition = ({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    // FIX: Cast window to `any` to access browser-prefixed SpeechRecognition APIs without TypeScript errors.
     const SpeechRecognitionAPI =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
       setIsSupported(false);
       return;
@@ -107,7 +109,7 @@ export const useSpeechRecognition = ({
       }
     };
 
-    recognition.onerror = (event) => {
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       if (event.error === 'not-allowed') {
         setPermissionState('denied');
         console.warn("Speech recognition info: Microphone access was denied by the user.");

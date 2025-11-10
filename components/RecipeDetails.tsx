@@ -26,17 +26,17 @@ const NutritionalInfo: React.FC<{ recipe: Recipe }> = ({ recipe }) => {
     if (info.length === 0) return null;
 
     return (
-        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-bold text-gray-800 mb-3">Tápérték adatok <span className="text-sm font-normal text-gray-500">(becsült / 100g)</span></h3>
+        <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-3">Tápérték adatok <span className="text-sm font-normal text-gray-500 dark:text-gray-400">(becsült / 100g)</span></h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {info.map(({ field, label, value, icon }) => (
                     <div key={field} className="flex items-center gap-3">
-                        <div className="w-8 h-8 p-1.5 bg-primary-100 text-primary-600 rounded-full flex-shrink-0">
+                        <div className="w-8 h-8 p-1.5 bg-primary-100 text-primary-600 rounded-full flex-shrink-0 dark:bg-primary-900/50 dark:text-primary-300">
                            {icon}
                         </div>
                         <div>
-                            <span className="text-sm text-gray-500 block">{label}</span>
-                            <span className="text-md font-bold text-gray-900">{value}</span>
+                            <span className="text-sm text-gray-500 dark:text-gray-400 block">{label}</span>
+                            <span className="text-md font-bold text-gray-900 dark:text-gray-100">{value}</span>
                         </div>
                     </div>
                 ))}
@@ -72,23 +72,15 @@ const RecipeDetails: React.FC<RecipeDetailsProps> = ({ recipe, mealTypes, cuisin
                     { label: 'Konyha', value: cuisineLabel || 'Nincs megadva' },
                     { label: 'Becsült költség', value: recipe.estimatedCost },
                 ].filter(item => item.value).map(item => (
-                    <div key={item.label} className="bg-primary-50 p-3 rounded-lg">
-                        <p className="text-sm text-primary-700 font-semibold">{item.label}</p>
-                        <p className="text-lg font-bold text-primary-900">{item.value}</p>
+                    <div key={item.label} className="bg-primary-50 dark:bg-gray-700 p-3 rounded-lg">
+                        <p className="text-sm text-primary-700 dark:text-primary-300 font-semibold">{item.label}</p>
+                        <p className="text-lg font-bold text-primary-900 dark:text-primary-100">{item.value}</p>
                     </div>
                 ))}
             </div>
-            <div className="bg-primary-50 p-3 rounded-lg">
-                <p className="text-sm text-primary-700 font-semibold text-center">Elkészítés módja</p>
-                <p className="text-lg font-bold text-primary-900 text-center">{cookingMethodLabels}</p>
-            </div>
-
-            {/* Ingredients Section */}
-            <div>
-                <h3 className="text-xl font-bold text-gray-800">Hozzávalók</h3>
-                <ul className="bg-primary-50 p-4 rounded-lg space-y-2 border border-primary-100 mt-2">
-                {recipe.ingredients.map((ing, i) => <li key={i} className="text-gray-700">{ing}</li>)}
-                </ul>
+            <div className="bg-primary-50 dark:bg-gray-700 p-3 rounded-lg">
+                <p className="text-sm text-primary-700 dark:text-primary-300 font-semibold text-center">Elkészítés módja</p>
+                <p className="text-lg font-bold text-primary-900 dark:text-primary-100 text-center">{cookingMethodLabels}</p>
             </div>
 
             {/* Nutritional Info */}
@@ -96,9 +88,9 @@ const RecipeDetails: React.FC<RecipeDetailsProps> = ({ recipe, mealTypes, cuisin
 
             {/* Diabetic Advice */}
             {recipe.diabeticAdvice && (
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <h3 className="text-lg font-bold text-blue-800 mb-2">Tipp cukorbetegeknek</h3>
-                    <p className="text-blue-700">{recipe.diabeticAdvice}</p>
+                <div className="bg-blue-50 dark:bg-blue-900/50 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <h3 className="text-lg font-bold text-blue-800 dark:text-blue-200 mb-2">Tipp cukorbetegeknek</h3>
+                    <p className="text-blue-700 dark:text-blue-300">{recipe.diabeticAdvice}</p>
                 </div>
             )}
         </div>

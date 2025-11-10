@@ -16,8 +16,8 @@ const DataManagementControls: React.FC<DataManagementControlsProps> = ({
   hasAnyData,
 }) => {
   return (
-    <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-lg">
-      <h3 className="text-lg font-bold text-center text-gray-700 mb-4">Adatkezelés</h3>
+    <div className="mb-6 p-4 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-700/50 dark:border-gray-700">
+      <h3 className="text-lg font-bold text-center text-gray-700 dark:text-gray-200 mb-4">Adatkezelés</h3>
       <div className="flex flex-col sm:flex-row gap-4 justify-center">
         <button
           onClick={onExport}
@@ -47,7 +47,7 @@ const DataManagementControls: React.FC<DataManagementControlsProps> = ({
           aria-hidden="true"
         />
       </div>
-      <p className="text-xs text-center text-gray-500 mt-3">Tipp: A betöltés összefésüli a meglévő adatokat az újonnan betöltöttekkel, nem írja felül őket.</p>
+      <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-3">Tipp: A betöltés összefésüli a meglévő adatokat az újonnan betöltöttekkel, nem írja felül őket.</p>
     </div>
   );
 };

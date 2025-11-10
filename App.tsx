@@ -114,7 +114,7 @@ const processAndResizeImageForGemini = (file: File): Promise<{ data: string; mim
         const MAX_DIMENSION = 1600;
 
         if (typeof window.createImageBitmap === 'undefined') {
-            reject(new Error('A böngésződ nem támogatja a modern, memóriahatékony képfeldolgozást. A funkció valószínűleg nem fog működni ezen az eszközön.'));
+            reject(new Error('A böngésződ nem támogatja a modern, memóriahatékony képfeldəolgozást. A funkció valószínűleg nem fog működni ezen az eszközön.'));
             return;
         }
 
@@ -269,7 +269,7 @@ const App: React.FC = () => {
   const [recipeCommand, setRecipeCommand] = useState<VoiceCommandResult | null>(null);
   const [forceSpeakTrigger, setForceSpeakTrigger] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
-
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   const { showNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -280,6 +280,31 @@ const App: React.FC = () => {
     document.documentElement.lang = 'hu';
     document.title = 'AI recept generátor - Konyha Miki módra';
   }, []);
+
+  // Theme management effects
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    } else if (prefersDark) {
+      setTheme('dark');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+  };
 
   const toggleFullscreen = async () => {
     const docEl = document.documentElement as any;
@@ -551,6 +576,7 @@ const App: React.FC = () => {
             );
             setRecipe(generatedDailyMenu);
       } else {
+          // FIX: Removed extra `params.useSeasonalIngredients` argument to match function signature.
           const generatedRecipe = await generateRecipe(
             params.ingredients,
             params.excludedIngredients,
@@ -563,7 +589,6 @@ const App: React.FC = () => {
             params.numberOfServings,
             params.recipePace,
             params.mode,
-            params.useSeasonalIngredients,
             mealTypes,
             cuisineOptions,
             cookingMethodsList,
@@ -1478,8 +1503,23 @@ const App: React.FC = () => {
         <img src={konyhaMikiLogo} alt="Konyha Miki Logó" className="h-16" />
         <div className="flex items-center gap-2">
             <button
+                onClick={toggleTheme}
+                className="bg-white text-primary-700 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-600 font-semibold p-2 rounded-full border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                aria-label={theme === 'dark' ? 'Világos mód' : 'Sötét mód'}
+            >
+                {theme === 'dark' ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                    </svg>
+                ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 14.464A1 1 0 106.465 13.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zm.707-10.607a1 1 0 011.414 0l.707.707a1 1 0 11-1.414 1.414l-.707-.707a1 1 0 010-1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z" clipRule="evenodd" />
+                    </svg>
+                )}
+            </button>
+            <button
                 onClick={toggleFullscreen}
-                className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 flex items-center gap-2"
+                className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 flex items-center gap-2 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-600"
                 aria-label={isFullscreen ? 'Kilépés a teljes képernyős módból' : 'Váltás teljes képernyős módra'}
             >
                 {isFullscreen ? (
@@ -1487,20 +1527,20 @@ const App: React.FC = () => {
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M5 5a1 1 0 011-1h2a1 1 0 110 2H6v1a1 1 0 11-2 0V6a1 1 0 011-1zm10 0a1 1 0 011 1v1a1 1 0 11-2 0V6h-1a1 1 0 110-2h2zM5 14a1 1 0 011 1v1h1a1 1 0 110 2H6a1 1 0 01-1-1v-2zm10 0a1 1 0 011 1v2a1 1 0 01-1 1h-1a1 1 0 110-2h1v-1z" clipRule="evenodd" />
                         </svg>
-                        <span>Ablak mód</span>
+                        <span className="hidden sm:inline">Ablak mód</span>
                     </>
                 ) : (
                     <>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M3 4a1 1 0 011-1h2a1 1 0 110 2H5v1a1 1 0 11-2 0V4zm14 0a1 1 0 00-1-1h-2a1 1 0 100 2h1v1a1 1 0 102 0V4zM4 17a1 1 0 01-1-1v-2a1 1 0 112 0v1h1a1 1 0 110 2H4zM16 17a1 1 0 001-1v-1a1 1 0 10-2 0v1h-1a1 1 0 100 2h2z" clipRule="evenodd" />
                         </svg>
-                        <span>Teljes képernyő</span>
+                        <span className="hidden sm:inline">Teljes képernyő</span>
                     </>
                 )}
             </button>
             <button
             onClick={handleShowAppGuide}
-            className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-600"
             >
             Információ
             </button>
@@ -1511,18 +1551,12 @@ const App: React.FC = () => {
         <GlobalVoiceController onCommand={handleGlobalCommand} isProcessing={isProcessingVoice} onTranscriptUpdate={handleTranscriptUpdate} onActivate={handleWakeLockActivate} />
       </div>
 
-      <nav className="flex justify-center flex-wrap gap-2 mb-6 p-2 bg-gray-100 rounded-lg">
+      <nav className="flex justify-center flex-wrap gap-2 mb-6 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
         {navItems.map(item => (
           <button
             key={item.id}
-            onClick={() => {
-                // Only close recipe if navigating away from the generator
-                if (view === 'generator' && item.id !== 'generator') {
-                    handleCloseRecipe();
-                }
-                setView(item.id);
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md font-semibold transition-colors text-sm sm:text-base ${view === item.id ? 'bg-primary-600 text-white shadow' : 'text-gray-600 hover:bg-primary-50'}`}
+            onClick={() => setView(item.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md font-semibold transition-colors text-sm sm:text-base ${view === item.id ? 'bg-primary-600 text-white shadow' : 'text-gray-600 hover:bg-primary-50 dark:text-gray-300 dark:hover:bg-gray-700'}`}
           >
             {item.icon}
             {item.label}
@@ -1538,7 +1572,7 @@ const App: React.FC = () => {
         hasAnyData={hasAnyData}
       />
       
-      <main className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg">
+      <main className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg dark:bg-gray-800">
         {view === 'generator' && (
           <div className="space-y-6">
             {!recipe && !alternativeRecipes && (
@@ -1683,79 +1717,62 @@ const App: React.FC = () => {
             shoppingListItems={shoppingList}
             onMoveItems={handleMovePantryItems}
             onGenerateFromSelectedPantryItemsRequest={handleGenerateFromSelectedPantryItems}
+            onAddItemsToShoppingList={handleAddItemsToShoppingList}
           />
         )}
 
         {view === 'users' && (
-          <UsersView
-            users={users}
-            onSaveUser={handleSaveUser}
-            onDeleteUser={handleDeleteUser}
-          />
+            <UsersView
+                users={users}
+                onSaveUser={handleSaveUser}
+                onDeleteUser={handleDeleteUser}
+            />
         )}
       </main>
-      
-      <footer className="text-center mt-6 text-sm text-gray-500 space-y-2">
-         <p>AI Receptgenerátor - Konyha Miki módra | Verzió: {APP_VERSION}</p>
-         <p className="px-4">
-            Figyelem: Az AI által generált receptek tájékoztató jellegűek. Főzés előtt mindig ellenőrizze az összetevőket és az elkészítési lépéseket. Különös óvatossággal járjon el allergia, intolerancia, vagy speciális diéta esetén! Maradékok felhasználásakor mindig tartsa be az élelmiszerbiztonsági előírásokat!
-         </p>
-          <div className="pt-2">
-             <button
-                type="button"
-                onClick={() => setIsExamplesExpanded(!isExamplesExpanded)}
-                className="w-full max-w-md mx-auto flex justify-between items-center text-left p-3 bg-gray-100 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500"
-                aria-expanded={isExamplesExpanded}
-                aria-controls="examples-content"
-            >
-                <span className="font-semibold text-gray-700">Hangparancs példák (API hívás nélkül)</span>
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-500 transform transition-transform ${isExamplesExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-            </button>
-            {isExamplesExpanded && (
-                <div id="examples-content" className="mt-2 p-4 max-w-md mx-auto bg-gray-50 border rounded-lg text-gray-700 text-left text-xs animate-fade-in">
-                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 list-disc list-inside">
-                        {ALL_LOCAL_COMMAND_EXAMPLES.map((cmd, i) => <li key={i}>{cmd}</li>)}
-                    </ul>
-                </div>
-            )}
-          </div>
-      </footer>
 
       {isLocationPromptOpen && (
-          <LocationPromptModal
+        <LocationPromptModal
             isOpen={isLocationPromptOpen}
             onClose={() => setIsLocationPromptOpen(false)}
             onSelect={(location) => {
                 locationCallback(location);
                 setIsLocationPromptOpen(false);
             }}
-          />
+        />
       )}
-      <LoadOnStartModal 
+
+      <LoadOnStartModal
         isOpen={isLoadOnStartModalOpen}
         onClose={() => setIsLoadOnStartModalOpen(false)}
         onLoad={() => fileInputRef.current?.click()}
       />
-      <OptionsEditPanel 
+
+      <OptionsEditPanel
         isOpen={isOptionsEditorOpen}
         onClose={() => setIsOptionsEditorOpen(false)}
-        onSave={(newMealTypes, newCuisineOptions, newCookingMethods, newCapacities) => handleOptionsSave(newMealTypes, newCuisineOptions, newCookingMethods, newCapacities)}
+        onSave={(newMealTypes, newCuisineOptions, newCookingMethods, newCapacities) => {
+          handleOptionsSave(
+              newMealTypes,
+              newCuisineOptions,
+              newCookingMethods,
+              newCapacities,
+              newMealTypes.map(o => o.value),
+              newCuisineOptions.map(o => o.value),
+              newCookingMethods.map(o => o.value)
+          );
+        }}
         initialMealTypes={mealTypes}
         initialCuisineOptions={cuisineOptions}
         initialCookingMethods={cookingMethodsList}
         initialCapacities={cookingMethodCapacities}
       />
-      {isInfoModalOpen && (
-        <InfoModal
-            isOpen={isInfoModalOpen}
-            onClose={() => setIsInfoModalOpen(false)}
-            content={appGuideContent}
-            isLoading={isLoadingGuide}
-            onRegenerate={() => forceRegenerateGuide(true)}
-        />
-      )}
+      <InfoModal
+        isOpen={isInfoModalOpen}
+        onClose={() => setIsInfoModalOpen(false)}
+        content={appGuideContent}
+        isLoading={isLoadingGuide}
+        onRegenerate={forceRegenerateGuide}
+      />
       <ImportUrlModal
         isOpen={isImportUrlModalOpen}
         onClose={() => setIsImportUrlModalOpen(false)}
@@ -1763,8 +1780,40 @@ const App: React.FC = () => {
         isParsing={isParsingUrl}
         error={parsingUrlError}
       />
+      
+      {/* Voice feedback bubble will be managed inside GlobalVoiceController for better state management */}
+
+      <footer className="mt-8 text-center text-xs text-gray-500 dark:text-gray-400 space-y-4">
+        <p>
+          AI Receptgenerátor - Konyha Miki módra | Verzió: {APP_VERSION}
+        </p>
+        <p className="max-w-2xl mx-auto">
+          Figyelem: Az AI által generált receptek tájékoztató jellegűek. Főzés előtt mindig ellenőrizze az összetevőket és az elkészítési lépéseket. Különös óvatossággal járjon el allergia, intolerancia, vagy speciális diéta esetén! Maradékok felhasználásakor mindig tartsa be az élelmiszerbiztonsági előírásokat!
+        </p>
+        <div>
+          <button
+              onClick={() => setIsExamplesExpanded(!isExamplesExpanded)}
+              className="text-primary-700 dark:text-primary-300 font-semibold hover:underline"
+              aria-expanded={isExamplesExpanded}
+          >
+              Hangparancs példák (API hívás nélkül)
+          </button>
+          {isExamplesExpanded && (
+              <div className="mt-2 p-4 bg-gray-100 dark:bg-gray-700/50 rounded-lg text-left max-w-md mx-auto animate-fade-in">
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                      {ALL_LOCAL_COMMAND_EXAMPLES.map((ex, i) => (
+                          <li key={i} className="text-gray-600 dark:text-gray-300">
+                              - "{ex}"
+                          </li>
+                      ))}
+                  </ul>
+              </div>
+          )}
+        </div>
+      </footer>
     </div>
   );
 };
 
+// FIX: Add default export for App component.
 export default App;

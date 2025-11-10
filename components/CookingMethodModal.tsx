@@ -77,10 +77,10 @@ const CookingMethodModal: React.FC<CookingMethodModalProps> = ({
     >
       <div
         ref={modalRef}
-        className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-lg flex flex-col max-h-[90vh]"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 m-4 w-full max-w-lg flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="cooking-method-title" className="text-xl font-bold text-primary-800 mb-4 flex-shrink-0">
+        <h2 id="cooking-method-title" className="text-xl font-bold text-primary-800 dark:text-primary-300 mb-4 flex-shrink-0">
           Elkészítés módja
         </h2>
         
@@ -94,15 +94,15 @@ const CookingMethodModal: React.FC<CookingMethodModalProps> = ({
                 onClick={() => handleToggle(option.value)}
                 className={`w-full text-left flex items-center gap-3 p-3 border rounded-lg transition-colors ${
                   isSelected 
-                    ? 'bg-primary-100 border-primary-400' 
-                    : 'bg-white hover:bg-gray-50'
+                    ? 'bg-primary-100 border-primary-400 dark:bg-primary-900/50 dark:border-primary-600' 
+                    : 'bg-white hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:hover:bg-gray-600'
                 }`}
                 aria-pressed={isSelected}
               >
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-primary-600 border-primary-600' : 'border-gray-300'}`}>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-primary-600 border-primary-600' : 'border-gray-300 dark:border-gray-500'}`}>
                   {isSelected && <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                 </div>
-                <span className={`font-medium ${isSelected ? 'text-primary-800' : 'text-gray-700'}`}>
+                <span className={`font-medium ${isSelected ? 'text-primary-800 dark:text-primary-200' : 'text-gray-700 dark:text-gray-300'}`}>
                   {option.label}
                 </span>
               </button>
@@ -110,8 +110,8 @@ const CookingMethodModal: React.FC<CookingMethodModalProps> = ({
           })}
         </div>
         
-        <div className="mt-6 flex justify-end gap-3 border-t pt-4 flex-shrink-0">
-          <button type="button" onClick={onClose} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">
+        <div className="mt-6 flex justify-end gap-3 border-t dark:border-gray-700 pt-4 flex-shrink-0">
+          <button type="button" onClick={onClose} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">
             Mégse
           </button>
           <button

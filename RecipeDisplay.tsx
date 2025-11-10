@@ -1,19 +1,20 @@
 // FIX: The original file was an incomplete React component, causing a compilation error because it did not return any JSX. This has been replaced with the complete and up-to-date component definition from 'components/RecipeDisplay.tsx' to resolve the error and align with the application's current architecture.
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Recipe, VoiceCommand, Favorites, UserProfile, InstructionStep, AlternativeRecipeSuggestion, OptionItem, MealType, CuisineOption, CookingMethod, DietOption, VoiceCommandResult } from '../types';
-import { generateRecipeImage, calculateRecipeCost, simplifyRecipe } from '../services/geminiService';
-import * as imageStore from '../services/imageStore';
-import { useNotification } from '../contexts/NotificationContext';
-import KitchenTimer from './KitchenTimer';
-import SaveRecipeModal from './SaveToFavoritesModal';
-import ImageDisplayModal from './ImageDisplayModal';
-import InstructionCarousel from './InstructionCarousel';
-import { DIET_OPTIONS } from '../constants';
-import { konyhaMikiLogo as konyhaMikiLogoBase64 } from '../assets';
-import StarRating from './StarRating';
-import FavoriteStatusModal from './FavoriteStatusModal';
-import RecipeDetails from './RecipeDetails';
-import CookingModeView from './CookingModeView';
+import { Recipe, VoiceCommand, Favorites, UserProfile, InstructionStep, AlternativeRecipeSuggestion, OptionItem, MealType, CuisineOption, CookingMethod, DietOption, VoiceCommandResult } from './types';
+import { generateRecipeImage, calculateRecipeCost, simplifyRecipe } from './services/geminiService';
+import * as imageStore from './services/imageStore';
+import { useNotification } from './contexts/NotificationContext';
+import KitchenTimer from './components/KitchenTimer';
+import SaveRecipeModal from './components/SaveToFavoritesModal';
+import ImageDisplayModal from './components/ImageDisplayModal';
+import InstructionCarousel from './components/InstructionCarousel';
+import { DIET_OPTIONS } from './constants';
+import LoadingSpinner from './components/LoadingSpinner';
+import { konyhaMikiLogo as konyhaMikiLogoBase64 } from './assets';
+import StarRating from './components/StarRating';
+import FavoriteStatusModal from './components/FavoriteStatusModal';
+import RecipeDetails from './components/RecipeDetails';
+import CookingModeView from './components/CookingModeView';
 
 interface RecipeDisplayProps {
   recipe: Recipe;
@@ -28,12 +29,14 @@ interface RecipeDisplayProps {
   onUpdateFavoriteStatus: (recipeName: string, category: string, favoritedByIds: string[]) => void;
   shouldGenerateImageInitially: boolean;
   onGenerateVariations: (recipe: Recipe) => void;
+  isGeneratingVariations: boolean;
   mealTypes: OptionItem[];
   cuisineOptions: OptionItem[];
   cookingMethodsList: OptionItem[];
   category: string | null;
   command: VoiceCommandResult | null;
   onCommandProcessed: () => void;
+  forceSpeakTrigger: number;
 }
 
 const addWatermark = (imageUrl: string, recipe: Recipe, allMealTypes: OptionItem[], allCookingMethods: OptionItem[]): Promise<string> => {
@@ -240,12 +243,14 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
   onUpdateFavoriteStatus,
   shouldGenerateImageInitially,
   onGenerateVariations,
+  isGeneratingVariations,
   mealTypes,
   cuisineOptions,
   cookingMethodsList,
   category,
   command,
   onCommandProcessed,
+  forceSpeakTrigger,
 }) => {
     const { showNotification } = useNotification();
     const originalRecipeRef = useRef(recipe);
@@ -312,6 +317,12 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
             speak(`${instructionStep + 1}. lépés: ${stepText}`);
         }
     }, [instructionStep, editableRecipe.instructions, speak]);
+    
+    useEffect(() => {
+        if (isCookingModeActive) { // Only read aloud if cooking mode is on
+            readCurrentStep();
+        }
+    }, [instructionStep, isCookingModeActive, readCurrentStep]);
 
     const handleVoiceCommand = (voiceCommand: VoiceCommandResult) => {
         switch(voiceCommand.command) {
@@ -347,12 +358,6 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                 break;
         }
     };
-
-    useEffect(() => {
-        if (isCookingModeActive) { // Only read aloud if cooking mode is on
-            readCurrentStep();
-        }
-    }, [instructionStep, isCookingModeActive, readCurrentStep]);
 
     useEffect(() => {
         const resolveInstructionImages = async () => {
@@ -803,6 +808,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                 currentStep={instructionStep}
                 onStepChange={setInstructionStep}
                 recipeName={editableRecipe.recipeName}
+                forceSpeakTrigger={forceSpeakTrigger}
               />
             )}
         </div>

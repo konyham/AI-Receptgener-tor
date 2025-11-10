@@ -1,11 +1,54 @@
-// FIX: This file has been completely rewritten to define all necessary types, enums, and interfaces for the application. This resolves numerous circular dependency and missing type errors across the project.
-declare global {
-  interface Window {
-    showSaveFilePicker(options?: any): Promise<any>;
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-    html2pdf: any;
-  }
+// types.ts
+
+export interface Recipe {
+  recipeName: string;
+  description: string;
+  ingredients: string[];
+  instructions: InstructionStep[];
+  prepTime: string;
+  cookTime: string;
+  servings: string;
+  estimatedCost?: string;
+  imageUrl?: string; // Can be data URL or indexeddb: link
+  calories?: string;
+  carbohydrates?: string;
+  protein?: string;
+  fat?: string;
+  glycemicIndex?: string;
+  diabeticAdvice?: string;
+  dateAdded?: string;
+  rating?: number; // 1-5
+  favoritedBy?: string[]; // Array of user IDs
+  mealType: MealType;
+  cuisine: CuisineOption;
+  diet: DietOption;
+  cookingMethods: CookingMethod[];
+  recipePace: RecipePace;
+  // For menus
+  menuName?: string;
+  menuCourse?: 'appetizer' | 'soup' | 'mainCourse' | 'dessert' | 'breakfast' | 'lunch' | 'dinner';
+}
+
+export interface InstructionStep {
+  text: string;
+  imageUrl?: string;
+}
+
+export interface MenuRecipe {
+  menuName: string;
+  menuDescription: string;
+  appetizer: Recipe;
+  soup: Recipe;
+  mainCourse: Recipe;
+  dessert: Recipe;
+}
+
+export interface DailyMenuRecipe {
+  menuName: string;
+  menuDescription: string;
+  breakfast: Recipe;
+  lunch: Recipe;
+  dinner: Recipe;
 }
 
 export enum DietOption {
@@ -36,105 +79,56 @@ export enum MealType {
 }
 
 export enum CuisineOption {
-    NONE = 'none',
-    HUNGARIAN = 'hungarian',
-    ERDELYI = 'erdelyi',
-    ITALIAN = 'italian',
-    FRENCH = 'french',
-    SPANISH = 'spanish',
-    GREEK = 'greek',
-    BULGARIAN = 'bulgarian',
-    TURKISH = 'turkish',
-    CHINESE = 'chinese',
-    JAPANESE = 'japanese',
-    THAI = 'thai',
-    VIETNAMESE = 'vietnamese',
-    INDIAN = 'indian',
-    MEXICAN = 'mexican',
-    AMERICAN = 'american',
+  NONE = 'none',
+  HUNGARIAN = 'hungarian',
+  ERDELYI = 'erdelyi',
+  ITALIAN = 'italian',
+  FRENCH = 'french',
+  SPANISH = 'spanish',
+  GREEK = 'greek',
+  BULGARIAN = 'bulgarian',
+  TURKISH = 'turkish',
+  CHINESE = 'chinese',
+  JAPANESE = 'japanese',
+  THAI = 'thai',
+  VIETNAMESE = 'vietnamese',
+  INDIAN = 'indian',
+  MEXICAN = 'mexican',
+  AMERICAN = 'american',
 }
 
 export type CookingMethod = string;
 export const TRADITIONAL_COOKING_METHOD: CookingMethod = 'traditional';
 
 export enum RecipePace {
-  NORMAL = 'normal',
-  QUICK = 'quick',
-  SIMPLE = 'simple',
+    NORMAL = 'normal',
+    QUICK = 'quick',
+    SIMPLE = 'simple',
 }
 
-export interface InstructionStep {
-  text: string;
-  imageUrl?: string;
+export interface Favorites {
+  [category: string]: Recipe[];
 }
-
-export interface Recipe {
-  recipeName: string;
-  description: string;
-  prepTime: string;
-  cookTime: string;
-  servings: string;
-  ingredients: string[];
-  instructions: InstructionStep[];
-  calories?: string;
-  carbohydrates?: string;
-  protein?: string;
-  fat?: string;
-  glycemicIndex?: string;
-  diabeticAdvice?: string;
-  estimatedCost?: string;
-  imageUrl?: string;
-  dateAdded?: string;
-  rating?: number;
-  favoritedBy?: string[];
-  menuName?: string;
-  menuCourse?: 'appetizer' | 'soup' | 'mainCourse' | 'dessert' | 'breakfast' | 'lunch' | 'dinner';
-  
-  diet: DietOption;
-  mealType: MealType;
-  cuisine: CuisineOption;
-  cookingMethods: CookingMethod[];
-  recipePace: RecipePace;
-}
-
-export interface MenuRecipe {
-  menuName: string;
-  menuDescription: string;
-  appetizer: Recipe;
-  soup: Recipe;
-  mainCourse: Recipe;
-  dessert: Recipe;
-}
-
-export interface DailyMenuRecipe {
-  menuName: string;
-  menuDescription: string;
-  breakfast: Recipe;
-  lunch: Recipe;
-  dinner: Recipe;
-}
-
-export type Favorites = Record<string, Recipe[]>;
 
 export interface RecipeSuggestions {
   suggestedIngredients: string[];
   modificationIdeas: string[];
 }
 
+export interface AlternativeRecipeSuggestion {
+  reason: string;
+  recipe: Recipe;
+}
+
 export type AppView = 'generator' | 'favorites' | 'shopping-list' | 'pantry' | 'users';
 
 export enum SortOption {
-  DATE_DESC = 'date_desc',
-  DATE_ASC = 'date_asc',
-  NAME_ASC = 'name_asc',
-  NAME_DESC = 'name_desc',
-  RATING_DESC = 'rating_desc',
-  RATING_ASC = 'rating_asc',
-}
-
-export interface OptionItem {
-  value: string;
-  label: string;
+  DATE_DESC = 'date-desc',
+  DATE_ASC = 'date-asc',
+  NAME_ASC = 'name-asc',
+  NAME_DESC = 'name-desc',
+  RATING_DESC = 'rating-desc',
+  RATING_ASC = 'rating-asc',
 }
 
 export interface ShoppingListItem {
@@ -145,12 +139,11 @@ export interface ShoppingListItem {
 export enum StorageType {
   PANTRY = 'pantry',
   REFRIGERATOR = 'refrigerator',
-  FREEZER = 'freezer',
+  FREEZER = 'freezer'
 }
 
 export interface PantryItem {
   text: string;
-  quantity?: string;
   dateAdded: string | null;
   storageType: StorageType;
 }
@@ -159,32 +152,58 @@ export const PANTRY_LOCATIONS = ['Tiszadada', 'Vásárosnamény'] as const;
 export type PantryLocation = typeof PANTRY_LOCATIONS[number];
 
 
-export interface UserProfile {
-  id: string;
-  name: string;
-  likes: string;
-  dislikes: string;
-  allergies: string;
-}
-
 export interface BackupData {
   favorites: Favorites;
   shoppingList: ShoppingListItem[];
   pantry: Record<PantryLocation, PantryItem[]>;
   users: UserProfile[];
-  images: Record<string, string>;
-  mealTypes: OptionItem[];
-  cuisineOptions: OptionItem[];
-  cookingMethods: OptionItem[];
-  cookingMethodCapacities: Record<string, number | null>;
-  mealTypesOrder: string[];
-  cuisineOptionsOrder: string[];
-  cookingMethodsOrder: string[];
+  images: Record<string, string>; // id -> dataURL
+  mealTypes?: OptionItem[];
+  cuisineOptions?: OptionItem[];
+  cookingMethods?: OptionItem[];
+  cookingMethodCapacities?: Record<string, number | null>;
+  mealTypesOrder?: string[];
+  cuisineOptionsOrder?: string[];
+  cookingMethodsOrder?: string[];
   appGuideContent?: string;
   appGuideVersion?: string;
 }
 
-export type FormAction = 'add_ingredients' | 'set_diet' | 'set_meal_type' | 'set_cooking_method' | 'generate_recipe' | 'unknown';
+export interface UserProfile {
+    id: string;
+    name: string;
+    likes: string;
+    dislikes: string;
+    allergies: string;
+}
+
+export interface OptionItem {
+    value: string;
+    label: string;
+}
+
+export type AppCommandAction = 
+  | 'navigate' 
+  | 'scroll_down' 
+  | 'scroll_up'
+  | 'add_shopping_list_item'
+  | 'remove_shopping_list_item'
+  | 'check_shopping_list_item'
+  | 'uncheck_shopping_list_item'
+  | 'clear_checked_shopping_list'
+  | 'clear_all_shopping_list'
+  | 'view_favorite_recipe'
+  | 'delete_favorite_recipe'
+  | 'filter_favorites'
+  | 'clear_favorites_filter'
+  | 'expand_category'
+  | 'collapse_category'
+  | 'unknown';
+  
+export interface AppCommand {
+    action: AppCommandAction;
+    payload: any;
+}
 
 export interface SelectionResult {
   key: string;
@@ -192,54 +211,25 @@ export interface SelectionResult {
 }
 
 export interface FormCommand {
-  action: FormAction;
-  payload: string[] | SelectionResult | null;
+  action: 'add_ingredients' | 'set_diet' | 'set_meal_type' | 'set_cooking_method' | 'generate_recipe';
+  payload: any;
 }
 
 export enum VoiceCommand {
-  NEXT = 'NEXT',
-  PREVIOUS = 'PREVIOUS',
-  REPEAT = 'REPEAT',
-  STOP = 'STOP',
-  READ_INTRO = 'READ_INTRO',
-  READ_INGREDIENTS = 'READ_INGREDIENTS',
-  START_COOKING = 'START_COOKING',
-  START_TIMER = 'START_TIMER',
-  UNKNOWN = 'UNKNOWN',
+  NEXT = 'next',
+  PREVIOUS = 'previous',
+  REPEAT = 'repeat',
+  STOP = 'stop',
+  READ_INTRO = 'read-intro',
+  READ_INGREDIENTS = 'read-ingredients',
+  START_COOKING = 'start-cooking',
+  START_TIMER = 'start-timer',
+  UNKNOWN = 'unknown',
 }
 
 export interface VoiceCommandResult {
   command: VoiceCommand;
-  payload?: {
-    hours?: number;
-    minutes?: number;
-    seconds?: number;
-  };
-}
-
-export type AppCommandAction =
-  | 'navigate'
-  | 'add_shopping_list_item'
-  | 'remove_shopping_list_item'
-  | 'check_shopping_list_item'
-  | 'uncheck_shopping_list_item'
-  | 'clear_checked_shopping_list'
-  | 'clear_all_shopping_list'
-  | 'add_pantry_item'
-  | 'remove_pantry_item'
-  | 'view_favorite_recipe'
-  | 'delete_favorite_recipe'
-  | 'filter_favorites'
-  | 'clear_favorites_filter'
-  | 'expand_category'
-  | 'collapse_category'
-  | 'scroll_up'
-  | 'scroll_down'
-  | 'unknown';
-
-export interface AppCommand {
-  action: AppCommandAction;
-  payload: any;
+  payload?: any;
 }
 
 export interface CategorizedIngredient {
@@ -247,26 +237,26 @@ export interface CategorizedIngredient {
   category: string;
 }
 
-export interface AlternativeRecipeSuggestion {
-  recipeName: string;
-  description: string;
-  newParameters: {
-    ingredients?: string;
-    cookingMethods?: CookingMethod[];
-    specialRequest?: string;
-  };
+// For useSpeechRecognition hook
+export interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
 }
 
-export interface SpeechRecognition {
+export interface SpeechRecognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
   start(): void;
   stop(): void;
+  abort(): void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
   onstart: () => void;
   onend: () => void;
-  onresult: (event: any) => void;
-  onerror: (event: any) => void;
-  // FIX: Added the 'abort' method to the SpeechRecognition interface to match the Web Speech API and resolve a type error in the useSpeechRecognition hook.
-  abort(): void;
+}
+
+export interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message: string;
 }

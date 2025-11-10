@@ -32,7 +32,7 @@ const StarRating: React.FC<StarRatingProps> = ({ rating, onRatingChange, readOnl
   return (
     <div className="flex items-center" aria-label={`Értékelés: ${rating || 0} az 5-ből`}>
       {[1, 2, 3, 4, 5].map((index) => {
-        const starColor = (hoverRating || rating || 0) >= index ? 'text-yellow-400' : 'text-gray-300';
+        const starColor = (hoverRating || rating || 0) >= index ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600';
         const interactionClasses = readOnly ? '' : 'cursor-pointer hover:scale-110 transition-transform';
 
         return (

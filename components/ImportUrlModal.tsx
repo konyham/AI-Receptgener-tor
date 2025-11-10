@@ -53,15 +53,15 @@ const ImportUrlModal: React.FC<ImportUrlModalProps> = ({ isOpen, onClose, onPars
       onClick={handleBackdropClick}
     >
       <div
-        className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-lg"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 m-4 w-full max-w-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="import-url-title" className="text-xl font-bold text-gray-800 mb-4">Recept Importálása URL-ből</h2>
-        <p className="text-gray-600 mb-4">Illessze be egy recept weboldalának linkjét, és megpróbáljuk beolvasni az adatokat az űrlap kitöltéséhez.</p>
+        <h2 id="import-url-title" className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">Recept Importálása URL-ből</h2>
+        <p className="text-gray-600 dark:text-gray-300 mb-4">Illessze be egy recept weboldalának linkjét, és megpróbáljuk beolvasni az adatokat az űrlap kitöltéséhez.</p>
         
         <div className="space-y-4">
           <div>
-            <label htmlFor="recipe-url" className="block text-sm font-medium text-gray-700">Recept URL</label>
+            <label htmlFor="recipe-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Recept URL</label>
             <input
               ref={inputRef}
               id="recipe-url"
@@ -69,15 +69,15 @@ const ImportUrlModal: React.FC<ImportUrlModalProps> = ({ isOpen, onClose, onPars
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://..."
-              className="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm"
+              className="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600"
               disabled={isParsing}
             />
           </div>
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+          {error && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={onClose} disabled={isParsing} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 disabled:opacity-50">
+          <button onClick={onClose} disabled={isParsing} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">
             Mégse
           </button>
           <button

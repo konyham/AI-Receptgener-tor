@@ -57,13 +57,13 @@ const SaveMenuModal: React.FC<SaveMenuModalProps> = ({ isOpen, onClose, onSave, 
     >
       <div
         ref={modalRef}
-        className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-sm"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 m-4 w-full max-w-sm"
         onClick={e => e.stopPropagation()}
       >
-        <h2 id="save-menu-title" className="text-xl font-bold text-primary-800 mb-4">Menü elmentése</h2>
-        <p className="text-gray-600 mb-4">Adjon egyedi nevet a menünek. Az összes fogás ezen a néven, egy közös kategóriába lesz elmentve.</p>
+        <h2 id="save-menu-title" className="text-xl font-bold text-primary-800 dark:text-primary-300 mb-4">Menü elmentése</h2>
+        <p className="text-gray-600 dark:text-gray-300 mb-4">Adjon egyedi nevet a menünek. Az összes fogás ezen a néven, egy közös kategóriába lesz elmentve.</p>
         <div>
-          <label htmlFor="menu-name" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="menu-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Menü neve
           </label>
           <input
@@ -73,11 +73,11 @@ const SaveMenuModal: React.FC<SaveMenuModalProps> = ({ isOpen, onClose, onSave, 
             value={menuName}
             onChange={e => setMenuName(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="w-full p-2 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
+            className="w-full p-2 bg-white dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600 text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500"
           />
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={onClose} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">
+          <button onClick={onClose} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">
             Mégse
           </button>
           <button

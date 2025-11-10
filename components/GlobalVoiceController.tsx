@@ -123,13 +123,13 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
         <label className="flex items-center cursor-pointer">
             <div className="relative">
                 <input type="checkbox" className="sr-only" checked={isHandsFreeActive} onChange={toggleHandsFree} disabled={permissionState === 'denied'}/>
-                <div className={`block w-14 h-8 rounded-full transition ${isHandsFreeActive ? 'bg-primary-600' : 'bg-gray-300'}`}></div>
+                <div className={`block w-14 h-8 rounded-full transition ${isHandsFreeActive ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
                 <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${isHandsFreeActive ? 'transform translate-x-6' : ''}`}></div>
             </div>
         </label>
         <div className="flex flex-col">
-            <span className="font-semibold text-gray-700">Kihangosított mód</span>
-            <span className={`text-sm h-5 transition-colors ${mode === 'LISTENING_FOR_COMMAND' ? 'text-blue-600 font-medium animate-pulse' : 'text-gray-500'}`}>{statusText}</span>
+            <span className="font-semibold text-gray-700 dark:text-gray-200">Kihangosított mód</span>
+            <span className={`text-sm h-5 transition-colors ${mode === 'LISTENING_FOR_COMMAND' ? 'text-blue-600 dark:text-blue-400 font-medium animate-pulse' : 'text-gray-500 dark:text-gray-400'}`}>{statusText}</span>
         </div>
     </div>
   );

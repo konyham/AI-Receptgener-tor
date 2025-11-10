@@ -1,6 +1,6 @@
 // services/favoritesService.ts
 
-import type { Recipe, Favorites } from '../types';
+import type { Recipe, Favorites, InstructionStep } from '../types';
 import { safeSetLocalStorage } from '../utils/storage';
 import * as imageStore from './imageStore';
 
@@ -32,7 +32,7 @@ export const validateAndRecover = (data: unknown): { favorites: Favorites; recov
             // FIX: Add data migration for old instruction format (string[] -> InstructionStep[]).
             // This ensures backward compatibility with favorites saved before the step-image feature was added.
             if (recipe.instructions.length > 0 && typeof recipe.instructions[0] === 'string') {
-              recipe.instructions = recipe.instructions.map((text: string) => ({ text: text }));
+              recipe.instructions = recipe.instructions.map((text: string): InstructionStep => ({ text: text }));
             }
 
             // FIX: Add data migration for recipes saved without cookingMethods.

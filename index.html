@@ -3,14 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light only">
+    <meta name="color-scheme" content="light dark">
     <title>AI recept generátor - Konyha Miki módra</title>
-    <link rel="manifest" href="/manifest.json?v=1.9.0">
+    <link rel="manifest" href="/manifest.json?v=1.13.0">
     <link rel="apple-touch-icon" href="https://storage.googleapis.com/genai-assets/konyha-miki-icons/apple-touch-icon.png">
     <meta name="theme-color" content="#854d24">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
@@ -52,11 +53,22 @@
       }
     </script>
     <style>
-      html {
-        /* Megakadályozza, hogy a böngésző által erőltetett sötét mód tönkretegye a stílusokat */
-        color-scheme: light;
+      /* Stílusok a sötét módhoz, ha a JS le van tiltva vagy lassan tölt be */
+      @media (prefers-color-scheme: dark) {
+        :root:not(.light) {
+          --tw-bg-opacity: 1;
+          background-color: rgb(17 24 39 / var(--tw-bg-opacity)); /* Corresponds to dark:bg-gray-900 */
+        }
       }
     </style>
+    <script>
+      // Betöltés előtti script a téma beállításához a villódzás elkerülése érdekében
+      if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+    </script>
   <script type="importmap">
 {
   "imports": {
@@ -69,7 +81,7 @@
 }
 </script>
 </head>
-  <body class="bg-primary-50">
+  <body class="bg-primary-50 dark:bg-gray-900 transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
     <script>

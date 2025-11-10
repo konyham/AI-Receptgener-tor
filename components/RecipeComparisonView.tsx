@@ -303,23 +303,23 @@ const RecipeComparisonView: React.FC<RecipeComparisonViewProps> = ({
       <div className="animate-fade-in space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-primary-800">Recept Variációk</h2>
-            <p className="text-lg text-gray-600 mt-1">Hasonlítsa össze a különböző változatokat.</p>
+            <h2 className="text-3xl font-bold text-primary-800 dark:text-primary-300">Recept Variációk</h2>
+            <p className="text-lg text-gray-600 dark:text-gray-300 mt-1">Hasonlítsa össze a különböző változatokat.</p>
           </div>
-          <button onClick={onClose} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 flex-shrink-0">
+          <button onClick={onClose} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 flex-shrink-0 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">
             Vissza a recepthez
           </button>
         </div>
 
-        <div className="flex flex-wrap border-b border-gray-200 -mb-px">
+        <div className="flex flex-wrap border-b border-gray-200 dark:border-gray-700 -mb-px">
           {allRecipes.map((_, index) => (
             <li key={index} className="list-none">
               <button
                 onClick={() => setActiveTab(index)}
                 className={`py-3 px-4 font-semibold rounded-t-lg transition-colors text-sm sm:text-base text-left ${
                   activeTab === index
-                    ? 'border-l border-t border-r border-gray-200 bg-white text-primary-600'
-                    : 'text-gray-500 hover:text-primary-600 hover:bg-gray-50'
+                    ? 'border-l border-t border-r border-gray-200 bg-white text-primary-600 dark:bg-gray-800 dark:text-primary-300 dark:border-gray-600'
+                    : 'text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                 }`}
               >
                 {index === 0 ? 'Eredeti Recept' : `${index}. Variáció`}
@@ -328,18 +328,18 @@ const RecipeComparisonView: React.FC<RecipeComparisonViewProps> = ({
           ))}
         </div>
 
-        <div className="bg-white rounded-b-lg border-l border-r border-b border-gray-200 p-4 sm:p-6">
-          <h3 className="text-2xl font-bold text-primary-800 mb-4">{activeRecipe.recipeName}</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-b-lg border-l border-r border-b border-gray-200 dark:border-gray-600 p-4 sm:p-6">
+          <h3 className="text-2xl font-bold text-primary-800 dark:text-primary-300 mb-4">{activeRecipe.recipeName}</h3>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="space-y-2">
+            <div className="space-y-6">
               {/* Image Generation UI */}
               {isGeneratingImage ? (
-                <div className="aspect-[4/3] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4 border animate-pulse-bg">
+                <div className="aspect-[4/3] rounded-lg bg-gray-100 dark:bg-gray-700 flex flex-col items-center justify-center p-4 border dark:border-gray-600 animate-pulse-bg">
                   <LoadingSpinner message="Ételkép feldolgozása..." inline />
                 </div>
               ) : generatingImageError ? (
-                  <div className="aspect-[4/3] rounded-lg bg-red-50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-red-300">
-                      <p className="text-red-700 font-semibold text-center mb-4">{generatingImageError}</p>
+                  <div className="aspect-[4/3] rounded-lg bg-red-50 dark:bg-red-900/30 flex flex-col items-center justify-center p-4 border-2 border-dashed border-red-300 dark:border-red-700">
+                      <p className="text-red-700 dark:text-red-200 font-semibold text-center mb-4">{generatingImageError}</p>
                       <button onClick={() => handleGenerateImage(true)} className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-red-700">Újrapróbálkozás</button>
                   </div>
               ) : activeImageUrl ? (
@@ -351,8 +351,8 @@ const RecipeComparisonView: React.FC<RecipeComparisonViewProps> = ({
                       </div>
                   </div>
               ) : (
-                  <div className="aspect-[4/3] rounded-lg bg-gray-50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300">
-                      <h4 className="text-lg font-semibold text-gray-700 mb-2">Ételfotó</h4>
+                  <div className="aspect-[4/3] rounded-lg bg-gray-50 dark:bg-gray-700/50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
+                      <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Ételfotó</h4>
                       <div className="flex flex-col sm:flex-row gap-4">
                           <button onClick={() => handleGenerateImage()} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-primary-700">Generálás AI-val</button>
                           <button onClick={() => fileInputRef.current?.click()} className="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-700">Saját kép</button>
@@ -360,6 +360,13 @@ const RecipeComparisonView: React.FC<RecipeComparisonViewProps> = ({
                   </div>
               )}
               <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/png, image/jpeg, image/webp" className="hidden" aria-hidden="true" />
+               {/* Ingredients List */}
+              <div>
+                <h4 className="text-xl font-semibold mb-2 text-gray-800 dark:text-gray-200">Hozzávalók</h4>
+                <ul className="bg-primary-50 dark:bg-gray-700/50 p-4 rounded-lg space-y-2 border border-primary-100 dark:border-gray-700 mt-2">
+                  {activeRecipe.ingredients.map((ing, i) => <li key={i} className="text-gray-700 dark:text-gray-300">{ing}</li>)}
+                </ul>
+              </div>
             </div>
             <div>
               <RecipeDetails
@@ -372,7 +379,7 @@ const RecipeComparisonView: React.FC<RecipeComparisonViewProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t">
+        <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t dark:border-gray-700">
           <button
             onClick={() => handleSaveClick('single')}
             className="flex-1 bg-primary-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-primary-700"
