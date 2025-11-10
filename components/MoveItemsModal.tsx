@@ -1,17 +1,18 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PantryLocation, PANTRY_LOCATIONS } from '../types';
 
-interface MoveItemsModalProps {
+interface TransferItemsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onMove: (destination: PantryLocation) => void;
+  onConfirm: (destination: PantryLocation, mode: 'move' | 'copy') => void;
   sourceLocation: PantryLocation;
   itemCount: number;
 }
 
-const MoveItemsModal: React.FC<MoveItemsModalProps> = ({ isOpen, onClose, onMove, sourceLocation, itemCount }) => {
+const TransferItemsModal: React.FC<TransferItemsModalProps> = ({ isOpen, onClose, onConfirm, sourceLocation, itemCount }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const destinationLocations = PANTRY_LOCATIONS.filter(loc => loc !== sourceLocation);
+  const [selectedDestination, setSelectedDestination] = useState<PantryLocation | null>(destinationLocations.length > 0 ? destinationLocations[0] : null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -35,7 +36,7 @@ const MoveItemsModal: React.FC<MoveItemsModalProps> = ({ isOpen, onClose, onMove
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="move-items-title"
+      aria-labelledby="transfer-items-title"
       onClick={onClose}
     >
       <div
@@ -43,31 +44,54 @@ const MoveItemsModal: React.FC<MoveItemsModalProps> = ({ isOpen, onClose, onMove
         className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-sm"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="move-items-title" className="text-xl font-bold text-gray-800 mb-4">Kijelölt tételek áthelyezése</h2>
-        <p className="text-gray-600 mb-6">
-          Kijelölt tételek száma: <strong>{itemCount}</strong>.
-          Válassza ki a cél kamrát:
+        <h2 id="transfer-items-title" className="text-xl font-bold text-gray-800 mb-4">Kijelölt tételek áthelyezése / másolása</h2>
+        <p className="text-gray-600 mb-2">
+          Kijelölt tételek száma: <strong>{itemCount}</strong>
         </p>
-        <div className="flex flex-col gap-3">
-          {destinationLocations.map(location => (
-            <button
-              key={location}
-              onClick={() => onMove(location)}
-              className="w-full bg-primary-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-primary-700 transition-colors"
-            >
-              Áthelyezés ide: Kamra ({location})
-            </button>
-          ))}
+         <p className="text-gray-600 mb-6">
+          Forrás kamra: <strong>{sourceLocation}</strong>
+        </p>
+        <div className="space-y-3">
+            <h3 className="text-md font-semibold text-gray-700">Válassza ki a cél kamrát:</h3>
+            {destinationLocations.map(location => (
+                <label key={location} className="flex items-center p-3 border rounded-lg bg-white cursor-pointer hover:bg-gray-50 has-[:checked]:bg-primary-50 has-[:checked]:border-primary-400 transition-colors">
+                    <input
+                        type="radio"
+                        name="destination-pantry"
+                        value={location}
+                        checked={selectedDestination === location}
+                        onChange={() => setSelectedDestination(location)}
+                        className="h-5 w-5 border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="ml-3 text-gray-700 font-medium">Kamra ({location})</span>
+              </label>
+            ))}
         </div>
-        <button
-          onClick={onClose}
-          className="w-full mt-4 bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
-        >
-          Mégse
-        </button>
+        <div className="mt-6 flex flex-col sm:flex-row justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300"
+          >
+            Mégse
+          </button>
+           <button
+            onClick={() => onConfirm(selectedDestination!, 'copy')}
+            disabled={!selectedDestination}
+            className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 disabled:bg-gray-400"
+          >
+            Másolás
+          </button>
+          <button
+            onClick={() => onConfirm(selectedDestination!, 'move')}
+            disabled={!selectedDestination}
+            className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 disabled:bg-gray-400"
+          >
+            Áthelyezés
+          </button>
+        </div>
       </div>
     </div>
   );
 };
 
-export default MoveItemsModal;
+export default TransferItemsModal;

@@ -988,6 +988,12 @@ const App: React.FC = () => {
     showNotification(`${indices.length} tétel áthelyezve ide: ${destination}.`, 'success');
   };
 
+  const handleCopyPantryItems = (indices: number[], source: PantryLocation, destination: PantryLocation) => {
+    const updatedPantry = pantryService.copyItems(indices, source, destination);
+    setPantry(updatedPantry);
+    showNotification(`${indices.length} tétel átmásolva ide: ${destination}.`, 'success');
+  };
+
   const handleSaveUser = (user: UserProfile | Omit<UserProfile, 'id'>) => {
     let updatedUsers: UserProfile[];
     if ('id' in user) {
@@ -1716,6 +1722,7 @@ const App: React.FC = () => {
             onGenerateFromPantryRequest={handleGenerateFromPantryRequest}
             shoppingListItems={shoppingList}
             onMoveItems={handleMovePantryItems}
+            onCopyItems={handleCopyPantryItems}
             onGenerateFromSelectedPantryItemsRequest={handleGenerateFromSelectedPantryItems}
             onAddItemsToShoppingList={handleAddItemsToShoppingList}
           />

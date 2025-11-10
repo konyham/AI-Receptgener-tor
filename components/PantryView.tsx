@@ -1,7 +1,7 @@
 // components/PantryView.tsx
 import React, { useState } from 'react';
 import { PantryItem, PantryLocation, PANTRY_LOCATIONS, ShoppingListItem, StorageType } from '../types';
-import MoveItemsModal from './MoveItemsModal';
+import TransferItemsModal from './MoveItemsModal';
 import { categorizeIngredients } from '../services/geminiService';
 import { CategorizedIngredient } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -17,6 +17,7 @@ interface PantryViewProps {
   onGenerateFromPantryRequest: () => void;
   shoppingListItems: ShoppingListItem[];
   onMoveItems: (indices: number[], source: PantryLocation, destination: PantryLocation) => void;
+  onCopyItems: (indices: number[], source: PantryLocation, destination: PantryLocation) => void;
   onGenerateFromSelectedPantryItemsRequest: (items: string[]) => void;
   onAddItemsToShoppingList: (items: string[]) => void;
 }
@@ -28,10 +29,10 @@ const PantryLocationView: React.FC<{
     onUpdateItem: (originalItem: PantryItem, updatedItem: PantryItem) => void;
     onRemoveItem: (item: PantryItem) => void;
     onClearAll: () => void;
-    onMoveSelected: (indices: number[]) => void;
+    onTransferSelected: (indices: number[]) => void;
     onGenerateFromSelected: (items: string[]) => void;
     onAddItemsToShoppingList: (items: string[]) => void;
-}> = ({ location, items, onAddItem, onUpdateItem, onRemoveItem, onClearAll, onMoveSelected, onGenerateFromSelected, onAddItemsToShoppingList }) => {
+}> = ({ location, items, onAddItem, onUpdateItem, onRemoveItem, onClearAll, onTransferSelected, onGenerateFromSelected, onAddItemsToShoppingList }) => {
     const [newItemText, setNewItemText] = useState('');
     const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
     const [isCategorizing, setIsCategorizing] = useState(false);
@@ -74,6 +75,22 @@ const PantryLocationView: React.FC<{
     const handleRemoveItem = (item: PantryItem) => {
         onRemoveItem(item);
         setCategorizedItems(null);
+    };
+
+    const handleTransfer = () => {
+        const selectedItemsFromSorted = Array.from(selectedIndices).map(i => sortedItems[i]);
+        const originalIndicesToMove = selectedItemsFromSorted
+            .map(selectedItem =>
+                items.findIndex(originalItem =>
+                    originalItem.text === selectedItem.text &&
+                    originalItem.dateAdded === selectedItem.dateAdded &&
+                    originalItem.storageType === selectedItem.storageType
+                )
+            )
+            .filter(index => index !== -1);
+    
+        onTransferSelected(originalIndicesToMove);
+        setSelectedIndices(new Set()); // Clear selection after initiating action
     };
 
     const handleCategorizeToggle = async () => {
@@ -122,7 +139,7 @@ const PantryLocationView: React.FC<{
         if (categorizedItems) {
             return (
                 <div className="space-y-4">
-                {/* FIX: Explicitly type the destructured arguments from Object.entries to resolve 'unknown' type errors and rename to avoid shadowing. */}
+                {/* FIX: Explicitly type the destructured arguments from Object.entries to resolve 'unknown' type errors. */}
                 {Object.entries(categorizedItems).sort((a, b) => a[0].localeCompare(b[0])).map(([category, catItems]: [string, PantryItem[]]) => (
                     <div key={category} className="border border-gray-200 rounded-lg dark:border-gray-700 overflow-hidden">
                         <button onClick={() => toggleCategoryExpansion(category)} className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100 dark:bg-gray-700/50 dark:hover:bg-gray-700">
@@ -156,7 +173,7 @@ const PantryLocationView: React.FC<{
                     </button>
                     {selectedIndices.size > 0 && (
                         <div className="flex gap-2">
-                            <button onClick={() => onMoveSelected(Array.from(selectedIndices))} className="text-sm bg-green-500 text-white px-3 py-1 rounded-md">Áthelyezés...</button>
+                            <button onClick={handleTransfer} className="text-sm bg-green-500 text-white px-3 py-1 rounded-md">Áthelyezés/Másolás...</button>
                             <button onClick={() => onGenerateFromSelected(Array.from(selectedIndices).map(i => sortedItems[i].text))} className="text-sm bg-purple-500 text-white px-3 py-1 rounded-md">Főzés...</button>
                             <button 
                                 onClick={() => {
@@ -222,20 +239,24 @@ const PantryLocationView: React.FC<{
 
 
 const PantryView: React.FC<PantryViewProps> = (props) => {
-    const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-    const [movePayload, setMovePayload] = useState<{ indices: number[], source: PantryLocation } | null>(null);
+    const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+    const [transferPayload, setTransferPayload] = useState<{ indices: number[], source: PantryLocation } | null>(null);
 
-    const handleMoveRequest = (indices: number[], source: PantryLocation) => {
-        setMovePayload({ indices, source });
-        setIsMoveModalOpen(true);
+    const handleTransferRequest = (indices: number[], source: PantryLocation) => {
+        setTransferPayload({ indices, source });
+        setIsTransferModalOpen(true);
     };
 
-    const handleConfirmMove = (destination: PantryLocation) => {
-        if(movePayload) {
-            props.onMoveItems(movePayload.indices, movePayload.source, destination);
+    const handleConfirmTransfer = (destination: PantryLocation, mode: 'move' | 'copy') => {
+        if(transferPayload) {
+            if (mode === 'move') {
+                props.onMoveItems(transferPayload.indices, transferPayload.source, destination);
+            } else {
+                props.onCopyItems(transferPayload.indices, transferPayload.source, destination);
+            }
         }
-        setIsMoveModalOpen(false);
-        setMovePayload(null);
+        setIsTransferModalOpen(false);
+        setTransferPayload(null);
     };
 
     return (
@@ -250,7 +271,8 @@ const PantryView: React.FC<PantryViewProps> = (props) => {
                 </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {PANTRY_LOCATIONS.map(location => (
+                {/* FIX: Explicitly type the `location` argument in `.map()` to prevent 'unknown' index type errors. */}
+                {PANTRY_LOCATIONS.map((location: PantryLocation) => (
                      <PantryLocationView
                         key={location}
                         location={location}
@@ -259,19 +281,19 @@ const PantryView: React.FC<PantryViewProps> = (props) => {
                         onUpdateItem={(orig, updated) => props.onUpdateItem(orig, updated, location)}
                         onRemoveItem={(item) => props.onRemoveItem(item, location)}
                         onClearAll={() => props.onClearAll(location)}
-                        onMoveSelected={(indices) => handleMoveRequest(indices, location)}
+                        onTransferSelected={(indices) => handleTransferRequest(indices, location)}
                         onGenerateFromSelected={props.onGenerateFromSelectedPantryItemsRequest}
                         onAddItemsToShoppingList={props.onAddItemsToShoppingList}
                     />
                 ))}
             </div>
-            {isMoveModalOpen && movePayload && (
-                <MoveItemsModal
-                    isOpen={isMoveModalOpen}
-                    onClose={() => setIsMoveModalOpen(false)}
-                    onMove={handleConfirmMove}
-                    sourceLocation={movePayload.source}
-                    itemCount={movePayload.indices.length}
+            {isTransferModalOpen && transferPayload && (
+                <TransferItemsModal
+                    isOpen={isTransferModalOpen}
+                    onClose={() => setIsTransferModalOpen(false)}
+                    onConfirm={handleConfirmTransfer}
+                    sourceLocation={transferPayload.source}
+                    itemCount={transferPayload.indices.length}
                 />
             )}
         </div>

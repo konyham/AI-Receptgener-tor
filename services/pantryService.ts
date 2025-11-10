@@ -211,3 +211,22 @@ export const moveItems = (indices: number[], sourceLocation: PantryLocation, des
     savePantry(updatedPantry);
     return updatedPantry;
 };
+
+// Copies items from a source location to a destination location.
+export const copyItems = (indices: number[], sourceLocation: PantryLocation, destinationLocation: PantryLocation): Record<PantryLocation, PantryItem[]> => {
+    const { pantry: currentPantry } = getPantry();
+    const sourceList = currentPantry[sourceLocation] || [];
+    const destinationList = [...(currentPantry[destinationLocation] || [])];
+
+    const itemsToCopy = indices.map(index => sourceList[index]).filter(Boolean);
+    
+    const newDestinationList = [...destinationList, ...itemsToCopy];
+    
+    const updatedPantry = {
+        ...currentPantry,
+        [destinationLocation]: newDestinationList,
+    };
+
+    savePantry(updatedPantry);
+    return updatedPantry;
+};
