@@ -28,7 +28,7 @@ interface RecipeDisplayProps {
   onUpdateFavoriteStatus: (recipeName: string, category: string, favoritedByIds: string[]) => void;
   shouldGenerateImageInitially: boolean;
   onGenerateVariations: (recipe: Recipe) => void;
-  onGenerateSingleVariation: (recipe: Recipe) => void;
+  onOpenVariationModal: (recipe: Recipe) => void;
   isGeneratingVariations: boolean;
   mealTypes: OptionItem[];
   cuisineOptions: OptionItem[];
@@ -243,7 +243,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
   onUpdateFavoriteStatus,
   shouldGenerateImageInitially,
   onGenerateVariations,
-  onGenerateSingleVariation,
+  onOpenVariationModal,
   isGeneratingVariations,
   mealTypes,
   cuisineOptions,
@@ -709,11 +709,11 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
                         <span className="text-xs font-semibold text-gray-700">Variációk</span>
                     </ActionButton>
-                    <ActionButton onClick={() => onGenerateSingleVariation(recipe)} disabled={isGeneratingVariations} label="Új variáció generálása">
+                    <ActionButton onClick={() => onOpenVariationModal(recipe)} disabled={isGeneratingVariations} label="Variáció generálása ebből a receptből">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
                         </svg>
-                        <span className="text-xs font-semibold text-gray-700">Új variáció</span>
+                        <span className="text-xs font-semibold text-gray-700">Variáció ebből</span>
                     </ActionButton>
                     <ActionButton onClick={handlePrint} label="Recept nyomtatása">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-primary-600" viewBox="0 0 20 20" fill="currentColor">

@@ -21,6 +21,7 @@ import {
   InstructionStep,
   CategorizedIngredient
 } from '../types';
+import { DIET_OPTIONS } from '../constants';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -377,19 +378,58 @@ export const generateRecipeVariations = async (originalRecipe: Recipe, allCookin
     return variations.map(v => ({ ...originalRecipe, ...v, imageUrl: undefined, dateAdded: undefined, rating: undefined, favoritedBy: undefined }));
 };
 
-export const generateSingleRecipeVariation = async (originalRecipe: Recipe): Promise<Recipe> => {
+export const generateSingleRecipeVariation = async (
+    originalRecipe: Recipe,
+    variationParams: {
+        specialRequest: string;
+        diet: DietOption;
+        cuisine: CuisineOption;
+        cookingMethods: CookingMethod[];
+        userPreferences: {
+            allergies: string;
+            likes: string;
+            dislikes: string;
+        };
+    },
+    allCuisineOptions: OptionItem[],
+    allCookingMethods: OptionItem[]
+): Promise<Recipe> => {
     const systemInstruction = `Te egy magyar séf vagy, aki kreatív és ízletes recept variációkat készít. A válaszodat mindig JSON formátumban add meg, a megadott séma szerint. A receptek legyenek magyar nyelven. Az instrukciókat oszd fel logikus, könnyen követhető lépésekre. Ha egy kép is tartozik egy lépéshez, adj egy rövid, angol nyelvű leírást a 'imagePrompt' mezőben a kép generálásához. A leírás ne tartalmazzon szöveget.`;
 
+    const dietLabel = DIET_OPTIONS.find(d => d.value === variationParams.diet)?.label || variationParams.diet;
+    const cuisineLabel = getLabel(variationParams.cuisine, allCuisineOptions);
+    const cookingMethodsLabels = variationParams.cookingMethods.map(cm => getLabel(cm, allCookingMethods));
+
+    let userPreferencesRequest = '';
+    if (variationParams.userPreferences.likes) {
+        userPreferencesRequest += ` A recept feleljen meg a felhasználók ízlésének, akik kedvelik: ${variationParams.userPreferences.likes}.`;
+    }
+    if (variationParams.userPreferences.dislikes) {
+        userPreferencesRequest += ` Lehetőség szerint kerülje a következő alapanyagokat: ${variationParams.userPreferences.dislikes}.`;
+    }
+    const finalSpecialRequest = [variationParams.specialRequest || 'Nincs különleges kérés. Legyen kreatív, de maradjon az eredeti recept szellemében.', userPreferencesRequest.trim()].filter(Boolean).join(' ');
+
+
     const prompt = `
-    Készíts egyetlen kreatív variációt a következő recepthez. A variáció legyen eltérő az eredetitől, például használj más elkészítési módot (pl. 'légkeveréses fritőz'), változtass az alapanyagokon, vagy adj hozzá egy különleges csavart. Csak egyetlen receptet adj vissza JSON formátumban.
-    Eredeti recept: ${JSON.stringify({
+    Készíts egyetlen kreatív variációt a következő recepthez.
+    Eredeti recept alapadatai: ${JSON.stringify({
         recipeName: originalRecipe.recipeName,
         description: originalRecipe.description,
         ingredients: originalRecipe.ingredients,
-        diet: originalRecipe.diet,
-        cuisine: originalRecipe.cuisine,
-        cookingMethods: originalRecipe.cookingMethods,
-    })}`;
+        diet: DIET_OPTIONS.find(d => d.value === originalRecipe.diet)?.label,
+        cuisine: getLabel(originalRecipe.cuisine, allCuisineOptions),
+        cookingMethods: originalRecipe.cookingMethods.map(cm => getLabel(cm, allCookingMethods)),
+    })}
+
+    A kért variáció paraméterei a következők:
+    - Különleges kérés: ${finalSpecialRequest}
+    - Diéta: ${dietLabel}
+    - Konyha: ${cuisineLabel}
+    - Elkészítés módja: ${cookingMethodsLabels.join(', ') || 'Hagyományos'}
+    - Garantáltan kerülendő alapanyagok (allergia): ${variationParams.userPreferences.allergies || 'nincs'}
+
+    A válaszod egyetlen, teljes recept legyen JSON formátumban a megadott séma szerint. A variáció neve legyen utalás az eredeti receptre, de tükrözze a változtatást is (pl. "Rántott sajt légkeveréses fritőzben").
+    `;
 
     const responseSchema = {
         type: Type.OBJECT,
@@ -437,6 +477,9 @@ export const generateSingleRecipeVariation = async (originalRecipe: Recipe): Pro
     return { 
         ...originalRecipe, 
         ...variation,
+        diet: variationParams.diet,
+        cuisine: variationParams.cuisine,
+        cookingMethods: variationParams.cookingMethods,
         imageUrl: undefined, 
         dateAdded: undefined, 
         rating: undefined, 
@@ -465,7 +508,7 @@ export const suggestMealType = async (ingredients: string, specialRequest: strin
 };
 
 export const generateRecipeImage = async (recipe: Recipe, alternativeSuggestions: any[]): Promise<string> => {
-    const prompt = `Fotorealisztikus, ínycsiklandó ételfotó a következő ételről: ${recipe.recipeName}. ${recipe.description}`;
+    const prompt = `Soha ne írj szöveget a képre. Fotorealisztikus, profi ételfotó. Csak az elkészült, letálalt étel szerepeljen rajta, illő gasztronómiai környezetben (pl. tányér, asztal, evőeszköz). Semmi más ne szerepeljen rajta, ami nem kapcsolódik az ételhez. Az étel: ${recipe.recipeName}. Leírás: ${recipe.description}`;
     const response = await ai.models.generateImages({
         model: 'imagen-4.0-generate-001',
         prompt,

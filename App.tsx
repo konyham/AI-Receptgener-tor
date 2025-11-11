@@ -16,6 +16,7 @@ import OptionsEditPanel from './components/OptionsEditPanel';
 import InfoModal from './components/InfoModal';
 import ImportUrlModal from './components/ImportUrlModal';
 import RecipeComparisonView from './components/RecipeComparisonView';
+import GenerateVariationModal from './components/GenerateVariationModal';
 import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile, generateRecipeVariations, generateSingleRecipeVariation, interpretFormCommand, interpretUserCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
@@ -270,6 +271,8 @@ const App: React.FC = () => {
   const [forceSpeakTrigger, setForceSpeakTrigger] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  const [variationModalState, setVariationModalState] = useState<{ isOpen: boolean; recipe: Recipe | null }>({ isOpen: false, recipe: null });
 
   const { showNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -669,19 +672,42 @@ const App: React.FC = () => {
     }
   };
 
-  const handleGenerateSingleVariation = async (originalRecipe: Recipe) => {
+  const handleOpenVariationModal = (recipeToVary: Recipe) => {
+    setVariationModalState({ isOpen: true, recipe: recipeToVary });
+  };
+
+  const handleGenerateSingleVariation = async (
+    originalRecipe: Recipe,
+    variationParams: {
+        specialRequest: string;
+        diet: DietOption;
+        cuisine: CuisineOption;
+        cookingMethods: CookingMethod[];
+        userPreferences: {
+            allergies: string;
+            likes: string;
+            dislikes: string;
+        };
+    }
+) => {
+    setVariationModalState({ isOpen: false, recipe: null }); // Close modal
     setIsLoading(true);
     setLoadingMessage('Új variáció generálása...');
     setError(null);
     try {
-      const newVariation = await generateSingleRecipeVariation(originalRecipe);
-      setAlternativeRecipes(prev => [...(prev || []), newVariation]);
+        const newVariation = await generateSingleRecipeVariation(
+            originalRecipe,
+            variationParams,
+            cuisineOptions,
+            cookingMethodsList
+        );
+        setAlternativeRecipes(prev => [...(prev || []), newVariation]);
     } catch (err: any) {
-      setError(err.message);
+        setError(err.message);
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
-  };
+};
 
   const handleCloseComparisonView = () => {
     setAlternativeRecipes(null);
@@ -1639,7 +1665,7 @@ const App: React.FC = () => {
                         onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
                         shouldGenerateImageInitially={shouldGenerateImage}
                         onGenerateVariations={handleGenerateVariations}
-                        onGenerateSingleVariation={handleGenerateSingleVariation}
+                        onOpenVariationModal={handleOpenVariationModal}
                         isGeneratingVariations={isLoading}
                         mealTypes={mealTypes}
                         cuisineOptions={cuisineOptions}
@@ -1803,7 +1829,18 @@ const App: React.FC = () => {
         error={parsingUrlError}
       />
       
-      {/* Voice feedback bubble will be managed inside GlobalVoiceController for better state management */}
+      {variationModalState.isOpen && variationModalState.recipe && (
+        <GenerateVariationModal
+            isOpen={variationModalState.isOpen}
+            onClose={() => setVariationModalState({ isOpen: false, recipe: null })}
+            originalRecipe={variationModalState.recipe}
+            onGenerate={handleGenerateSingleVariation}
+            dietOptions={DIET_OPTIONS}
+            cuisineOptions={orderedCuisineOptions}
+            cookingMethodsList={orderedCookingMethods}
+            users={users}
+        />
+      )}
 
       <footer className="mt-8 text-center text-xs text-gray-500 dark:text-gray-400 space-y-4">
         <p>
