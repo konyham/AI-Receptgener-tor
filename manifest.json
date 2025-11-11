@@ -12,17 +12,17 @@
   "prefer_related_applications": false,
   "icons": [
     {
-      "src": "https://storage.googleapis.com/genai-assets/konyha-miki-icons/icon-192x192.png",
+      "src": "https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "https://storage.googleapis.com/genai-assets/konyha-miki-icons/icon-512x512.png",
+      "src": "https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "https://storage.googleapis.com/genai-assets/konyha-miki-icons/icon-512x512.png",
+      "src": "https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
