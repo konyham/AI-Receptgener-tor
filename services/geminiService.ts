@@ -377,6 +377,73 @@ export const generateRecipeVariations = async (originalRecipe: Recipe, allCookin
     return variations.map(v => ({ ...originalRecipe, ...v, imageUrl: undefined, dateAdded: undefined, rating: undefined, favoritedBy: undefined }));
 };
 
+export const generateSingleRecipeVariation = async (originalRecipe: Recipe): Promise<Recipe> => {
+    const systemInstruction = `Te egy magyar séf vagy, aki kreatív és ízletes recept variációkat készít. A válaszodat mindig JSON formátumban add meg, a megadott séma szerint. A receptek legyenek magyar nyelven. Az instrukciókat oszd fel logikus, könnyen követhető lépésekre. Ha egy kép is tartozik egy lépéshez, adj egy rövid, angol nyelvű leírást a 'imagePrompt' mezőben a kép generálásához. A leírás ne tartalmazzon szöveget.`;
+
+    const prompt = `
+    Készíts egyetlen kreatív variációt a következő recepthez. A variáció legyen eltérő az eredetitől, például használj más elkészítési módot (pl. 'légkeveréses fritőz'), változtass az alapanyagokon, vagy adj hozzá egy különleges csavart. Csak egyetlen receptet adj vissza JSON formátumban.
+    Eredeti recept: ${JSON.stringify({
+        recipeName: originalRecipe.recipeName,
+        description: originalRecipe.description,
+        ingredients: originalRecipe.ingredients,
+        diet: originalRecipe.diet,
+        cuisine: originalRecipe.cuisine,
+        cookingMethods: originalRecipe.cookingMethods,
+    })}`;
+
+    const responseSchema = {
+        type: Type.OBJECT,
+        properties: {
+            recipeName: { type: Type.STRING, description: "A variáció receptjének új, kreatív neve." },
+            description: { type: Type.STRING, description: "Rövid, étvágygerjesztő leírás, ami kiemeli miben más ez a variáció." },
+            ingredients: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Hozzávalók listája." },
+            instructions: { 
+                type: Type.ARRAY, 
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        text: { type: Type.STRING, description: "Az elkészítési lépés leírása." },
+                        imagePrompt: { type: Type.STRING, description: "Rövid, angol nyelvű prompt a lépést illusztráló kép generálásához (opcionális)." }
+                    },
+                    required: ['text']
+                },
+                description: "Elkészítési lépések."
+            },
+            prepTime: { type: Type.STRING, description: "Előkészítési idő (pl. '20 perc')." },
+            cookTime: { type: Type.STRING, description: "Főzési/sütési idő (pl. '35 perc')." },
+            servings: { type: Type.STRING, description: "Adagok száma (pl. '4 személyre')." },
+            estimatedCost: { type: Type.STRING, description: "Becsült költség (pl. 'kb. 3500 Ft')." },
+            calories: { type: Type.STRING, description: "Kalória / 100g." },
+            carbohydrates: { type: Type.STRING, description: "Szénhidrát / 100g." },
+            protein: { type: Type.STRING, description: "Fehérje / 100g." },
+            fat: { type: Type.STRING, description: "Zsír / 100g." },
+            glycemicIndex: { type: Type.STRING, description: "Glikémiás index." },
+            diabeticAdvice: { type: Type.STRING, description: "Tanács cukorbetegeknek." },
+        },
+        required: ['recipeName', 'description', 'ingredients', 'instructions', 'prepTime', 'cookTime', 'servings']
+    };
+
+    const response = await ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: prompt,
+        config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            responseSchema,
+        }
+    });
+
+    const variation = parseJsonResponse<Recipe>(response.text, 'generateSingleRecipeVariation');
+    return { 
+        ...originalRecipe, 
+        ...variation,
+        imageUrl: undefined, 
+        dateAdded: undefined, 
+        rating: undefined, 
+        favoritedBy: undefined 
+    };
+};
+
 export const interpretFormCommand = async (transcript: string, mealTypes: OptionItem[], cookingMethods: OptionItem[], dietOptions: { value: DietOption; label: string }[]): Promise<FormCommand | null> => {
   // Implementation
   return null;

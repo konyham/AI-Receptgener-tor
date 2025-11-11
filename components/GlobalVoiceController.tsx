@@ -119,18 +119,23 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
   if (permissionState === 'denied') statusText = "Mikrofon letiltva";
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-4">
+        <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 transition-colors duration-300 ${isHandsFreeActive ? 'text-red-500' : 'text-gray-400 dark:text-gray-500'}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
+            <path d="M5.5 10.5a.5.5 0 01.5-.5h8a.5.5 0 010 1H6a.5.5 0 01-.5-.5z"/>
+            <path d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"/>
+        </svg>
+        <div className="flex flex-col">
+            <span className="font-semibold text-gray-700 dark:text-gray-200">Hangvezérlés</span>
+            <span className={`text-sm h-5 transition-colors ${mode === 'LISTENING_FOR_COMMAND' ? 'text-blue-600 dark:text-blue-400 font-medium animate-pulse' : 'text-gray-500 dark:text-gray-400'}`}>{statusText}</span>
+        </div>
         <label className="flex items-center cursor-pointer">
             <div className="relative">
-                <input type="checkbox" className="sr-only" checked={isHandsFreeActive} onChange={toggleHandsFree} disabled={permissionState === 'denied'}/>
+                <input type="checkbox" className="sr-only" checked={isHandsFreeActive} onChange={toggleHandsFree} disabled={permissionState === 'denied'} aria-label={isHandsFreeActive ? "Hangvezérlés kikapcsolása" : "Hangvezérlés bekapcsolása"}/>
                 <div className={`block w-14 h-8 rounded-full transition ${isHandsFreeActive ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
                 <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${isHandsFreeActive ? 'transform translate-x-6' : ''}`}></div>
             </div>
         </label>
-        <div className="flex flex-col">
-            <span className="font-semibold text-gray-700 dark:text-gray-200">Kihangosított mód</span>
-            <span className={`text-sm h-5 transition-colors ${mode === 'LISTENING_FOR_COMMAND' ? 'text-blue-600 dark:text-blue-400 font-medium animate-pulse' : 'text-gray-500 dark:text-gray-400'}`}>{statusText}</span>
-        </div>
     </div>
   );
 };

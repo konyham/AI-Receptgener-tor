@@ -1,13 +1,13 @@
 // FIX: This file has been cleaned up to only contain constant definitions, importing its types from the now-correct `types.ts` file.
 import { DietOption, MealType, TRADITIONAL_COOKING_METHOD, CuisineOption, RecipePace } from './types';
 
-export const APP_VERSION = '1.14.0';
+export const APP_VERSION = '1.17.0';
 
 export const LOADING_TIPS = [
   'Tudta? A tompa kés balesetveszélyesebb, mint az éles. Tartsa késeit mindig élesen!',
   'Tipp: A zöldségeket mindig folyó víz alatt mossa, ne áztassa őket, hogy megőrizzék vitamintartalmukat.',
   'Tárolás: A főtt rizst vagy tésztát hűtse le gyorsan és tárolja hűtőben, legfeljebb 2 napig.',
-  'Konyhatechnika: A húst sütés előtt mindig törölje szárazra a tökéletes, ropogós kéregért.',
+  'Konyhatechnika: A húst sütés előtt mindig törölje szárazra a tökéletes, ropós kéregért.',
   'Ne zsúfolja túl a serpenyőt! A hozzávalóknak legyen helyük pirulni, ne csak párolódni.',
   'A fűszereket sötét, hűvös helyen tárolja, hogy megőrizzék aromájukat.',
   'A maradékokat légmentesen záródó edényben tegye a hűtőbe, miután szobahőmérsékletűre hűltek.',

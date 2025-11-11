@@ -16,7 +16,7 @@ import OptionsEditPanel from './components/OptionsEditPanel';
 import InfoModal from './components/InfoModal';
 import ImportUrlModal from './components/ImportUrlModal';
 import RecipeComparisonView from './components/RecipeComparisonView';
-import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile, generateRecipeVariations, interpretFormCommand, interpretUserCommand } from './services/geminiService';
+import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile, generateRecipeVariations, generateSingleRecipeVariation, interpretFormCommand, interpretUserCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
 import * as pantryService from './services/pantryService';
@@ -662,6 +662,20 @@ const App: React.FC = () => {
         cookingMethodCapacities
       );
       setAlternativeRecipes(variations);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGenerateSingleVariation = async (originalRecipe: Recipe) => {
+    setIsLoading(true);
+    setLoadingMessage('Új variáció generálása...');
+    setError(null);
+    try {
+      const newVariation = await generateSingleRecipeVariation(originalRecipe);
+      setAlternativeRecipes(prev => [...(prev || []), newVariation]);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -1610,7 +1624,7 @@ const App: React.FC = () => {
             )}
             {isLoading && <LoadingSpinner message={loadingMessage}/>}
             {error && !isLoading && <ErrorMessage message={error} />}
-            {recipe && 'recipeName' in recipe && (
+            {recipe && 'recipeName' in recipe && !alternativeRecipes && (
                 <div ref={recipeDisplayRef}>
                     <RecipeDisplay
                         recipe={recipe as Recipe}
@@ -1625,6 +1639,7 @@ const App: React.FC = () => {
                         onUpdateFavoriteStatus={handleUpdateFavoriteStatus}
                         shouldGenerateImageInitially={shouldGenerateImage}
                         onGenerateVariations={handleGenerateVariations}
+                        onGenerateSingleVariation={handleGenerateSingleVariation}
                         isGeneratingVariations={isLoading}
                         mealTypes={mealTypes}
                         cuisineOptions={cuisineOptions}
