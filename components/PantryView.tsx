@@ -1,3 +1,4 @@
+
 // components/PantryView.tsx
 import React, { useState } from 'react';
 import { PantryItem, PantryLocation, PANTRY_LOCATIONS, ShoppingListItem, StorageType } from '../types';
@@ -78,7 +79,7 @@ const PantryLocationView: React.FC<{
     };
 
     const handleTransfer = () => {
-        const selectedItemsFromSorted = Array.from(selectedIndices).map(i => sortedItems[i]);
+        const selectedItemsFromSorted = Array.from(selectedIndices).map((i: number) => sortedItems[i]);
         const originalIndicesToMove = selectedItemsFromSorted
             .map(selectedItem =>
                 items.findIndex(originalItem =>
@@ -139,8 +140,7 @@ const PantryLocationView: React.FC<{
         if (categorizedItems) {
             return (
                 <div className="space-y-4">
-                    {/* FIX: Explicitly type the destructured arguments from Object.entries to resolve 'unknown' type errors. */}
-                    {Object.entries(categorizedItems).sort((a, b) => a[0].localeCompare(b[0])).map(([category, items]: [string, PantryItem[]]) => (
+                    {(Object.entries(categorizedItems) as [string, PantryItem[]][]).sort((a, b) => a[0].localeCompare(b[0])).map(([category, items]) => (
                     <div key={category} className="border border-gray-200 rounded-lg dark:border-gray-700 overflow-hidden">
                         <button onClick={() => toggleCategoryExpansion(category)} className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100 dark:bg-gray-700/50 dark:hover:bg-gray-700">
                             <span className="font-bold text-primary-700 dark:text-primary-300">{category} ({items.length})</span>
@@ -148,7 +148,6 @@ const PantryLocationView: React.FC<{
                         </button>
                         {expandedCategories[category] && (
                             <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-                                {/* FIX: Replaced incorrect copy-pasted rendering logic from ShoppingListView with correct logic for PantryItems. This resolves multiple errors related to missing properties (`checked`) and variables (`list`, `setActionModalState`). */}
                                 {items.map(item => {
                                     const sortedIndex = sortedItems.findIndex(si => si === item);
                                     if (sortedIndex === -1) return null;
@@ -190,10 +189,10 @@ const PantryLocationView: React.FC<{
                     {selectedIndices.size > 0 && (
                         <div className="flex gap-2">
                             <button onClick={handleTransfer} className="text-sm bg-green-500 text-white px-3 py-1 rounded-md">Áthelyezés/Másolás...</button>
-                            <button onClick={() => onGenerateFromSelected(Array.from(selectedIndices).map(i => sortedItems[i].text))} className="text-sm bg-purple-500 text-white px-3 py-1 rounded-md">Főzés...</button>
+                            <button onClick={() => onGenerateFromSelected(Array.from(selectedIndices).map((i: number) => sortedItems[i].text))} className="text-sm bg-purple-500 text-white px-3 py-1 rounded-md">Főzés...</button>
                             <button 
                                 onClick={() => {
-                                    const selectedItems = Array.from(selectedIndices).map(i => sortedItems[i].text);
+                                    const selectedItems = Array.from(selectedIndices).map((i: number) => sortedItems[i].text);
                                     onAddItemsToShoppingList(selectedItems);
                                     showNotification(`${selectedItems.length} tétel a bevásárlólistára került.`, 'success');
                                     setSelectedIndices(new Set());

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
@@ -17,6 +18,7 @@ import InfoModal from './components/InfoModal';
 import ImportUrlModal from './components/ImportUrlModal';
 import RecipeComparisonView from './components/RecipeComparisonView';
 import GenerateVariationModal from './components/GenerateVariationModal';
+import PhotoSlideshow from './components/PhotoSlideshow';
 import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile, generateRecipeVariations, generateSingleRecipeVariation, interpretFormCommand, interpretUserCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
@@ -48,7 +50,6 @@ import {
   DailyMenuRecipe,
   FormCommand,
   VoiceCommandResult,
-  // FIX: Added missing VoiceCommand import to resolve type errors.
   VoiceCommand,
 } from './types';
 import {
@@ -115,7 +116,7 @@ const processAndResizeImageForGemini = (file: File): Promise<{ data: string; mim
         const MAX_DIMENSION = 1600;
 
         if (typeof window.createImageBitmap === 'undefined') {
-            reject(new Error('A böngésződ nem támogatja a modern, memóriahatékony képfeldəolgozást. A funkció valószínűleg nem fog működni ezen az eszközön.'));
+            reject(new Error('A böngésződ nem támogatja a modern, memóriahatékony képfeldolgozást. A funkció valószínűleg nem fog működni ezen az eszközön.'));
             return;
         }
 
@@ -273,6 +274,7 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   const [variationModalState, setVariationModalState] = useState<{ isOpen: boolean; recipe: Recipe | null }>({ isOpen: false, recipe: null });
+  const [isSlideshowOpen, setIsSlideshowOpen] = useState(false);
 
   const { showNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -579,7 +581,6 @@ const App: React.FC = () => {
             );
             setRecipe(generatedDailyMenu);
       } else {
-          // FIX: Removed extra `params.useSeasonalIngredients` argument to match function signature.
           const generatedRecipe = await generateRecipe(
             params.ingredients,
             params.excludedIngredients,
@@ -866,7 +867,6 @@ const App: React.FC = () => {
     try {
       const updatedFavorites = await favoritesService.updateFavoriteStatus(recipeName, category, favoritedByIds);
       setFavorites(updatedFavorites);
-      // Update the currently viewed recipe if it's the one that changed
       if (recipe && 'recipeName' in recipe && (recipe as Recipe).recipeName === recipeName) {
         setRecipe({ ...(recipe as Recipe), favoritedBy: favoritedByIds });
       }
@@ -985,7 +985,6 @@ const App: React.FC = () => {
     
     setLocationCallback(() => (location: PantryLocation) => {
         const itemTexts = checkedItems.map(item => item.text);
-        // Assume default storage type is PANTRY when moving from shopping list
         handlePantryAddItem(itemTexts, location, new Date().toISOString().split('T')[0], StorageType.PANTRY);
         handleClearCheckedShoppingList();
         showNotification(`${checkedItems.length} tétel áthelyezve a kamrába (${location}).`, 'success');
@@ -1001,7 +1000,6 @@ const App: React.FC = () => {
             return;
         }
         
-        // Sort by date, oldest first, null dates treated as oldest
         const sortedItems = [...allItems].sort((a, b) => {
             if (a.dateAdded === null) return -1;
             if (b.dateAdded === null) return 1;
@@ -1054,7 +1052,6 @@ const App: React.FC = () => {
     }
   };
 
-  // FIX: Added explicit type cast to resolve 'unknown' type error in .some() callback.
   const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || Object.values(pantry).some((list: PantryItem[]) => list.length > 0) || users.length > 0;
   
     const handleShoppingListCommand = (command: AppCommand) => {
@@ -1158,7 +1155,6 @@ const App: React.FC = () => {
                     const isExpanded = expandedCategories[category] ?? false;
                     const shouldBeExpanded = action === 'expand_category';
                     if (isExpanded !== shouldBeExpanded) {
-                        // FIX: Changed handleToggleCategory to the correct state setter logic.
                         setExpandedCategories(prev => ({...prev, [category]: shouldBeExpanded}));
                     }
                  }
@@ -1169,48 +1165,43 @@ const App: React.FC = () => {
     };
 
     const handleTranscriptUpdate = (transcript: string | null) => {
-        // Always allow clearing the bubble.
         if (transcript === null) {
             setVoiceFeedback(null);
             return;
         }
-        // Only show new transcripts if not currently processing a final command.
         if (!isProcessingVoice) {
             setVoiceFeedback(transcript);
         }
     };
 
     const handleGlobalCommand = async (transcript: string) => {
-        setVoiceFeedback(transcript); // Ensure final transcript is set before processing
+        setVoiceFeedback(transcript);
         setIsProcessingVoice(true);
         try {
-            // 1. Try general local commands (nav, scroll, etc.) first
             const localAppCmd = interpretLocalAppCommand(transcript);
             if (localAppCmd) {
                 if (localAppCmd.action === 'navigate' && localAppCmd.payload) {
                     setView(localAppCmd.payload as AppView);
                     showNotification(`Navigálás ide: ${localAppCmd.payload}`, 'info');
-                    return; // Command handled
+                    return;
                 }
                 switch (localAppCmd.action) {
                     case 'scroll_down':
                         window.scrollBy({ top: window.innerHeight * 0.8, behavior: 'smooth' });
-                        return; // Command handled
+                        return;
                     case 'scroll_up':
                         window.scrollBy({ top: -window.innerHeight * 0.8, behavior: 'smooth' });
-                        return; // Command handled
+                        return;
                 }
-                 // Handle other local commands like clear list if in the right view
                 if (view === 'shopping-list' && (localAppCmd.action === 'clear_checked_shopping_list' || localAppCmd.action === 'clear_all_shopping_list')) {
                     handleShoppingListCommand(localAppCmd);
-                    return; // Command handled
+                    return;
                 }
             }
 
-            // 2. If no general local command, check for context-specific commands (local first, then Gemini)
             switch (view) {
                 case 'generator':
-                    if (recipe === null) { // On the form
+                    if (recipe === null) {
                         const localFormCmd = interpretLocalFormCommand(transcript);
                         if (localFormCmd) {
                             setFormCommand(localFormCmd);
@@ -1218,7 +1209,7 @@ const App: React.FC = () => {
                             const result = await interpretFormCommand(transcript, mealTypes, cookingMethodsList, DIET_OPTIONS);
                             setFormCommand(result);
                         }
-                    } else { // Viewing a recipe
+                    } else {
                         const localRecipeCmd = interpretLocalRecipeCommand(transcript);
                         if (localRecipeCmd) {
                             if (localRecipeCmd.command === VoiceCommand.REPEAT) {
@@ -1235,7 +1226,6 @@ const App: React.FC = () => {
                     }
                     break;
                 
-                // For other views, if no general local command was found, fallback to Gemini
                 case 'shopping-list':
                 case 'favorites':
                 case 'pantry':
@@ -1261,7 +1251,6 @@ const App: React.FC = () => {
                     break;
                 
                 default:
-                    // If we are here, no local command matched and we don't have a specific Gemini interpreter for this view.
                     if (!localAppCmd) {
                         showNotification('Sajnos nem értettem a parancsot.', 'info');
                     }
@@ -1279,7 +1268,7 @@ const App: React.FC = () => {
             setIsProcessingVoice(false);
             setTimeout(() => {
                 setVoiceFeedback(null);
-            }, 500); // Keep bubble for a moment after processing finishes
+            }, 500);
         }
     };
 
@@ -1451,7 +1440,7 @@ const App: React.FC = () => {
         const formData = {
             ingredients: parsedRecipe.ingredients?.join(', ') || '',
             specialRequest: `Készíts receptet a következő alapján: ${parsedRecipe.recipeName}. Leírás: ${parsedRecipe.description}`,
-            mealType: MealType.LUNCH, // Default
+            mealType: MealType.LUNCH,
         };
         setInitialFormData(formData);
         setView('generator');
@@ -1465,7 +1454,7 @@ const App: React.FC = () => {
   };
   
   const handleParseFile = async (file: File) => {
-    setIsParsingUrl(true); // Re-use parsing state
+    setIsParsingUrl(true);
     setParsingUrlError(null);
     try {
         const fileData = await processAndResizeImageForGemini(file);
@@ -1473,13 +1462,13 @@ const App: React.FC = () => {
         const formData = {
             ingredients: parsedRecipe.ingredients?.join(', ') || '',
             specialRequest: `Készíts receptet a következő alapján: ${parsedRecipe.recipeName}. Leírás: ${parsedRecipe.description}`,
-            mealType: MealType.LUNCH, // Default
+            mealType: MealType.LUNCH,
         };
         setInitialFormData(formData);
         setView('generator');
         showNotification('Recept adatok sikeresen beolvasva a fájlból!', 'success');
     } catch (e: any) {
-        setError(e.message); // Show error on main screen
+        setError(e.message);
     } finally {
         setIsParsingUrl(false);
     }
@@ -1522,7 +1511,6 @@ const App: React.FC = () => {
         await forceRegenerateGuide(false);
     };
 
-  // FIX: Changed icon type from JSX.Element to React.ReactElement to resolve missing JSX namespace error.
   const navItems: { id: AppView, label: string, icon: React.ReactElement }[] = [
     { id: 'generator', label: 'Generátor', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.636-6.364l-.707-.707M12 21v-1m-6.364-1.636l.707-.707M6 17.001L6 17" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8s-3-5.5-4-5.5S8 8 8 8s-1.5 2.5-1.5 4.5C6.5 15.001 9 17 12 17s5.5-1.999 5.5-4.5C17.5 10.5 16 8 16 8z" /></svg> },
     { id: 'favorites', label: 'Mentettek', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg> },
@@ -1548,6 +1536,16 @@ const App: React.FC = () => {
       <header className="flex justify-between items-center mb-4">
         <img src={konyhaMikiLogo} alt="Konyha Miki Logó" className="h-16" />
         <div className="flex items-center gap-2">
+            <button
+                onClick={() => setIsSlideshowOpen(true)}
+                className="bg-white text-primary-700 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-600 font-semibold p-2 rounded-full border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                aria-label="Fotóvetítés indítása"
+                title="Fotóvetítés"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                </svg>
+            </button>
             <button
                 onClick={toggleTheme}
                 className="bg-white text-primary-700 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-600 font-semibold p-2 rounded-full border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
@@ -1842,6 +1840,13 @@ const App: React.FC = () => {
         />
       )}
 
+      {isSlideshowOpen && (
+        <PhotoSlideshow 
+            favorites={favorites} 
+            onClose={() => setIsSlideshowOpen(false)} 
+        />
+      )}
+
       <footer className="mt-8 text-center text-xs text-gray-500 dark:text-gray-400 space-y-4">
         <p>
           AI Receptgenerátor - Konyha Miki módra | Verzió: {APP_VERSION}
@@ -1874,5 +1879,4 @@ const App: React.FC = () => {
   );
 };
 
-// FIX: Add default export for App component.
 export default App;
