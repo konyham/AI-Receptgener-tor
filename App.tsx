@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
@@ -1164,6 +1166,14 @@ const App: React.FC = () => {
         }
     };
 
+  const navItems: { id: AppView, label: string, icon: React.ReactElement }[] = [
+    { id: 'generator', label: 'Generátor', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.636-6.364l-.707-.707M12 21v-1m-6.364-1.636l.707-.707M6 17.001L6 17" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8s-3-5.5-4-5.5S8 8 8 8s-1.5 2.5-1.5 4.5C6.5 15.001 9 17 12 17s5.5-1.999 5.5-4.5C17.5 10.5 16 8 16 8z" /></svg> },
+    { id: 'favorites', label: 'Mentettek', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg> },
+    { id: 'shopping-list', label: 'Bevásárlólista', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+    { id: 'pantry', label: 'Kamra', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg> },
+    { id: 'users', label: 'Felhasználók', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+  ];
+
     const handleTranscriptUpdate = (transcript: string | null) => {
         if (transcript === null) {
             setVoiceFeedback(null);
@@ -1181,8 +1191,10 @@ const App: React.FC = () => {
             const localAppCmd = interpretLocalAppCommand(transcript);
             if (localAppCmd) {
                 if (localAppCmd.action === 'navigate' && localAppCmd.payload) {
-                    setView(localAppCmd.payload as AppView);
-                    showNotification(`Navigálás ide: ${localAppCmd.payload}`, 'info');
+                    const viewId = localAppCmd.payload as AppView;
+                    const viewLabel = navItems.find(item => item.id === viewId)?.label || viewId;
+                    setView(viewId);
+                    showNotification(`Navigálás ide: ${viewLabel}`, 'info');
                     return;
                 }
                 switch (localAppCmd.action) {
@@ -1191,6 +1203,12 @@ const App: React.FC = () => {
                         return;
                     case 'scroll_up':
                         window.scrollBy({ top: -window.innerHeight * 0.8, behavior: 'smooth' });
+                        return;
+                    case 'scroll_top':
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        return;
+                    case 'scroll_bottom':
+                        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
                         return;
                 }
                 if (view === 'shopping-list' && (localAppCmd.action === 'clear_checked_shopping_list' || localAppCmd.action === 'clear_all_shopping_list')) {
@@ -1511,14 +1529,6 @@ const App: React.FC = () => {
         await forceRegenerateGuide(false);
     };
 
-  const navItems: { id: AppView, label: string, icon: React.ReactElement }[] = [
-    { id: 'generator', label: 'Generátor', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.636-6.364l-.707-.707M12 21v-1m-6.364-1.636l.707-.707M6 17.001L6 17" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8s-3-5.5-4-5.5S8 8 8 8s-1.5 2.5-1.5 4.5C6.5 15.001 9 17 12 17s5.5-1.999 5.5-4.5C17.5 10.5 16 8 16 8z" /></svg> },
-    { id: 'favorites', label: 'Mentettek', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg> },
-    { id: 'shopping-list', label: 'Bevásárlólista', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
-    { id: 'pantry', label: 'Kamra', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg> },
-    { id: 'users', label: 'Felhasználók', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
-  ];
-
   const handleWakeLockActivate = useCallback(async () => {
     try {
       if ('wakeLock' in navigator) {
@@ -1526,7 +1536,10 @@ const App: React.FC = () => {
         showNotification('Képernyőzár feloldva a hangvezérlés idejére.', 'info');
       }
     } catch (err: any) {
-      console.error(`Wake Lock failed: ${err.name}, ${err.message}`);
+      // Ignore NotAllowedError as it can happen due to system policies or battery saver
+      if (err.name !== 'NotAllowedError') {
+        console.error(`Wake Lock failed: ${err.name}, ${err.message}`);
+      }
     }
   }, [showNotification]);
 

@@ -186,6 +186,8 @@ export type AppCommandAction =
   | 'navigate' 
   | 'scroll_down' 
   | 'scroll_up'
+  | 'scroll_top'
+  | 'scroll_bottom'
   | 'add_shopping_list_item'
   | 'remove_shopping_list_item'
   | 'check_shopping_list_item'

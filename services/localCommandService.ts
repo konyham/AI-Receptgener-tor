@@ -22,6 +22,8 @@ const navTargets: Record<string, AppView> = {
 const simpleCommands: { regex: RegExp; command: AppCommand }[] = [
     { regex: /\b(görgess le|lejjebb|lapozz le)\b/, command: { action: 'scroll_down', payload: null } },
     { regex: /\b(görgess fel|feljebb|lapozz fel)\b/, command: { action: 'scroll_up', payload: null } },
+    { regex: /\b(ugorj|menj)\s*(?:a|az)\s+(oldal|lap)\s+(tetejére|elejére)\b/, command: { action: 'scroll_top', payload: null } },
+    { regex: /\b(ugorj|menj)\s*(?:a|az)\s+(oldal|lap)\s+(aljára|végére)\b/, command: { action: 'scroll_bottom', payload: null } },
     { regex: /\b(töröl|töröld)\s*(?:a|az)\s+kipipáltakat\b/, command: { action: 'clear_checked_shopping_list', payload: null } },
     { regex: /\b(töröl|töröld)\s*(?:a|az)\s+(egész|teljes)\s+listát\b/, command: { action: 'clear_all_shopping_list', payload: null } },
 ];
@@ -35,14 +37,19 @@ const simpleCommands: { regex: RegExp; command: AppCommand }[] = [
 export const interpretLocalAppCommand = (transcript: string): AppCommand | null => {
   const lowerTranscript = transcript.toLowerCase().trim();
 
-  // Check for simple, direct commands first.
+  // Check for direct navigation target match first for robustness
+  if (navTargets[lowerTranscript]) {
+    return { action: 'navigate', payload: navTargets[lowerTranscript] };
+  }
+
+  // Check for simple, direct commands.
   for (const { regex, command } of simpleCommands) {
     if (regex.test(lowerTranscript)) {
       return command;
     }
   }
 
-  // Check for navigation commands (e.g., "menj a kedvencekhez").
+  // Check for navigation commands with a verb (e.g., "menj a kedvencekhez").
   const navMatch = lowerTranscript.match(/\b(menj|irány|mutasd|nyisd meg|navigálj)\s*(?:a|az)\s+(.+)/);
   if (navMatch && navMatch[2]) {
     const target = navMatch[2].trim();

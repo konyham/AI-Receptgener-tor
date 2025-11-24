@@ -290,8 +290,54 @@ export const getRecipeModificationSuggestions = async (recipe: Recipe): Promise<
 };
 
 export const interpretAppCommand = async (transcript: string, view: AppView, context: any): Promise<AppCommand> => {
-  // Implementation
-  return { action: 'unknown', payload: null };
+    const systemInstruction = `Te egy magyar nyelvű asszisztens vagy egy receptalkalmazásban. A feladatod, hogy a felhasználó magyar nyelvű hangutasítását lefordítsd egy JSON parancsra az alkalmazás számára. Mindig JSON formátumban válaszolj. Ha a parancs nem egyértelmű, használd az 'unknown' akciót.`;
+
+    const availableActions = [
+        'navigate', 'scroll_down', 'scroll_up', 'add_shopping_list_item',
+        'remove_shopping_list_item', 'check_shopping_list_item', 'uncheck_shopping_list_item',
+        'clear_checked_shopping_list', 'clear_all_shopping_list', 'view_favorite_recipe',
+        'delete_favorite_recipe', 'filter_favorites', 'clear_favorites_filter',
+        'expand_category', 'collapse_category'
+    ];
+
+    const prompt = `
+    Felhasználó parancsa: "${transcript}"
+    Jelenlegi nézet: "${view}"
+    Elérhető kontextus:
+    - Kedvenc kategóriák: ${context.categories?.join(', ') || 'nincs'}
+    - Bevásárlólista elemek: ${context.shoppingListItems?.join(', ') || 'nincs'}
+
+    Elemezd a parancsot és add vissza a megfelelő JSON objektumot. Példák:
+    - "Tegyél tejet a listára" -> { "action": "add_shopping_list_item", "payload": "tej" }
+    - "Pipáld ki a vajat" -> { "action": "check_shopping_list_item", "payload": "vaj" }
+    - "Mutasd a levesek kategóriát" -> { "action": "filter_favorites", "payload": "levesek" }
+    - "Nyisd meg a gulyásleves receptjét" -> { "action": "view_favorite_recipe", "payload": "gulyásleves" }
+    `;
+
+    const responseSchema = {
+        type: Type.OBJECT,
+        properties: {
+            action: { type: Type.STRING, description: `A parancs típusa. Lehetséges értékek: ${availableActions.join(', ')}, unknown` },
+            payload: { type: Type.STRING, description: 'A parancshoz tartozó adat (pl. elem neve, kategória).', nullable: true },
+        },
+        required: ['action']
+    };
+
+    try {
+        const response = await ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: prompt,
+            config: {
+                systemInstruction,
+                responseMimeType: 'application/json',
+                responseSchema,
+            }
+        });
+        return parseJsonResponse<AppCommand>(response.text, 'interpretAppCommand');
+    } catch (error) {
+        console.error("Error in interpretAppCommand:", error);
+        return { action: 'unknown', payload: null };
+    }
 };
 
 export const generateAppGuide = async (): Promise<string> => {
@@ -488,13 +534,117 @@ export const generateSingleRecipeVariation = async (
 };
 
 export const interpretFormCommand = async (transcript: string, mealTypes: OptionItem[], cookingMethods: OptionItem[], dietOptions: { value: DietOption; label: string }[]): Promise<FormCommand | null> => {
-  // Implementation
-  return null;
+    const systemInstruction = `Egy receptgenerátor űrlap asszisztense vagy. A felhasználó magyarul ad utasításokat. Értelmezd a parancsot és alakítsd át egy JSON objektummá. Csak a megadott JSON sémával válaszolj. Ha a parancs nem feleltethető meg egyértelműen egy akciónak, adj vissza null-t.`;
+    
+    const prompt = `
+    Értelmezd a felhasználó következő parancsát: "${transcript}"
+
+    A cél egy akció és a hozzá tartozó adat azonosítása.
+    Lehetséges akciók:
+    - 'add_ingredients': Hozzávalókat ad az űrlaphoz. A payload egy string tömb.
+    - 'set_diet': Beállítja a diétát. A payload egy objektum {key, label} formában a megadott opciók közül.
+    - 'set_meal_type': Beállítja az étkezés típusát. A payload egy objektum {key, label} formában.
+    - 'set_cooking_method': Be- vagy kikapcsol egy elkészítési módot. A payload egy objektum {key, label} formában.
+    - 'generate_recipe': Elindítja a recept generálását. Nincs payload.
+
+    Ha a felhasználó hozzávalókat sorol fel (pl. "csirke, rizs és hagyma"), használd az 'add_ingredients' akciót.
+    Ha diétát, étkezést vagy elkészítési módot nevez meg, próbáld meg beazonosítani a listából és használd a 'set_...' akciók egyikét.
+    Ha a parancs recept generálására utal ("csinálj receptet", "jöhet a recept"), használd a 'generate_recipe' akciót.
+
+    Választható opciók:
+    - Diéták: ${JSON.stringify(dietOptions.map(d => ({ key: d.value, label: d.label })))}
+    - Étkezések: ${JSON.stringify(mealTypes)}
+    - Elkészítési módok: ${JSON.stringify(cookingMethods)}
+    `;
+
+    const responseSchema = {
+        type: Type.OBJECT,
+        properties: {
+            action: { type: Type.STRING, enum: ['add_ingredients', 'set_diet', 'set_meal_type', 'set_cooking_method', 'generate_recipe'] },
+            payload: { 
+                oneOf: [
+                    { type: Type.ARRAY, items: { type: Type.STRING } },
+                    { type: Type.OBJECT, properties: { key: { type: Type.STRING }, label: { type: Type.STRING } } },
+                ],
+                nullable: true
+            }
+        },
+        required: ['action']
+    };
+
+    try {
+        const response = await ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: prompt,
+            config: {
+                systemInstruction,
+                responseMimeType: 'application/json',
+                responseSchema,
+            }
+        });
+        const result = parseJsonResponse<FormCommand>(response.text, 'interpretFormCommand');
+        if (result.payload && Object.keys(result.payload).length === 0) {
+            return { ...result, payload: null };
+        }
+        return result;
+    } catch (error) {
+        console.error("Error in interpretFormCommand:", error);
+        return null;
+    }
 };
 
 export const interpretUserCommand = async (transcript: string): Promise<VoiceCommandResult> => {
-  // Implementation
-  return { command: VoiceCommand.UNKNOWN, payload: null };
+    const systemInstruction = `Egy receptnézegető asszisztense vagy. A felhasználó magyarul ad utasításokat főzés közben. A parancsot alakítsd át egy JSON objektummá a megadott séma szerint.`;
+
+    const prompt = `
+    Értelmezd a felhasználó következő parancsát: "${transcript}"
+
+    Lehetséges parancsok:
+    - 'next': A következő lépésre lép.
+    - 'previous': Az előző lépésre lép.
+    - 'repeat': Megismétli az aktuális lépést.
+    - 'stop': Bezárja a receptet.
+    - 'read-intro': Felolvassa a recept nevét és leírását.
+    - 'read-ingredients': Felolvassa a hozzávalókat.
+    - 'start-cooking': Elindítja a főzési módot.
+    - 'start-timer': Időzítőt indít. Értelmezd az időtartamot (pl. "5 perc", "30 másodperc").
+    - 'unknown': Ha a parancs nem felismerhető.
+
+    Példa "start-timer" parancsra: "indíts egy 5 perces időzítőt" -> { "command": "start-timer", "payload": { "minutes": 5 } }
+    `;
+
+    const responseSchema = {
+        type: Type.OBJECT,
+        properties: {
+            command: { type: Type.STRING, enum: Object.values(VoiceCommand) },
+            payload: {
+                type: Type.OBJECT,
+                properties: {
+                    hours: { type: Type.INTEGER, nullable: true },
+                    minutes: { type: Type.INTEGER, nullable: true },
+                    seconds: { type: Type.INTEGER, nullable: true },
+                },
+                nullable: true
+            }
+        },
+        required: ['command']
+    };
+
+    try {
+        const response = await ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: prompt,
+            config: {
+                systemInstruction,
+                responseMimeType: 'application/json',
+                responseSchema,
+            }
+        });
+        return parseJsonResponse<VoiceCommandResult>(response.text, 'interpretUserCommand');
+    } catch (error) {
+        console.error("Error in interpretUserCommand:", error);
+        return { command: VoiceCommand.UNKNOWN, payload: null };
+    }
 };
 
 export const suggestMealType = async (ingredients: string, specialRequest: string, mealTypes: OptionItem[]): Promise<MealType | null> => {

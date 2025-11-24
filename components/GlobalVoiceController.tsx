@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
@@ -34,9 +36,9 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
       stopListening();
       setMode('AWAITING_COMMAND');
       speak("Hallgatom...", () => {
-        // Csak a beszéd befejezése után kezdjük a figyelést
-        startListening();
+        // Csak az állapotot állítjuk át, a useEffect fogja újraindítani a figyelést
         setMode('LISTENING_FOR_COMMAND');
+        onTranscriptUpdate(null); // Töröljük a vizuális visszajelzést
       });
     } else if (mode === 'LISTENING_FOR_COMMAND' && isFinal && transcript.trim() && transcript !== lastTranscript.current) {
       if (commandTimeoutRef.current) clearTimeout(commandTimeoutRef.current);
@@ -69,9 +71,8 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
       stopListening();
       setMode('IDLE');
     } else if (isHandsFreeActive && permissionState === 'granted' && !isListening) {
-      // Csak akkor indítsuk újra a figyelést, ha a megfelelő állapotban vagyunk
-      // (pl. nem várunk a "Hallgatom..." befejezésére)
-      if (mode === 'LISTENING_FOR_WAKE_WORD') {
+      // Automatikus újraindítás, ha a rendszer készen áll és a megfelelő módban vagyunk
+      if (mode === 'LISTENING_FOR_WAKE_WORD' || mode === 'LISTENING_FOR_COMMAND') {
         startListening();
       }
     }
@@ -106,17 +107,24 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
         setMode('LISTENING_FOR_WAKE_WORD'); // Kezdőállapot beállítása az indításhoz
       } else {
         onTranscriptUpdate(null);
+        setMode('IDLE');
       }
   }
 
   let statusText = "Kikapcsolva";
   if (isHandsFreeActive) {
-    if (isProcessing) statusText = "Feldolgozás...";
-    else if (mode === 'LISTENING_FOR_WAKE_WORD') statusText = "Figyelek az 'Oké, Miki!'-re...";
-    else if (mode === 'LISTENING_FOR_COMMAND') statusText = "Hallgatom a parancsot...";
-    else if (mode === 'AWAITING_COMMAND') statusText = 'Válasz...';
+    if (isProcessing) {
+      statusText = "Feldolgozás...";
+    } else if (mode === 'LISTENING_FOR_WAKE_WORD') {
+      statusText = "Figyelek az 'Oké, Miki!'-re...";
+    } else if (mode === 'AWAITING_COMMAND' || mode === 'LISTENING_FOR_COMMAND') {
+      statusText = "Hallgatom...";
+    }
   }
-  if (permissionState === 'denied') statusText = "Mikrofon letiltva";
+  if (permissionState === 'denied') {
+    statusText = "Mikrofon letiltva";
+  }
+
 
   return (
     <div className="flex items-center gap-4">
@@ -127,7 +135,7 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
         </svg>
         <div className="flex flex-col">
             <span className="font-semibold text-gray-700 dark:text-gray-200">Hangvezérlés</span>
-            <span className={`text-sm h-5 transition-colors ${mode === 'LISTENING_FOR_COMMAND' ? 'text-blue-600 dark:text-blue-400 font-medium animate-pulse' : 'text-gray-500 dark:text-gray-400'}`}>{statusText}</span>
+            <span className={`text-sm h-5 transition-colors ${mode === 'LISTENING_FOR_COMMAND' || mode === 'AWAITING_COMMAND' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>{statusText}</span>
         </div>
         <label className="flex items-center cursor-pointer">
             <div className="relative">
