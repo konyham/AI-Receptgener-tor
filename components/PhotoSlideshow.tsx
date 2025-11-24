@@ -18,6 +18,7 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
   const [currentImageData, setCurrentImageData] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [showControls, setShowControls] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const controlsTimeoutRef = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
 
@@ -83,7 +84,57 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
     };
   }, [isPlaying, nextSlide, slides.length]);
 
-  // Keyboard & Fullscreen interaction
+  const toggleFullscreen = () => {
+    const elem = document.documentElement as any;
+    const doc = document as any;
+
+    if (!document.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
+        const requestMethod = elem.requestFullscreen || elem.webkitRequestFullscreen || elem.mozRequestFullScreen || elem.msRequestFullscreen;
+        if (requestMethod) {
+            requestMethod.call(elem).catch((err: any) => console.log("Fullscreen request denied", err));
+        }
+    } else {
+        const exitMethod = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
+        if (exitMethod) {
+            exitMethod.call(doc).catch((err: any) => console.log("Exit fullscreen failed", err));
+        }
+    }
+  };
+
+  // Sync fullscreen state
+  useEffect(() => {
+      const handleFullscreenChange = () => {
+          const doc = document as any;
+          setIsFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement));
+      };
+
+      document.addEventListener('fullscreenchange', handleFullscreenChange);
+      document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+      // Auto-enter fullscreen on mount
+      const elem = document.documentElement as any;
+      const doc = document as any;
+      if (!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
+           const requestMethod = elem.requestFullscreen || elem.webkitRequestFullscreen || elem.mozRequestFullScreen || elem.msRequestFullscreen;
+           if (requestMethod) {
+               // Small delay to ensure component is mounted and browser accepts the request context
+               setTimeout(() => {
+                   requestMethod.call(elem).catch(() => {});
+               }, 100);
+           }
+      }
+
+      return () => {
+          document.removeEventListener('fullscreenchange', handleFullscreenChange);
+          document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+          document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+          document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+      };
+  }, []);
+
+  // Keyboard interaction
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -96,23 +147,8 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
     };
     document.addEventListener('keydown', handleKeyDown);
 
-    // Request Fullscreen
-    const elem = document.documentElement as any;
-    const requestMethod = elem.requestFullscreen || elem.webkitRequestFullscreen || elem.mozRequestFullScreen || elem.msRequestFullscreen;
-
-    if (requestMethod) {
-        requestMethod.call(elem).catch((err: any) => console.log("Fullscreen request denied/failed", err));
-    }
-
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      const doc = document as any;
-      const exitMethod = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
-      if (doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement) {
-        if (exitMethod) {
-            exitMethod.call(doc).catch((err: any) => console.log("Exit fullscreen failed", err));
-        }
-      }
     };
   }, [onClose, nextSlide, prevSlide]);
 
@@ -149,12 +185,12 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
         )}
 
-        {/* Controls Overlay */}
-        <div className={`absolute top-0 left-0 right-0 p-4 flex justify-between items-center transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+        {/* Controls Overlay - Increased z-index to 50 to be above navigation targets */}
+        <div className={`absolute top-0 left-0 right-0 p-4 flex justify-between items-center transition-opacity duration-500 z-50 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
              <div className="text-white bg-black/50 px-3 py-1 rounded-full text-sm backdrop-blur-sm">
                  {currentIndex + 1} / {slides.length}
              </div>
-             <div className="flex gap-4 bg-black/30 p-2 rounded-full backdrop-blur-sm">
+             <div className="flex gap-4 bg-black/30 p-2 rounded-full backdrop-blur-sm pointer-events-auto">
                  <button onClick={(e) => { e.stopPropagation(); setIsPlaying(p => !p); }} className="text-white hover:text-primary-400 transition p-1" title={isPlaying ? "Szünet" : "Lejátszás"}>
                      {isPlaying ? (
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -162,13 +198,27 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                      )}
                  </button>
+                 <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="text-white hover:text-primary-400 transition p-1" title={isFullscreen ? "Kilépés teljes képernyőből" : "Teljes képernyő"}>
+                    {isFullscreen ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg> // This is X icon, replacing with Compress
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                    )}
+                    {isFullscreen && (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 absolute top-1 left-1 opacity-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg> // Dummy to keep logic simple, actual icon below
+                    )} 
+                    {/* Compress Icon for Fullscreen exit */}
+                    {isFullscreen && (
+                       <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.293l2.293-2.293m0 0L10 9.586V5m0 9v4.707l-2.293-2.293m0 0L5.293 14M14 10h4.707l-2.293 2.293m0 0L14 14.414V19m0-9V5.293l2.293 2.293m0 0L19 10" /></svg>
+                    )}
+                 </button>
                  <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="text-white hover:text-red-400 transition p-1" title="Bezárás">
                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                  </button>
              </div>
         </div>
         
-        {/* Manual Nav Targets (Invisible but clickable) */}
+        {/* Manual Nav Targets (Invisible but clickable) - z-index 10 is below controls */}
         <div className="absolute inset-y-0 left-0 w-1/6 cursor-pointer z-10" onClick={(e) => { e.stopPropagation(); prevSlide(); }} title="Előző"></div>
         <div className="absolute inset-y-0 right-0 w-1/6 cursor-pointer z-10" onClick={(e) => { e.stopPropagation(); nextSlide(); }} title="Következő"></div>
     </div>
