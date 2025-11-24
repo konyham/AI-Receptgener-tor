@@ -4,13 +4,24 @@ import { AppCommand, AppView, FormCommand, VoiceCommand, VoiceCommandResult } fr
 const navTargets: Record<string, AppView> = {
   'generátor': 'generator',
   'generátorhoz': 'generator',
+  'recept generátor': 'generator',
+  'receptgenerátor': 'generator',
+  'recept generátorhoz': 'generator',
+  'receptgenerátorhoz': 'generator',
+  'recept generátorra': 'generator',
+  'receptgenerátorra': 'generator',
   'kedvencek': 'favorites',
   'kedvencekhez': 'favorites',
   'mentett receptek': 'favorites',
   'mentett receptekhez': 'favorites',
+  'mentettek': 'favorites',
+  'mentettekhez': 'favorites',
   'bevásárlólista': 'shopping-list',
   'bevásárlólistára': 'shopping-list',
   'bevásárlólistához': 'shopping-list',
+  'bevásárló lista': 'shopping-list',
+  'bevásárló listára': 'shopping-list',
+  'bevásárló listához': 'shopping-list',
   'kamra': 'pantry',
   'kamrába': 'pantry',
   'kamrát': 'pantry',
@@ -50,7 +61,7 @@ export const interpretLocalAppCommand = (transcript: string): AppCommand | null 
   }
 
   // Check for navigation commands with a verb (e.g., "menj a kedvencekhez").
-  const navMatch = lowerTranscript.match(/\b(menj|irány|mutasd|nyisd meg|navigálj)\s*(?:a|az)\s+(.+)/);
+  const navMatch = lowerTranscript.match(/\b(menj|irány|mutasd|nyisd meg|navigálj|ugorj)\s*(?:a|az)\s+(.+)/);
   if (navMatch && navMatch[2]) {
     const target = navMatch[2].trim();
     if (navTargets[target]) {

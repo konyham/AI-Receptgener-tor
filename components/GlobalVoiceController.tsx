@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useNotification } from '../contexts/NotificationContext';
@@ -11,14 +9,14 @@ interface GlobalVoiceControllerProps {
   onActivate: () => void;
 }
 
-type Mode = 'IDLE' | 'LISTENING_FOR_WAKE_WORD' | 'AWAITING_COMMAND' | 'LISTENING_FOR_COMMAND';
+type Mode = 'IDLE' | 'LISTENING_FOR_WAKE_WORD' | 'LISTENING_FOR_COMMAND';
 
 const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand, isProcessing, onTranscriptUpdate, onActivate }) => {
   const [isHandsFreeActive, setIsHandsFreeActive] = useState(false);
   const [mode, setMode] = useState<Mode>('IDLE');
   const commandTimeoutRef = useRef<number | null>(null);
   const { showNotification } = useNotification();
-  const lastTranscript = useRef('');
+  const lastTranscript = useRef(''); // To prevent processing the same final transcript multiple times
 
   const speak = useCallback((text: string, onEnd?: () => void) => {
     window.speechSynthesis.cancel();
@@ -30,23 +28,37 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
   }, []);
 
   const handleResult = (transcript: string, isFinal: boolean) => {
+    const lowerTranscript = transcript.toLowerCase();
     onTranscriptUpdate(transcript);
+    
+    // Ignore duplicate final results
+    if (isFinal && transcript.trim() === lastTranscript.current) {
+        return;
+    }
 
-    if (mode === 'LISTENING_FOR_WAKE_WORD' && transcript.toLowerCase().includes('oké miki')) {
+    if (mode === 'LISTENING_FOR_WAKE_WORD' && lowerTranscript.includes('oké generátor')) {
+      if (isFinal) {
+          lastTranscript.current = transcript.trim();
+      }
       stopListening();
-      setMode('AWAITING_COMMAND');
-      speak("Hallgatom...", () => {
-        // Csak az állapotot állítjuk át, a useEffect fogja újraindítani a figyelést
-        setMode('LISTENING_FOR_COMMAND');
-        onTranscriptUpdate(null); // Töröljük a vizuális visszajelzést
-      });
-    } else if (mode === 'LISTENING_FOR_COMMAND' && isFinal && transcript.trim() && transcript !== lastTranscript.current) {
-      if (commandTimeoutRef.current) clearTimeout(commandTimeoutRef.current);
-      lastTranscript.current = transcript;
-      stopListening();
-      onCommand(transcript);
-      // Parancs feldolgozása után azonnal álljunk vissza a vezényszó figyelésére
-      setMode('LISTENING_FOR_WAKE_WORD');
+      speak("Hallgatom...");
+      setMode('LISTENING_FOR_COMMAND');
+      onTranscriptUpdate(null);
+    } 
+    else if (mode === 'LISTENING_FOR_COMMAND' && isFinal && transcript.trim()) {
+        lastTranscript.current = transcript.trim();
+        const commandText = lowerTranscript.replace(/oké generátor/g, '').trim();
+        
+        // If the result only contains the wake word again, ignore it and wait for the actual command.
+        // The timeout will handle resetting to wake word mode if no command is given.
+        if (!commandText) {
+            return;
+        }
+
+        if (commandTimeoutRef.current) clearTimeout(commandTimeoutRef.current);
+        stopListening();
+        onCommand(commandText);
+        setMode('LISTENING_FOR_WAKE_WORD');
     }
   };
   
@@ -65,13 +77,11 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
     onError: handleSpeechError,
   });
 
-  // Állapotgép vezérlő logikája
   useEffect(() => {
     if (!isHandsFreeActive && isListening) {
       stopListening();
       setMode('IDLE');
     } else if (isHandsFreeActive && permissionState === 'granted' && !isListening) {
-      // Automatikus újraindítás, ha a rendszer készen áll és a megfelelő módban vagyunk
       if (mode === 'LISTENING_FOR_WAKE_WORD' || mode === 'LISTENING_FOR_COMMAND') {
         startListening();
       }
@@ -82,12 +92,11 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
   useEffect(() => {
     if (mode === 'LISTENING_FOR_COMMAND') {
       if (commandTimeoutRef.current) clearTimeout(commandTimeoutRef.current);
-      // Időzítő, hogy visszatérjünk a vezényszó figyeléséhez, ha nem érkezik parancs
       commandTimeoutRef.current = window.setTimeout(() => {
         if(isListening) stopListening();
         setMode('LISTENING_FOR_WAKE_WORD');
         onTranscriptUpdate(null);
-      }, 8000);
+      }, 8000); // 8 second timeout to give a command
     }
     return () => {
       if (commandTimeoutRef.current) clearTimeout(commandTimeoutRef.current);
@@ -104,7 +113,7 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
 
       if (newActiveState) {
         onActivate();
-        setMode('LISTENING_FOR_WAKE_WORD'); // Kezdőállapot beállítása az indításhoz
+        setMode('LISTENING_FOR_WAKE_WORD');
       } else {
         onTranscriptUpdate(null);
         setMode('IDLE');
@@ -116,8 +125,8 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
     if (isProcessing) {
       statusText = "Feldolgozás...";
     } else if (mode === 'LISTENING_FOR_WAKE_WORD') {
-      statusText = "Figyelek az 'Oké, Miki!'-re...";
-    } else if (mode === 'AWAITING_COMMAND' || mode === 'LISTENING_FOR_COMMAND') {
+      statusText = "Figyelek az 'Oké generátor'-ra...";
+    } else if (mode === 'LISTENING_FOR_COMMAND') {
       statusText = "Hallgatom...";
     }
   }
@@ -135,7 +144,7 @@ const GlobalVoiceController: React.FC<GlobalVoiceControllerProps> = ({ onCommand
         </svg>
         <div className="flex flex-col">
             <span className="font-semibold text-gray-700 dark:text-gray-200">Hangvezérlés</span>
-            <span className={`text-sm h-5 transition-colors ${mode === 'LISTENING_FOR_COMMAND' || mode === 'AWAITING_COMMAND' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>{statusText}</span>
+            <span className={`text-sm h-5 transition-colors ${mode === 'LISTENING_FOR_COMMAND' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>{statusText}</span>
         </div>
         <label className="flex items-center cursor-pointer">
             <div className="relative">

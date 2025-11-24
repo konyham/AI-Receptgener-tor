@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
@@ -21,6 +18,7 @@ import ImportUrlModal from './components/ImportUrlModal';
 import RecipeComparisonView from './components/RecipeComparisonView';
 import GenerateVariationModal from './components/GenerateVariationModal';
 import PhotoSlideshow from './components/PhotoSlideshow';
+import VoiceFeedbackBubble from './components/VoiceFeedbackBubble';
 import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile, generateRecipeVariations, generateSingleRecipeVariation, interpretFormCommand, interpretUserCommand } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
@@ -706,9 +704,9 @@ const App: React.FC = () => {
         );
         setAlternativeRecipes(prev => [...(prev || []), newVariation]);
     } catch (err: any) {
-        setError(err.message);
+      setError(err.message);
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
 };
 
@@ -1167,7 +1165,7 @@ const App: React.FC = () => {
     };
 
   const navItems: { id: AppView, label: string, icon: React.ReactElement }[] = [
-    { id: 'generator', label: 'Generátor', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.636-6.364l-.707-.707M12 21v-1m-6.364-1.636l.707-.707M6 17.001L6 17" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8s-3-5.5-4-5.5S8 8 8 8s-1.5 2.5-1.5 4.5C6.5 15.001 9 17 12 17s5.5-1.999 5.5-4.5C17.5 10.5 16 8 16 8z" /></svg> },
+    { id: 'generator', label: 'Receptgenerátor', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.636-6.364l-.707-.707M12 21v-1m-6.364-1.636l.707-.707M6 17.001L6 17" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8s-3-5.5-4-5.5S8 8 8 8s-1.5 2.5-1.5 4.5C6.5 15.001 9 17 12 17s5.5-1.999 5.5-4.5C17.5 10.5 16 8 16 8z" /></svg> },
     { id: 'favorites', label: 'Mentettek', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg> },
     { id: 'shopping-list', label: 'Bevásárlólista', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
     { id: 'pantry', label: 'Kamra', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg> },
@@ -1179,9 +1177,7 @@ const App: React.FC = () => {
             setVoiceFeedback(null);
             return;
         }
-        if (!isProcessingVoice) {
-            setVoiceFeedback(transcript);
-        }
+        setVoiceFeedback(transcript);
     };
 
     const handleGlobalCommand = async (transcript: string) => {
@@ -1255,6 +1251,16 @@ const App: React.FC = () => {
                             pantryItems: Object.values(pantry).flat().map((i: PantryItem) => i.text),
                         };
                         const appCommand = await interpretAppCommand(transcript, view, appContext);
+
+                        if (appCommand.action === 'navigate' && appCommand.payload) {
+                            const viewId = appCommand.payload as AppView;
+                            if (navItems.some(item => item.id === viewId)) {
+                                setView(viewId);
+                                const viewLabel = navItems.find(item => item.id === viewId)?.label || viewId;
+                                showNotification(`Navigálás ide: ${viewLabel}`, 'info');
+                                return;
+                            }
+                        }
 
                         if (view === 'shopping-list') {
                             handleShoppingListCommand(appCommand);
@@ -1789,6 +1795,8 @@ const App: React.FC = () => {
         )}
       </main>
 
+      {voiceFeedback && <VoiceFeedbackBubble message={voiceFeedback} isProcessing={isProcessingVoice} />}
+
       {isLocationPromptOpen && (
         <LocationPromptModal
             isOpen={isLocationPromptOpen}
@@ -1869,7 +1877,15 @@ const App: React.FC = () => {
         </p>
         <div>
           <button
-              onClick={() => setIsExamplesExpanded(!isExamplesExpanded)}
+              onClick={() => {
+                  const newExpandedState = !isExamplesExpanded;
+                  setIsExamplesExpanded(newExpandedState);
+                  if (newExpandedState) {
+                      setTimeout(() => {
+                          window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                      }, 100);
+                  }
+              }}
               className="text-primary-700 dark:text-primary-300 font-semibold hover:underline"
               aria-expanded={isExamplesExpanded}
           >
