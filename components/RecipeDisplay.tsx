@@ -230,6 +230,17 @@ const addWatermark = (imageUrl: string, recipe: Recipe, allMealTypes: OptionItem
     });
 };
 
+const ActionButton: React.FC<{ onClick: () => void; disabled?: boolean; children: React.ReactNode; label: string; }> = ({ onClick, disabled, children, label }) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg bg-white shadow-sm border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        aria-label={label}
+    >
+        {children}
+    </button>
+);
+
 const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
   recipe,
   onClose,
@@ -631,17 +642,6 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
           showNotification('A felugró ablakok le vannak tiltva. Kérjük, engedélyezze őket a nyomtatáshoz.', 'info');
         }
     };
-
-    const ActionButton: React.FC<{ onClick: () => void; disabled?: boolean; children: React.ReactNode; label: string; }> = ({ onClick, disabled, children, label }) => (
-        <button
-            onClick={onClick}
-            disabled={disabled}
-            className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg bg-white shadow-sm border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            aria-label={label}
-        >
-            {children}
-        </button>
-    );
 
   return (
     <>

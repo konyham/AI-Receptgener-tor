@@ -1,4 +1,3 @@
-
 // components/PantryView.tsx
 import React, { useState } from 'react';
 import { PantryItem, PantryLocation, PANTRY_LOCATIONS, ShoppingListItem, StorageType } from '../types';
@@ -251,7 +250,6 @@ const PantryLocationView: React.FC<{
         </div>
     );
 }
-
 
 const PantryView: React.FC<PantryViewProps> = (props) => {
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);

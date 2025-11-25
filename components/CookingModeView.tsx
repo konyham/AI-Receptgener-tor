@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { InstructionStep } from '../types';
+import GestureController from './GestureController';
 
 interface CookingModeViewProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ const CookingModeView: React.FC<CookingModeViewProps> = ({
   const [wordBoundaries, setWordBoundaries] = useState<number[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(-1);
   const wordRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const [isGestureControlActive, setIsGestureControlActive] = useState(false);
 
   // Speech synthesis effect with highlighting
   useEffect(() => {
@@ -98,7 +100,7 @@ const CookingModeView: React.FC<CookingModeViewProps> = ({
     return () => {
       window.speechSynthesis.cancel();
     };
-  }, [isOpen, currentStep, forceSpeakTrigger]);
+  }, [isOpen, currentStep, forceSpeakTrigger, currentInstruction?.text]);
 
   // Auto-scrolling effect for the highlighted word
   useEffect(() => {
@@ -111,6 +113,22 @@ const CookingModeView: React.FC<CookingModeViewProps> = ({
       });
     }
   }, [currentWordIndex]);
+
+  const goToNext = useCallback(() => {
+    if (currentStep < instructions.length - 1) {
+      onStepChange(currentStep + 1);
+    }
+  }, [currentStep, instructions.length, onStepChange]);
+
+  const goToPrevious = useCallback(() => {
+    if (currentStep > 0) {
+      onStepChange(currentStep - 1);
+    }
+  }, [currentStep, onStepChange]);
+
+  const handleGestureClose = useCallback(() => {
+    setIsGestureControlActive(false);
+  }, []);
 
   // Keyboard and focus management effect
   useEffect(() => {
@@ -132,21 +150,9 @@ const CookingModeView: React.FC<CookingModeViewProps> = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose, currentStep]);
+  }, [isOpen, onClose, goToNext, goToPrevious]);
 
   if (!isOpen) return null;
-
-  const goToNext = () => {
-    if (currentStep < instructions.length - 1) {
-      onStepChange(currentStep + 1);
-    }
-  };
-
-  const goToPrevious = () => {
-    if (currentStep > 0) {
-      onStepChange(currentStep - 1);
-    }
-  };
 
   return (
     <div
@@ -201,9 +207,21 @@ const CookingModeView: React.FC<CookingModeViewProps> = ({
             Előző
           </button>
 
-          <button onClick={onClose} className="w-full sm:w-auto font-bold py-3 px-6 rounded-lg text-red-600 bg-red-100 hover:bg-red-200 transition-colors">
-            Kilépés a Főzés Módból
-          </button>
+          <div className="flex flex-col items-center gap-2">
+            <button onClick={onClose} className="w-full sm:w-auto font-bold py-3 px-6 rounded-lg text-red-600 bg-red-100 hover:bg-red-200 transition-colors">
+              Kilépés a Főzés Módból
+            </button>
+            <button
+                onClick={() => setIsGestureControlActive(p => !p)}
+                className="flex items-center gap-2 text-sm text-gray-500 hover:text-primary-600 transition-colors"
+                title={isGestureControlActive ? 'Kézmozdulatok kikapcsolása' : 'Kézmozdulatok bekapcsolása'}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`h-6 w-6 ${isGestureControlActive ? 'text-primary-600' : ''}`}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 12h-2.25M13.5 20.25h-3M4.166 12H6.5m1.591-5.834L6.5 7.834" />
+              </svg>
+              <span>Kézmozdulatok</span>
+            </button>
+          </div>
 
           <button
             onClick={goToNext}
@@ -217,6 +235,13 @@ const CookingModeView: React.FC<CookingModeViewProps> = ({
           </button>
         </footer>
       </div>
+      {isGestureControlActive && (
+        <GestureController
+          onSwipeLeft={goToNext}
+          onSwipeRight={goToPrevious}
+          onClose={handleGestureClose}
+        />
+      )}
     </div>
   );
 };
