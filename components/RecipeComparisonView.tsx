@@ -19,7 +19,7 @@ const addWatermark = (imageUrl: string, recipe: Recipe, allMealTypes: OptionItem
         image.onload = () => {
             const canvas = document.createElement('canvas');
             const canvasWidth = 1280;
-            const canvasHeight = 896;
+            const canvasHeight = 720;
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
             const ctx = canvas.getContext('2d');
@@ -193,7 +193,7 @@ const RecipeComparisonView: React.FC<RecipeComparisonViewProps> = ({
     setImageLoaded(false);
 
     try {
-        const imageBytes = await generateRecipeImage(activeRecipe, []);
+        const imageBytes = await generateRecipeImage(activeRecipe);
         const rawImageUrl = `data:image/jpeg;base64,${imageBytes}`;
         const watermarkedImageUrl = await addWatermark(rawImageUrl, activeRecipe, mealTypes, cookingMethodsList);
         
@@ -334,24 +334,24 @@ const RecipeComparisonView: React.FC<RecipeComparisonViewProps> = ({
             <div className="space-y-6">
               {/* Image Generation UI */}
               {isGeneratingImage ? (
-                <div className="aspect-[4/3] rounded-lg bg-gray-100 dark:bg-gray-700 flex flex-col items-center justify-center p-4 border dark:border-gray-600 animate-pulse-bg">
+                <div className="aspect-[16/9] rounded-lg bg-gray-100 dark:bg-gray-700 flex flex-col items-center justify-center p-4 border dark:border-gray-600 animate-pulse-bg">
                   <LoadingSpinner message="Ételkép feldolgozása..." inline />
                 </div>
               ) : generatingImageError ? (
-                  <div className="aspect-[4/3] rounded-lg bg-red-50 dark:bg-red-900/30 flex flex-col items-center justify-center p-4 border-2 border-dashed border-red-300 dark:border-red-700">
+                  <div className="aspect-[16/9] rounded-lg bg-red-50 dark:bg-red-900/30 flex flex-col items-center justify-center p-4 border-2 border-dashed border-red-300 dark:border-red-700">
                       <p className="text-red-700 dark:text-red-200 font-semibold text-center mb-4">{generatingImageError}</p>
                       <button onClick={() => handleGenerateImage(true)} className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-red-700">Újrapróbálkozás</button>
                   </div>
               ) : activeImageUrl ? (
                   <div className="relative group">
-                      <button onClick={() => setIsImageModalOpen(true)} className="w-full aspect-[4/3] rounded-lg overflow-hidden shadow-lg"><img src={activeImageUrl} alt={`Fotó: ${activeRecipe.recipeName}`} className={`w-full h-full object-cover transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`} onLoad={() => setImageLoaded(true)} /></button>
+                      <button onClick={() => setIsImageModalOpen(true)} className="w-full aspect-[16/9] rounded-lg overflow-hidden shadow-lg"><img src={activeImageUrl} alt={`Fotó: ${activeRecipe.recipeName}`} className={`w-full h-full object-cover transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`} onLoad={() => setImageLoaded(true)} /></button>
                       <div className="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => handleGenerateImage(true)} className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 bg-white/80 backdrop-blur-sm text-gray-800 rounded-full hover:bg-white shadow-md">Újragenerálás</button>
                           <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 bg-white/80 backdrop-blur-sm text-gray-800 rounded-full hover:bg-white shadow-md">Új kép</button>
                       </div>
                   </div>
               ) : (
-                  <div className="aspect-[4/3] rounded-lg bg-gray-50 dark:bg-gray-700/50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
+                  <div className="aspect-[16/9] rounded-lg bg-gray-50 dark:bg-gray-700/50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
                       <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Ételfotó</h4>
                       <div className="flex flex-col sm:flex-row gap-4">
                           <button onClick={() => handleGenerateImage()} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-primary-700">Generálás AI-val</button>

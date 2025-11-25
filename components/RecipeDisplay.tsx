@@ -48,7 +48,7 @@ const addWatermark = (imageUrl: string, recipe: Recipe, allMealTypes: OptionItem
         image.onload = () => {
             const canvas = document.createElement('canvas');
             const canvasWidth = 1280;
-            const canvasHeight = 896;
+            const canvasHeight = 720;
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
             const ctx = canvas.getContext('2d');
@@ -418,7 +418,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
         setImageLoaded(false);
 
         try {
-            const imageBytes = await generateRecipeImage(editableRecipe, []);
+            const imageBytes = await generateRecipeImage(editableRecipe);
             const rawImageUrl = `data:image/jpeg;base64,${imageBytes}`;
             const watermarkedImageUrl = await addWatermark(rawImageUrl, editableRecipe, mealTypes, cookingMethodsList);
             
@@ -732,13 +732,13 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                                 <h4 className="font-bold text-primary-800">Kép szerkesztése</h4>
                                 <div className="relative">
                                     {isGeneratingImage ? (
-                                        <div className="aspect-[4/3] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4 border animate-pulse-bg">
+                                        <div className="aspect-[16/9] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4 border animate-pulse-bg">
                                             <svg className="animate-spin h-10 w-10 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                         </div>
                                     ) : activeImageUrl ? (
-                                        <img src={activeImageUrl} alt={`Fotó a receptről: ${editableRecipe.recipeName}`} className="w-full aspect-[4/3] object-cover rounded-lg shadow-md" />
+                                        <img src={activeImageUrl} alt={`Fotó a receptről: ${editableRecipe.recipeName}`} className="w-full aspect-[16/9] object-cover rounded-lg shadow-md" />
                                     ) : (
-                                        <div className="aspect-[4/3] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4"><p className="text-gray-500 text-center">Nincs kép a recepthez.</p></div>
+                                        <div className="aspect-[16/9] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4"><p className="text-gray-500 text-center">Nincs kép a recepthez.</p></div>
                                     )}
                                 </div>
                                 {generatingImageError && <p className="text-red-600 text-sm text-center">{generatingImageError}</p>}
@@ -760,19 +760,19 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                         ) : (
                             <div>
                                 {isGeneratingImage ? (
-                                    <div className="aspect-[4/3] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4 border animate-pulse-bg">
+                                    <div className="aspect-[16/9] rounded-lg bg-gray-100 flex flex-col items-center justify-center p-4 border animate-pulse-bg">
                                         <svg className="animate-spin h-10 w-10 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                         <p className="mt-4 text-lg font-semibold text-gray-700">Ételkép feldolgozása...</p>
                                     </div>
                                 ) : generatingImageError ? (
-                                    <div className="aspect-[4/3] rounded-lg bg-red-50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-red-300">
+                                    <div className="aspect-[16/9] rounded-lg bg-red-50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-red-300">
                                         <p className="text-red-700 font-semibold text-center mb-2">Hiba történt a kép generálása közben.</p>
                                         <p className="text-red-600 text-sm text-center mb-4">{generatingImageError}</p>
                                         <button onClick={() => handleGenerateImage(true)} className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-red-700 transition-colors">Újrapróbálkozás</button>
                                     </div>
                                 ) : activeImageUrl ? (
                                     <div className="relative group">
-                                        <button onClick={() => { setActiveImageTitle(editableRecipe.recipeName); setIsImageModalOpen(true); }} className="w-full aspect-[4/3] rounded-lg overflow-hidden shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500" aria-label="Kép megtekintése nagyban">
+                                        <button onClick={() => { setActiveImageTitle(editableRecipe.recipeName); setIsImageModalOpen(true); }} className="w-full aspect-[16/9] rounded-lg overflow-hidden shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500" aria-label="Kép megtekintése nagyban">
                                             <img src={activeImageUrl} alt={`Fotó a receptről: ${editableRecipe.recipeName}`} className={`w-full h-full object-cover transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`} onLoad={() => setImageLoaded(true)} />
                                             {!imageLoaded && (<div className="absolute inset-0 bg-gray-200 flex items-center justify-center"><svg className="animate-spin h-8 w-8 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>)}
                                         </button>
@@ -782,7 +782,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="aspect-[4/3] rounded-lg bg-gray-50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300">
+                                    <div className="aspect-[16/9] rounded-lg bg-gray-50 flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300">
                                         <h4 className="text-lg font-semibold text-gray-700 mb-2">Ételfotó</h4>
                                         <div className="flex flex-col sm:flex-row gap-4">
                                             <button onClick={() => handleGenerateImage()} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-primary-700">Generálás AI-val</button>

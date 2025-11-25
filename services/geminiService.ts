@@ -657,15 +657,30 @@ export const suggestMealType = async (ingredients: string, specialRequest: strin
     return null;
 };
 
-export const generateRecipeImage = async (recipe: Recipe, alternativeSuggestions: any[]): Promise<string> => {
-    const prompt = `Soha ne írj szöveget a képre. Fotorealisztikus, profi ételfotó. Csak az elkészült, letálalt étel szerepeljen rajta, illő gasztronómiai környezetben (pl. tányér, asztal, evőeszköz). Semmi más ne szerepeljen rajta, ami nem kapcsolódik az ételhez. Az étel: ${recipe.recipeName}. Leírás: ${recipe.description}`;
-    const response = await ai.models.generateImages({
-        model: 'imagen-4.0-generate-001',
-        prompt,
-        config: { numberOfImages: 1 }
+export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
+    const prompt = `Profi, fotorealisztikus ételfotó a következő ételről: ${recipe.recipeName}. Leírás: ${recipe.description}. Az étel legyen elegánsan tálalva, gasztronómiai környezetben, és a kép közepén helyezkedjen el. A háttér a szélek felé legyen semlegesebb, elmosódottabb (bokeh effekt). A képen ne szerepeljen semmilyen szöveg, logó vagy ember. Csak az étel és a tálalás legyen a fókuszban.`;
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+            parts: [{ text: prompt }],
+        },
+        config: {
+            imageConfig: {
+                aspectRatio: "16:9",
+            },
+        },
     });
-    return response.generatedImages[0].image.imageBytes;
+
+    for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+            return part.inlineData.data; // This is the base64 string
+        }
+    }
+
+    throw new Error('Az AI nem tudott képet generálni a recepthez. A válasz nem tartalmazott képi adatot.');
 };
+
 
 export const calculateRecipeCost = async (recipe: Recipe): Promise<string> => {
   // Implementation

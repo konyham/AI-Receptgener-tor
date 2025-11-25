@@ -390,7 +390,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
         setImageLoaded(false);
 
         try {
-            const imageBytes = await generateRecipeImage(editableRecipe, []);
+            // FIX: The `generateRecipeImage` function expects only one argument (recipe). The extra empty array has been removed.
+            const imageBytes = await generateRecipeImage(editableRecipe);
             const rawImageUrl = `data:image/jpeg;base64,${imageBytes}`;
             const watermarkedImageUrl = await addWatermark(rawImageUrl, editableRecipe, mealTypes, cookingMethodsList);
             

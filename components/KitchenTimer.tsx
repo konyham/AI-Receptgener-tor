@@ -276,7 +276,7 @@ const KitchenTimer: React.FC<KitchenTimerProps> = ({ onClose, initialValues }) =
 
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="timer-title">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="timer-title">
       <div ref={modalRef} className="bg-white rounded-2xl shadow-xl p-6 m-4 w-full max-w-md">
         <h2 id="timer-title" className="text-2xl font-bold text-primary-800 mb-4 text-center">Konyhai Időzítő</h2>
         
