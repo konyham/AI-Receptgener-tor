@@ -1379,9 +1379,10 @@ const App: React.FC = () => {
             }
         }
         
-        if (data.appGuideContent && data.appGuideVersion) {
+        if (data.appGuideContent !== undefined && data.appGuideVersion !== undefined) {
             localStorage.setItem('app-guide-content', data.appGuideContent);
             localStorage.setItem('app-guide-version', data.appGuideVersion);
+            setAppGuideContent(data.appGuideContent);
         }
 
         setFavorites(mergedFavorites);
