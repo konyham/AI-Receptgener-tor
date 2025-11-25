@@ -85,6 +85,28 @@ const addWatermark = (imageUrl: string, recipe: Recipe, allMealTypes: OptionItem
                 ctx.shadowOffsetX = 0;
                 ctx.shadowOffsetY = 0;
             };
+            
+            const wrapText = (context: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number, draw: boolean = true) => {
+                const words = text.split(' ');
+                let line = '';
+                let lineCount = 1;
+                let currentY = y;
+
+                for (let n = 0; n < words.length; n++) {
+                    const testLine = line + words[n] + ' ';
+                    const metrics = context.measureText(testLine);
+                    if (metrics.width > maxWidth && n > 0) {
+                        if (draw) drawTextWithShadow(line.trim(), x, currentY, context.font, context.fillStyle as string, context.textAlign as 'left' | 'right' | 'center');
+                        line = words[n] + ' ';
+                        currentY += lineHeight;
+                        lineCount++;
+                    } else {
+                        line = testLine;
+                    }
+                }
+                if (draw) drawTextWithShadow(line.trim(), x, currentY, context.font, context.fillStyle as string, context.textAlign as 'left' | 'right' | 'center');
+                return { height: lineCount * lineHeight, finalY: currentY };
+            }
 
             const padding = 35;
             const cornerFont = 'bold 32px Arial, sans-serif';
@@ -101,26 +123,12 @@ const addWatermark = (imageUrl: string, recipe: Recipe, allMealTypes: OptionItem
 
             if (cookingMethodLabels.length > 0 && !(cookingMethodLabels.length === 1 && cookingMethodLabels[0] === 'Hagyományos')) {
                 const fullLabelText = `• ${cookingMethodLabels.join(', ')}`;
-                const maxWidth = canvas.width * 0.6;
+                const maxWidth = canvas.width * 0.5; // Limit to 50% width to avoid overlap
                 ctx.font = cornerFont;
-
-                const words = fullLabelText.split(' ');
-                let line = '';
-                let currentY = topLeftY;
-
-                for (let n = 0; n < words.length; n++) {
-                    const testLine = line + words[n] + ' ';
-                    const metrics = ctx.measureText(testLine);
-                    if (metrics.width > maxWidth && n > 0) {
-                        drawTextWithShadow(line.trim(), padding, currentY, cornerFont, 'white', 'left');
-                        line = words[n] + ' ';
-                        currentY += cornerLineHeight;
-                    } else {
-                        line = testLine;
-                    }
-                }
-                drawTextWithShadow(line.trim(), padding, currentY, cornerFont, 'white', 'left');
-                topLeftY = currentY + cornerLineHeight;
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'left';
+                const { finalY } = wrapText(ctx, fullLabelText, padding, topLeftY, maxWidth, cornerLineHeight, true);
+                topLeftY = finalY + cornerLineHeight;
             }
 
             const mealTypeLabel = allMealTypes.find(mt => mt.value === recipe.mealType)?.label || 'Nincs megadva';
@@ -162,28 +170,6 @@ const addWatermark = (imageUrl: string, recipe: Recipe, allMealTypes: OptionItem
             drawTextWithShadow('AI-val készítette:', canvas.width - padding, topRightY, cornerFont, 'white', 'right');
             topRightY += cornerLineHeight;
             drawTextWithShadow('Konyha Miki', canvas.width - padding, topRightY, cornerFont, 'white', 'right');
-
-            const wrapText = (context: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number, draw: boolean = true) => {
-                const words = text.split(' ');
-                let line = '';
-                let lineCount = 1;
-                let currentY = y;
-
-                for (let n = 0; n < words.length; n++) {
-                    const testLine = line + words[n] + ' ';
-                    const metrics = context.measureText(testLine);
-                    if (metrics.width > maxWidth && n > 0) {
-                        if (draw) context.fillText(line.trim(), x, currentY);
-                        line = words[n] + ' ';
-                        currentY += lineHeight;
-                        lineCount++;
-                    } else {
-                        line = testLine;
-                    }
-                }
-                if (draw) context.fillText(line.trim(), x, currentY);
-                return { height: lineCount * lineHeight };
-            }
             
             const logo = new Image();
             logo.src = konyhaMikiLogoBase64;
