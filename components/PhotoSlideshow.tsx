@@ -198,7 +198,7 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
             <img 
                 src={currentImageData} 
                 alt="Slideshow" 
-                className="max-w-full max-h-full object-contain animate-fade-in transition-opacity duration-1000"
+                className="w-full h-full object-cover animate-fade-in transition-opacity duration-1000"
                 key={currentIndex} // Key forces remount for animation
             />
         ) : (
