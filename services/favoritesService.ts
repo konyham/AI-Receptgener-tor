@@ -8,6 +8,9 @@ const FAVORITES_KEY = 'ai-recipe-generator-favorites';
 
 /**
  * Validates and recovers a raw favorites object, typically from an import.
+ * CRITICAL UPDATE: This function is now "Forgiving". Instead of discarding recipes that match most but not all criteria
+ * (which caused data loss for old recipes with missing fields), it attempts to repair them by adding default values.
+ * It only discards items that are fundamentally broken (not an object or missing a name).
  * @param data The raw data to validate.
  * @returns An object with the cleaned favorites and an optional recovery notification.
  */
@@ -18,6 +21,7 @@ export const validateAndRecover = (data: unknown): { favorites: Favorites; recov
   
   const validFavorites: Favorites = {};
   let hadCorruptedEntries = false;
+  let repairedEntriesCount = 0;
 
   for (const category in data) {
     if (Object.prototype.hasOwnProperty.call(data, category)) {
@@ -25,27 +29,46 @@ export const validateAndRecover = (data: unknown): { favorites: Favorites; recov
       if (Array.isArray(recipes)) {
         const validRecipes: Recipe[] = [];
         recipes.forEach((recipe: any, index: number) => {
-          const isValidRating = typeof recipe.rating === 'undefined' || (typeof recipe.rating === 'number' && recipe.rating >= 1 && recipe.rating <= 5);
-          const isValidFavoritedBy = typeof recipe.favoritedBy === 'undefined' || (Array.isArray(recipe.favoritedBy) && recipe.favoritedBy.every((id: any) => typeof id === 'string'));
-          if (typeof recipe === 'object' && recipe !== null && recipe.recipeName && Array.isArray(recipe.ingredients) && Array.isArray(recipe.instructions) && isValidRating && isValidFavoritedBy) {
+          // Fundamental check: Is it an object and does it have a name?
+          if (typeof recipe === 'object' && recipe !== null && recipe.recipeName && typeof recipe.recipeName === 'string') {
             
-            // FIX: Add data migration for old instruction format (string[] -> InstructionStep[]).
-            // This ensures backward compatibility with favorites saved before the step-image feature was added.
+            // Repair: Ensure arrays exist
+            if (!Array.isArray(recipe.ingredients)) {
+                recipe.ingredients = [];
+                repairedEntriesCount++;
+            }
+            if (!Array.isArray(recipe.instructions)) {
+                recipe.instructions = [];
+                repairedEntriesCount++;
+            }
+
+            // Repair: Migrate old instruction strings to objects
             if (recipe.instructions.length > 0 && typeof recipe.instructions[0] === 'string') {
               recipe.instructions = recipe.instructions.map((text: string): InstructionStep => ({ text: text }));
+              repairedEntriesCount++;
             }
 
-            // FIX: Add data migration for recipes saved without cookingMethods.
+            // Repair: Ensure cookingMethods exist
             if (!recipe.cookingMethods || !Array.isArray(recipe.cookingMethods)) {
                 recipe.cookingMethods = ['traditional'];
+                repairedEntriesCount++;
+            }
+            
+            // Repair: Ensure favoritedBy exists
+            if (!Array.isArray(recipe.favoritedBy)) {
+                recipe.favoritedBy = [];
+                repairedEntriesCount++;
             }
 
-            validRecipes.push(recipe);
+            // Keep the recipe (it's now technically valid enough to use)
+            validRecipes.push(recipe as Recipe);
           } else {
-            console.warn(`Skipping corrupted recipe during import at index ${index} in category "${category}".`, recipe);
+            console.warn(`Dropping fundamentally broken recipe at index ${index} in category "${category}". Missing name or not an object.`, recipe);
             hadCorruptedEntries = true;
           }
         });
+        
+        // Even if the list is empty, we keep the category if it was in the source (though typically favorites logic cleans empty cats)
         if (validRecipes.length > 0) {
           validFavorites[category] = validRecipes;
         }
@@ -56,9 +79,17 @@ export const validateAndRecover = (data: unknown): { favorites: Favorites; recov
     }
   }
 
+  let notification = undefined;
+  if (hadCorruptedEntries) {
+      notification = 'Néhány helyrehozhatatlanul sérült receptet kihagytunk.';
+  } else if (repairedEntriesCount > 0) {
+      // We don't necessarily need to notify the user about silent repairs, but it's good for debugging.
+      console.log(`Silently repaired ${repairedEntriesCount} recipe fields to prevent data loss.`);
+  }
+
   return {
     favorites: validFavorites,
-    recoveryNotification: hadCorruptedEntries ? 'Néhány sérült receptet kihagytunk az importálás során.' : undefined
+    recoveryNotification: notification
   };
 };
 
@@ -85,8 +116,10 @@ export const getFavorites = (): { favorites: Favorites; recoveryNotification?: s
   
   const { favorites, recoveryNotification } = validateAndRecover(parsedData);
 
+  // Always save back if we repaired something or if it was a fresh load, to ensure consistency.
+  // However, to avoid excessive writes, we rely on the fact that validateAndRecover returns a clean object.
   if (recoveryNotification) {
-      console.log("Saving cleaned favorites list back to localStorage to prevent future errors.");
+      console.log("Saving cleaned favorites list back to localStorage.");
       saveFavorites(favorites);
   }
 
@@ -143,12 +176,16 @@ export const mergeFavorites = (currentFavorites: Favorites, importedFavorites: F
 /**
  * Adds a recipe to a specific category in favorites or updates it if it already exists.
  * This function moves image data to IndexedDB to avoid filling up localStorage.
+ * CRITICAL UPDATE: Uses the PASSED `currentFavorites` object as the source of truth to ensure
+ * that we are building upon the data currently visible to the user, preventing data loss from reading potentially empty/corrupted storage.
+ * @param currentFavorites The current state of favorites from the application.
  * @param recipe The recipe to add or update.
  * @param category The category to add the recipe to.
  * @returns The updated favorites object.
  */
-export const addRecipeToFavorites = async (recipe: Recipe, category: string): Promise<Favorites> => {
-  const { favorites } = getFavorites();
+export const addRecipeToFavorites = async (currentFavorites: Favorites, recipe: Recipe, category: string): Promise<Favorites> => {
+  const favorites: Favorites = JSON.parse(JSON.stringify(currentFavorites)); // Deep copy state
+  
   if (!favorites[category]) {
     favorites[category] = [];
   }
@@ -177,7 +214,7 @@ export const addRecipeToFavorites = async (recipe: Recipe, category: string): Pr
     );
   }
 
-  const existingRecipeIndex = favorites[category].findIndex(r => r.recipeName === recipeToSave.recipeName);
+  const existingRecipeIndex = favorites[category].findIndex((r: Recipe) => r.recipeName === recipeToSave.recipeName);
 
   if (existingRecipeIndex !== -1) {
     // Recipe exists, update it. First, clean up old images if they are being replaced.
@@ -211,14 +248,16 @@ export const addRecipeToFavorites = async (recipe: Recipe, category: string): Pr
 
 /**
  * Removes a specific recipe from a category and its associated images from IndexedDB.
+ * @param currentFavorites The current state of favorites from the application.
  * @param recipeName The name of the recipe to remove.
  * @param category The category from which to remove the recipe.
  * @returns The updated favorites object.
  */
-export const removeRecipeFromFavorites = async (recipeName: string, category: string): Promise<Favorites> => {
-  const { favorites } = getFavorites();
+export const removeRecipeFromFavorites = async (currentFavorites: Favorites, recipeName: string, category: string): Promise<Favorites> => {
+  const favorites: Favorites = JSON.parse(JSON.stringify(currentFavorites));
+  
   if (favorites[category]) {
-    const recipeToRemove = favorites[category].find(r => r.recipeName === recipeName);
+    const recipeToRemove = favorites[category].find((r: Recipe) => r.recipeName === recipeName);
 
     if (recipeToRemove) {
       if (recipeToRemove.imageUrl && recipeToRemove.imageUrl.startsWith('indexeddb:')) {
@@ -233,7 +272,7 @@ export const removeRecipeFromFavorites = async (recipeName: string, category: st
       }
     }
 
-    favorites[category] = favorites[category].filter(r => r.recipeName !== recipeName);
+    favorites[category] = favorites[category].filter((r: Recipe) => r.recipeName !== recipeName);
     if (favorites[category].length === 0) {
       delete favorites[category];
     }
@@ -245,13 +284,14 @@ export const removeRecipeFromFavorites = async (recipeName: string, category: st
 
 /**
  * Moves a recipe from one category to another.
+ * @param currentFavorites The current state of favorites.
  * @param recipeToMove The full recipe object to move.
  * @param fromCategory The source category name.
  * @param toCategory The destination category name.
  * @returns An object indicating success and the updated favorites.
  */
-export const moveRecipe = (recipeToMove: Recipe, fromCategory: string, toCategory: string): { updatedFavorites: Favorites; success: boolean; message?: string } => {
-  const { favorites } = getFavorites();
+export const moveRecipe = (currentFavorites: Favorites, recipeToMove: Recipe, fromCategory: string, toCategory: string): { updatedFavorites: Favorites; success: boolean; message?: string } => {
+  const favorites: Favorites = JSON.parse(JSON.stringify(currentFavorites));
   
   // 1. Find the recipe in the source category
   const sourceCategoryList = favorites[fromCategory];
@@ -259,46 +299,45 @@ export const moveRecipe = (recipeToMove: Recipe, fromCategory: string, toCategor
     return { updatedFavorites: favorites, success: false, message: `A forráskategória ('${fromCategory}') nem található.` };
   }
   
-  const recipeIndex = sourceCategoryList.findIndex(r => r.recipeName === recipeToMove.recipeName);
+  const recipeIndex = sourceCategoryList.findIndex((r: Recipe) => r.recipeName === recipeToMove.recipeName);
   if (recipeIndex === -1) {
     return { updatedFavorites: favorites, success: false, message: `A(z) '${recipeToMove.recipeName}' recept nem található a(z) '${fromCategory}' kategóriában.` };
   }
 
   // 2. Check for duplicates in the destination category
   const destinationCategoryList = favorites[toCategory] || [];
-  const alreadyExists = destinationCategoryList.some(r => r.recipeName === recipeToMove.recipeName);
+  const alreadyExists = destinationCategoryList.some((r: Recipe) => r.recipeName === recipeToMove.recipeName);
   if (alreadyExists) {
     return { updatedFavorites: favorites, success: false, message: `A(z) '${recipeToMove.recipeName}' nevű recept már létezik a(z) '${toCategory}' kategóriában.` };
   }
   
-  // All checks passed, proceed with mutation.
-  const updatedFavorites = JSON.parse(JSON.stringify(favorites));
-
   // 3. Remove from source
-  const [movedRecipe] = updatedFavorites[fromCategory].splice(recipeIndex, 1);
-  if (updatedFavorites[fromCategory].length === 0) {
-    delete updatedFavorites[fromCategory];
+  const [movedRecipe] = favorites[fromCategory].splice(recipeIndex, 1);
+  if (favorites[fromCategory].length === 0) {
+    delete favorites[fromCategory];
   }
 
   // 4. Add to destination
-  if (!updatedFavorites[toCategory]) {
-    updatedFavorites[toCategory] = [];
+  if (!favorites[toCategory]) {
+    favorites[toCategory] = [];
   }
-  updatedFavorites[toCategory].push(movedRecipe);
+  favorites[toCategory].push(movedRecipe);
   
   // 5. Save and return
-  saveFavorites(updatedFavorites);
-  return { updatedFavorites, success: true };
+  saveFavorites(favorites);
+  return { updatedFavorites: favorites, success: true };
 };
 
 
 /**
  * Removes an entire category and all recipes and their associated images within it.
+ * @param currentFavorites The current state of favorites.
  * @param category The category to remove.
  * @returns The updated favorites object.
  */
-export const removeCategory = async (category: string): Promise<Favorites> => {
-  const { favorites } = getFavorites();
+export const removeCategory = async (currentFavorites: Favorites, category: string): Promise<Favorites> => {
+  const favorites: Favorites = JSON.parse(JSON.stringify(currentFavorites));
+  
   if (favorites[category]) {
     const recipesToRemove = favorites[category];
     for (const recipe of recipesToRemove) {
@@ -321,14 +360,16 @@ export const removeCategory = async (category: string): Promise<Favorites> => {
 
 /**
  * Removes all recipes belonging to a specific menu from a category.
+ * @param currentFavorites The current state of favorites.
  * @param menuName The name of the menu to remove.
  * @param category The category from which to remove the menu recipes.
  * @returns The updated favorites object.
  */
-export const removeMenuFromFavorites = async (menuName: string, category: string): Promise<Favorites> => {
-  const { favorites } = getFavorites();
+export const removeMenuFromFavorites = async (currentFavorites: Favorites, menuName: string, category: string): Promise<Favorites> => {
+  const favorites: Favorites = JSON.parse(JSON.stringify(currentFavorites));
+  
   if (favorites[category]) {
-    const recipesToRemove = favorites[category].filter(r => r.menuName === menuName);
+    const recipesToRemove = favorites[category].filter((r: Recipe) => r.menuName === menuName);
     
     // Delete associated images first
     for (const recipe of recipesToRemove) {
@@ -345,7 +386,7 @@ export const removeMenuFromFavorites = async (menuName: string, category: string
     }
 
     // Filter out the recipes
-    favorites[category] = favorites[category].filter(r => r.menuName !== menuName);
+    favorites[category] = favorites[category].filter((r: Recipe) => r.menuName !== menuName);
     
     if (favorites[category].length === 0) {
       delete favorites[category];
@@ -391,15 +432,17 @@ export const processFavoritesForStorage = async (favorites: Favorites): Promise<
 
 /**
  * Updates the `favoritedBy` array for a specific recipe.
+ * @param currentFavorites The current state of favorites.
  * @param recipeName The name of the recipe to update.
  * @param category The category the recipe is in.
  * @param favoritedByIds The new array of user IDs.
  * @returns The updated favorites object.
  */
-export const updateFavoriteStatus = async (recipeName: string, category: string, favoritedByIds: string[]): Promise<Favorites> => {
-  const { favorites } = getFavorites();
+export const updateFavoriteStatus = async (currentFavorites: Favorites, recipeName: string, category: string, favoritedByIds: string[]): Promise<Favorites> => {
+  const favorites: Favorites = JSON.parse(JSON.stringify(currentFavorites));
+  
   if (favorites[category]) {
-    const recipeIndex = favorites[category].findIndex(r => r.recipeName === recipeName);
+    const recipeIndex = favorites[category].findIndex((r: Recipe) => r.recipeName === recipeName);
     if (recipeIndex !== -1) {
       favorites[category][recipeIndex].favoritedBy = favoritedByIds;
       saveFavorites(favorites);
@@ -410,50 +453,67 @@ export const updateFavoriteStatus = async (recipeName: string, category: string,
 
 /**
  * Updates which categories a recipe belongs to.
+ * Securely manages adding and removing the recipe from multiple categories without data loss.
+ * CRITICAL FIX: Uses the VALID `currentFavorites` state from the application instead of reading from raw storage.
+ * This ensures that what the user sees is preserved, preventing data loss from empty/corrupted reads.
+ * @param currentFavorites The valid current favorites state.
  * @param recipe The recipe object to update.
  * @param newCategories An array of category names the recipe should belong to.
  * @returns The updated favorites object.
  */
-export const updateRecipeCategories = async (recipe: Recipe, newCategories: string[]): Promise<Favorites> => {
-    const { favorites } = getFavorites();
-    const recipeToMove = JSON.parse(JSON.stringify(recipe)); // Use a clean copy
+export const updateRecipeCategories = async (currentFavorites: Favorites, recipe: Recipe, newCategories: string[]): Promise<Favorites> => {
+    // 1. Clone the current VALID state.
+    const updatedFavorites: Favorites = JSON.parse(JSON.stringify(currentFavorites));
+    
+    const recipeName = recipe.recipeName.trim();
 
-    // Find all current categories for the recipe
-    const oldCategories = Object.keys(favorites).filter(cat =>
-        favorites[cat].some(r => r.recipeName === recipeToMove.recipeName)
-    );
+    // 2. Identify existing categories based on state
+    const currentCategories: string[] = [];
+    let foundOriginal = false;
 
-    const newCategoriesSet = new Set(newCategories);
-    const oldCategoriesSet = new Set(oldCategories);
+    for (const cat in updatedFavorites) {
+        if (Array.isArray(updatedFavorites[cat]) && updatedFavorites[cat].some((r: Recipe) => r.recipeName && r.recipeName.trim() === recipeName)) {
+            foundOriginal = true;
+            currentCategories.push(cat);
+        }
+    }
 
-    // Determine which categories to add to and remove from
-    const categoriesToAdd = newCategories.filter(cat => !oldCategoriesSet.has(cat));
-    const categoriesToRemove = oldCategories.filter(cat => !newCategoriesSet.has(cat));
+    if (!foundOriginal) {
+        console.warn(`Recipe '${recipeName}' was not found in the current state. Adding it as new.`);
+    }
 
-    const updatedFavorites = JSON.parse(JSON.stringify(favorites));
+    const targetCategoriesSet = new Set(newCategories);
+    
+    // Categories to add
+    const categoriesToAdd = newCategories.filter(cat => !currentCategories.includes(cat));
+    
+    // Categories to remove
+    const categoriesToRemove = currentCategories.filter(cat => !targetCategoriesSet.has(cat));
 
-    // Add recipe to new categories
+    // 4. Add to new categories
     for (const category of categoriesToAdd) {
         if (!updatedFavorites[category]) {
             updatedFavorites[category] = [];
         }
-        // Prevent accidental duplicates
-        if (!updatedFavorites[category].some((r: Recipe) => r.recipeName === recipeToMove.recipeName)) {
-            updatedFavorites[category].push(recipeToMove);
+        // Check against the data to avoid duplicates
+        if (Array.isArray(updatedFavorites[category]) && !updatedFavorites[category].some((r: Recipe) => r.recipeName && r.recipeName.trim() === recipeName)) {
+            const recipeCopy = JSON.parse(JSON.stringify(recipe));
+            recipeCopy.dateAdded = recipe.dateAdded || new Date().toISOString();
+            updatedFavorites[category].push(recipeCopy);
         }
     }
 
-    // Remove recipe from old categories
+    // 5. Remove from deselected categories
     for (const category of categoriesToRemove) {
-        if (updatedFavorites[category]) {
-            updatedFavorites[category] = updatedFavorites[category].filter((r: Recipe) => r.recipeName !== recipeToMove.recipeName);
-            // If category becomes empty after removal, delete it
+        if (updatedFavorites[category] && Array.isArray(updatedFavorites[category])) {
+            updatedFavorites[category] = updatedFavorites[category].filter((r: Recipe) => r.recipeName && r.recipeName.trim() !== recipeName);
             if (updatedFavorites[category].length === 0) {
                 delete updatedFavorites[category];
             }
         }
     }
 
+    // 6. Save the modified state back to storage.
     saveFavorites(updatedFavorites);
     return updatedFavorites;
 };

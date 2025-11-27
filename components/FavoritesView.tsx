@@ -296,9 +296,11 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                                                   {menuRecipes
                                                       .sort((a, b) => (courseOrder[a.menuCourse!] || 9) - (courseOrder[b.menuCourse!] || 9))
                                                       .map(recipe => (
-                                                          <li key={recipe.recipeName} className="p-3 hover:bg-gray-50">
-                                                              {/* ... (render individual recipe item) ... */}
-                                                              <div className="flex justify-between items-start gap-3">
+                                                          <li key={recipe.recipeName} className="hover:bg-gray-50 transition-colors">
+                                                              <div 
+                                                                className="flex justify-between items-start gap-3 p-3 cursor-pointer"
+                                                                onClick={() => onViewRecipe(recipe, category)}
+                                                              >
                                                                 <div className="flex-grow min-w-0">
                                                                   <p className="font-semibold text-primary-800 break-words">{recipe.recipeName}</p>
                                                                   <div className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-x-3">
@@ -309,7 +311,11 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                                                                   </div>
                                                                 </div>
                                                                 <div className="flex-shrink-0">
-                                                                  <button onClick={() => setActionMenuRecipe({ recipe, category })} className="text-gray-500 hover:text-primary-600 p-1 rounded-full hover:bg-gray-100" aria-label={`Műveletek a(z) '${recipe.recipeName}' recepttel`}>
+                                                                  <button 
+                                                                    onClick={(e) => { e.stopPropagation(); setActionMenuRecipe({ recipe, category }); }} 
+                                                                    className="text-gray-500 hover:text-primary-600 p-1 rounded-full hover:bg-gray-100" 
+                                                                    aria-label={`Műveletek a(z) '${recipe.recipeName}' recepttel`}
+                                                                  >
                                                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
                                                                   </button>
                                                                 </div>
@@ -342,8 +348,11 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                       {expandedCategories[category] && (
                           <ul className="divide-y divide-gray-200">
                               {recipes.map(recipe => (
-                                <li key={recipe.recipeName} className="p-3 hover:bg-gray-50">
-                                  <div className="flex justify-between items-start gap-3">
+                                <li key={recipe.recipeName} className="hover:bg-gray-50 transition-colors">
+                                  <div 
+                                    className="flex justify-between items-start gap-3 p-3 cursor-pointer"
+                                    onClick={() => onViewRecipe(recipe, category)}
+                                  >
                                     <div className="flex-grow min-w-0">
                                       <p className="font-semibold text-primary-800 break-words">{recipe.recipeName}</p>
                                       <div className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-x-3">
@@ -361,7 +370,11 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                                       </div>
                                     </div>
                                     <div className="flex-shrink-0">
-                                      <button onClick={() => setActionMenuRecipe({ recipe, category })} className="text-gray-500 hover:text-primary-600 p-1 rounded-full hover:bg-gray-100" aria-label={`Műveletek a(z) '${recipe.recipeName}' recepttel`}>
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); setActionMenuRecipe({ recipe, category }); }} 
+                                        className="text-gray-500 hover:text-primary-600 p-1 rounded-full hover:bg-gray-100" 
+                                        aria-label={`Műveletek a(z) '${recipe.recipeName}' recepttel`}
+                                      >
                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
                                       </button>
                                     </div>

@@ -612,11 +612,12 @@ const App: React.FC = () => {
   const handleRecipeUpdate = async (updatedRecipe: Recipe, originalRecipe?: Recipe) => {
     setRecipe(updatedRecipe);
     if (isFromFavorites && originalRecipe && currentCategory) {
+        let currentFavs = favorites;
         if (originalRecipe.recipeName !== updatedRecipe.recipeName) {
-            await favoritesService.removeRecipeFromFavorites(originalRecipe.recipeName, currentCategory);
+            currentFavs = await favoritesService.removeRecipeFromFavorites(currentFavs, originalRecipe.recipeName, currentCategory);
         }
         
-        const finalFavorites = await favoritesService.addRecipeToFavorites(updatedRecipe, currentCategory);
+        const finalFavorites = await favoritesService.addRecipeToFavorites(currentFavs, updatedRecipe, currentCategory);
         
         setFavorites(finalFavorites);
         showNotification('Recept sikeresen frissítve!', 'success');
@@ -716,7 +717,7 @@ const App: React.FC = () => {
   
   const handleSaveToFavorites = async (recipeToSave: Recipe, category: string) => {
     try {
-      const updatedFavorites = await favoritesService.addRecipeToFavorites(recipeToSave, category);
+      const updatedFavorites = await favoritesService.addRecipeToFavorites(favorites, recipeToSave, category);
       setFavorites(updatedFavorites);
       showNotification(`'${recipeToSave.recipeName}' elmentve a(z) '${category}' kategóriába.`, 'success');
     } catch (e: any) {
@@ -729,7 +730,7 @@ const App: React.FC = () => {
     try {
         let currentFavorites = favorites;
         for (const recipe of recipesToSave) {
-            currentFavorites = await favoritesService.addRecipeToFavorites(recipe, category);
+            currentFavorites = await favoritesService.addRecipeToFavorites(currentFavorites, recipe, category);
         }
         setFavorites(currentFavorites);
         showNotification(`${recipesToSave.length} recept elmentve a(z) '${category}' kategóriába.`, 'success');
@@ -767,7 +768,7 @@ const App: React.FC = () => {
                 menuName: menuName.trim(),
                 menuCourse: courseName,
             };
-            currentFavorites = await favoritesService.addRecipeToFavorites(recipeWithMenuInfo, menuCategory);
+            currentFavorites = await favoritesService.addRecipeToFavorites(currentFavorites, recipeWithMenuInfo, menuCategory);
         }
         setFavorites(currentFavorites);
         showNotification(`'${menuName.trim()}' menü sikeresen elmentve.`, 'success');
@@ -803,7 +804,7 @@ const App: React.FC = () => {
                 menuName: menuName.trim(),
                 menuCourse: courseName,
             };
-            currentFavorites = await favoritesService.addRecipeToFavorites(recipeWithMenuInfo, menuCategory);
+            currentFavorites = await favoritesService.addRecipeToFavorites(currentFavorites, recipeWithMenuInfo, menuCategory);
         }
         setFavorites(currentFavorites);
         showNotification(`'${menuName.trim()}' napi menü sikeresen elmentve.`, 'success');
@@ -821,7 +822,7 @@ const App: React.FC = () => {
 
   const handleDeleteFavorite = async (recipeName: string, category: string): Promise<void> => {
     try {
-        const updatedFavorites = await favoritesService.removeRecipeFromFavorites(recipeName, category);
+        const updatedFavorites = await favoritesService.removeRecipeFromFavorites(favorites, recipeName, category);
         setFavorites(updatedFavorites);
         showNotification(`'${recipeName}' törölve a mentettek közül.`, 'success');
     } catch (error: any) {
@@ -833,7 +834,7 @@ const App: React.FC = () => {
 
   const handleDeleteMenu = async (menuName: string, category: string) => {
     try {
-        const updatedFavorites = await favoritesService.removeMenuFromFavorites(menuName, category);
+        const updatedFavorites = await favoritesService.removeMenuFromFavorites(favorites, menuName, category);
         setFavorites(updatedFavorites);
         showNotification(`'${menuName}' menü törölve a mentettek közül.`, 'success');
     } catch (error: any) {
@@ -843,7 +844,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteCategory = async (category: string) => {
-    const updatedFavorites = await favoritesService.removeCategory(category);
+    const updatedFavorites = await favoritesService.removeCategory(favorites, category);
     setFavorites(updatedFavorites);
     setExpandedCategories(prev => {
         const newState = { ...prev };
@@ -854,7 +855,7 @@ const App: React.FC = () => {
   };
   
   const handleMoveFavorite = (recipe: Recipe, fromCategory: string, toCategory: string) => {
-    const result = favoritesService.moveRecipe(recipe, fromCategory, toCategory);
+    const result = favoritesService.moveRecipe(favorites, recipe, fromCategory, toCategory);
     if (result.success) {
         setFavorites(result.updatedFavorites);
         showNotification(`'${recipe.recipeName}' áthelyezve ide: '${toCategory}'`, 'success');
@@ -865,7 +866,7 @@ const App: React.FC = () => {
 
   const handleUpdateFavoriteStatus = async (recipeName: string, category: string, favoritedByIds: string[]) => {
     try {
-      const updatedFavorites = await favoritesService.updateFavoriteStatus(recipeName, category, favoritedByIds);
+      const updatedFavorites = await favoritesService.updateFavoriteStatus(favorites, recipeName, category, favoritedByIds);
       setFavorites(updatedFavorites);
       if (recipe && 'recipeName' in recipe && (recipe as Recipe).recipeName === recipeName) {
         setRecipe({ ...(recipe as Recipe), favoritedBy: favoritedByIds });
@@ -878,7 +879,7 @@ const App: React.FC = () => {
   
   const handleUpdateRecipeCategories = async (recipeToUpdate: Recipe, newCategories: string[]) => {
     try {
-      const updatedFavorites = await favoritesService.updateRecipeCategories(recipeToUpdate, newCategories);
+      const updatedFavorites = await favoritesService.updateRecipeCategories(favorites, recipeToUpdate, newCategories);
       setFavorites(updatedFavorites);
       showNotification(`'${recipeToUpdate.recipeName}' kategóriái frissítve.`, 'success');
     } catch (e: any) {
