@@ -12,6 +12,16 @@ interface Slide {
   id: string;
 }
 
+const PLAYLISTS = [
+    { id: '37i9dQZF1DWU0ScTcjJBdj', name: 'Relax & Unwind' },
+    { id: '37i9dQZF1DX4sWSpwq3uf2', name: 'Lofi Girl - Study/Relax' },
+    { id: '37i9dQZF1DWV7EzJMK2FUI', name: 'Jazz a háttérben' },
+    { id: '37i9dQZF1DWWEJlAGA9gs0', name: 'Klasszikus zene' },
+    { id: '37i9dQZF1DX692t774309t', name: 'Természet hangjai' },
+];
+
+const DEFAULT_PLAYLIST = '37i9dQZF1DWU0ScTcjJBdj';
+
 const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) => {
   const [slides, setSlides] = useState<Slide[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -20,11 +30,13 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
   const [showControls, setShowControls] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [intervalDuration, setIntervalDuration] = useState(10000);
-  const [isMuted, setIsMuted] = useState(false);
+  
+  const [currentPlaylistId, setCurrentPlaylistId] = useState(DEFAULT_PLAYLIST);
+  const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
+  const [customPlaylistUrl, setCustomPlaylistUrl] = useState('');
   
   const controlsTimeoutRef = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Initialize slides list
   useEffect(() => {
@@ -48,33 +60,36 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
     setSlides(allSlides);
   }, [favorites]);
 
-  // Handle Audio
+  // Load saved playlist from localStorage
   useEffect(() => {
-    if (audioRef.current) {
-        audioRef.current.volume = 0.5; // Start at 50% volume
-        const playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(error => {
-                console.log("Autoplay prevented by browser:", error);
-                // We could show a specific "click to enable sound" UI, but general interaction usually fixes it.
-            });
-        }
-    }
-    return () => {
-        if (audioRef.current) {
-            audioRef.current.pause();
-        }
-    };
+      const savedPlaylist = localStorage.getItem('konyha-miki-playlist-id');
+      if (savedPlaylist) {
+          setCurrentPlaylistId(savedPlaylist);
+      }
   }, []);
 
-  const toggleMute = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setIsMuted(prev => {
-          if (audioRef.current) {
-              audioRef.current.muted = !prev;
+  const changePlaylist = (id: string) => {
+      setCurrentPlaylistId(id);
+      localStorage.setItem('konyha-miki-playlist-id', id);
+      setShowPlaylistMenu(false);
+  };
+
+  const handleCustomPlaylistSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      // Extract ID from URL like: https://open.spotify.com/playlist/37i9dQZF1DWU0ScTcjJBdj?si=...
+      const match = customPlaylistUrl.match(/playlist\/([a-zA-Z0-9]+)/);
+      if (match && match[1]) {
+          changePlaylist(match[1]);
+          setCustomPlaylistUrl('');
+      } else {
+          // Try to handle raw ID
+          if (customPlaylistUrl.length > 10 && !customPlaylistUrl.includes('/')) {
+              changePlaylist(customPlaylistUrl);
+              setCustomPlaylistUrl('');
+          } else {
+              alert('Nem érvényes Spotify lejátszási lista link.');
           }
-          return !prev;
-      });
+      }
   };
 
   // Load image data helper
@@ -210,6 +225,11 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
     controlsTimeoutRef.current = window.setTimeout(() => setShowControls(false), 3000);
   };
 
+  const openSpotifyApp = () => {
+      // Try to open spotify app URI scheme, fallback to web player
+      window.open(`spotify:playlist:${currentPlaylistId}`, '_blank');
+  };
+
   if (slides.length === 0) {
      return (
          <div className="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center text-white p-4 text-center">
@@ -223,16 +243,8 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
     <div 
         className="fixed inset-0 bg-black z-[100] flex items-center justify-center overflow-hidden"
         onMouseMove={handleMouseMove}
-        onClick={() => setShowControls(true)}
+        onClick={() => { setShowControls(true); if(showPlaylistMenu) setShowPlaylistMenu(false); }}
     >
-        {/* Background Music */}
-        <audio 
-            ref={audioRef} 
-            src="https://upload.wikimedia.org/wikipedia/commons/3/35/Gymnopedie_No_1.ogg" 
-            loop 
-            autoPlay 
-        />
-
         {/* Image */}
         {currentImageData ? (
             <img 
@@ -245,12 +257,26 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
         )}
 
+        {/* Spotify Player Embed - Positioned bottom left, moved higher to bottom-36 (approx 144px) */}
+        <div className={`absolute bottom-36 left-4 z-40 transition-opacity duration-500 ${showControls ? 'opacity-100' : 'opacity-30 hover:opacity-100'}`}>
+            <iframe 
+                style={{borderRadius: "12px"}} 
+                src={`https://open.spotify.com/embed/playlist/${currentPlaylistId}?utm_source=generator&theme=0&autoplay=1`}
+                width="350" 
+                height="80" 
+                frameBorder="0" 
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+                loading="lazy"
+                title="Spotify Relax Player"
+            ></iframe>
+        </div>
+
         {/* Controls Overlay - Increased z-index to 50 to be above navigation targets */}
         <div className={`absolute top-0 left-0 right-0 p-4 flex justify-between items-center transition-opacity duration-500 z-50 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
              <div className="text-white bg-black/50 px-3 py-1 rounded-full text-sm backdrop-blur-sm">
                  {currentIndex + 1} / {slides.length}
              </div>
-             <div className="flex gap-4 bg-black/30 p-2 rounded-full backdrop-blur-sm pointer-events-auto">
+             <div className="flex gap-4 bg-black/30 p-2 rounded-full backdrop-blur-sm pointer-events-auto relative">
                  <button 
                     onClick={(e) => { e.stopPropagation(); setIsPlaying(p => !p); }} 
                     className="text-white hover:text-primary-400 transition p-1 disabled:opacity-50 disabled:cursor-not-allowed" 
@@ -284,18 +310,47 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
                     </button>
                 </div>
 
-                 <button onClick={toggleMute} className="text-white hover:text-primary-400 transition p-1" title={isMuted ? "Zene bekapcsolása" : "Némítás"}>
-                    {isMuted ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-                        </svg>
-                    ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                        </svg>
-                    )}
+                 <button onClick={(e) => { e.stopPropagation(); openSpotifyApp(); }} className="text-white hover:text-green-400 transition p-1" title="Spotify alkalmazás megnyitása">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                    </svg>
                  </button>
+
+                 <div className="relative">
+                    <button onClick={(e) => { e.stopPropagation(); setShowPlaylistMenu(!showPlaylistMenu); }} className="text-white hover:text-blue-400 transition p-1" title="Zene választása">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" />
+                        </svg>
+                    </button>
+                    
+                    {showPlaylistMenu && (
+                        <div className="absolute top-12 right-0 bg-black/80 backdrop-blur-md rounded-lg p-3 w-64 shadow-xl border border-gray-700 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                            <h4 className="text-white text-sm font-semibold mb-1">Válassz hangulatot:</h4>
+                            {PLAYLISTS.map(pl => (
+                                <button 
+                                    key={pl.id} 
+                                    onClick={() => changePlaylist(pl.id)}
+                                    className={`text-left text-sm px-2 py-1 rounded hover:bg-white/20 ${currentPlaylistId === pl.id ? 'text-blue-400 font-bold' : 'text-gray-300'}`}
+                                >
+                                    {pl.name}
+                                </button>
+                            ))}
+                            <div className="border-t border-gray-600 my-1 pt-2">
+                                <p className="text-xs text-gray-400 mb-1">Egyéni Spotify lista link:</p>
+                                <form onSubmit={handleCustomPlaylistSubmit} className="flex gap-1">
+                                    <input 
+                                        type="text" 
+                                        value={customPlaylistUrl} 
+                                        onChange={(e) => setCustomPlaylistUrl(e.target.value)}
+                                        placeholder="https://open.spotify.com/..."
+                                        className="w-full text-xs bg-gray-800 text-white border border-gray-600 rounded px-1 py-1 focus:outline-none focus:border-blue-500"
+                                    />
+                                    <button type="submit" className="bg-blue-600 text-white text-xs px-2 rounded hover:bg-blue-700">OK</button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                 </div>
                  
                  <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="text-white hover:text-primary-400 transition p-1" title={isFullscreen ? "Kilépés teljes képernyőből" : "Teljes képernyő"}>
                     {isFullscreen ? (

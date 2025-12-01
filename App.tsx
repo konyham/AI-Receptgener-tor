@@ -280,22 +280,29 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recipeFileInputRef = useRef<HTMLInputElement>(null);
   const recipeDisplayRef = useRef<HTMLDivElement>(null);
+  
+  // Robust Idle Timer Implementation
   const idleTimerRef = useRef<number | null>(null);
+  const favoritesRef = useRef(favorites);
+  const isSlideshowOpenRef = useRef(isSlideshowOpen);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+      favoritesRef.current = favorites;
+  }, [favorites]);
 
   useEffect(() => {
-    document.documentElement.lang = 'hu';
-    document.title = 'AI recept generátor - Konyha Miki módra';
-  }, []);
+      isSlideshowOpenRef.current = isSlideshowOpen;
+  }, [isSlideshowOpen]);
 
-  // Idle Timer for Slideshow
   useEffect(() => {
     const startIdleTimer = () => {
         if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
         
         // 5 minutes = 300,000 ms
         idleTimerRef.current = window.setTimeout(() => {
-            const hasFavorites = Object.keys(favorites).length > 0;
-            if (hasFavorites && !isSlideshowOpen) {
+            const hasFavorites = Object.keys(favoritesRef.current).length > 0;
+            if (hasFavorites && !isSlideshowOpenRef.current) {
                 setIsSlideshowOpen(true);
             }
         }, 300000);
@@ -305,6 +312,7 @@ const App: React.FC = () => {
         startIdleTimer();
     };
 
+    // Attach event listeners for user activity
     const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
     events.forEach(event => window.addEventListener(event, resetIdleTimer));
 
@@ -314,7 +322,12 @@ const App: React.FC = () => {
         if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
         events.forEach(event => window.removeEventListener(event, resetIdleTimer));
     };
-  }, [favorites, isSlideshowOpen]);
+  }, []); // Empty dependency array ensures this effect runs only once on mount, preventing re-renders from resetting the timer.
+
+  useEffect(() => {
+    document.documentElement.lang = 'hu';
+    document.title = 'AI recept generátor - Konyha Miki módra';
+  }, []);
 
   // Theme management effects
   useEffect(() => {
