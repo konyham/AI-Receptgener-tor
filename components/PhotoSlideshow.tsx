@@ -20,8 +20,11 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
   const [showControls, setShowControls] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [intervalDuration, setIntervalDuration] = useState(10000);
+  const [isMuted, setIsMuted] = useState(false);
+  
   const controlsTimeoutRef = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Initialize slides list
   useEffect(() => {
@@ -44,6 +47,35 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
     }
     setSlides(allSlides);
   }, [favorites]);
+
+  // Handle Audio
+  useEffect(() => {
+    if (audioRef.current) {
+        audioRef.current.volume = 0.5; // Start at 50% volume
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.log("Autoplay prevented by browser:", error);
+                // We could show a specific "click to enable sound" UI, but general interaction usually fixes it.
+            });
+        }
+    }
+    return () => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+        }
+    };
+  }, []);
+
+  const toggleMute = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsMuted(prev => {
+          if (audioRef.current) {
+              audioRef.current.muted = !prev;
+          }
+          return !prev;
+      });
+  };
 
   // Load image data helper
   const loadImage = useCallback(async (url: string) => {
@@ -193,6 +225,14 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
         onMouseMove={handleMouseMove}
         onClick={() => setShowControls(true)}
     >
+        {/* Background Music */}
+        <audio 
+            ref={audioRef} 
+            src="https://upload.wikimedia.org/wikipedia/commons/3/35/Gymnopedie_No_1.ogg" 
+            loop 
+            autoPlay 
+        />
+
         {/* Image */}
         {currentImageData ? (
             <img 
@@ -243,6 +283,19 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose }) =
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                     </button>
                 </div>
+
+                 <button onClick={toggleMute} className="text-white hover:text-primary-400 transition p-1" title={isMuted ? "Zene bekapcsolása" : "Némítás"}>
+                    {isMuted ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                        </svg>
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                        </svg>
+                    )}
+                 </button>
                  
                  <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="text-white hover:text-primary-400 transition p-1" title={isFullscreen ? "Kilépés teljes képernyőből" : "Teljes képernyő"}>
                     {isFullscreen ? (

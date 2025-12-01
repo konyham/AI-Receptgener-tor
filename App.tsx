@@ -280,11 +280,41 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recipeFileInputRef = useRef<HTMLInputElement>(null);
   const recipeDisplayRef = useRef<HTMLDivElement>(null);
+  const idleTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     document.documentElement.lang = 'hu';
     document.title = 'AI recept generátor - Konyha Miki módra';
   }, []);
+
+  // Idle Timer for Slideshow
+  useEffect(() => {
+    const startIdleTimer = () => {
+        if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+        
+        // 5 minutes = 300,000 ms
+        idleTimerRef.current = window.setTimeout(() => {
+            const hasFavorites = Object.keys(favorites).length > 0;
+            if (hasFavorites && !isSlideshowOpen) {
+                setIsSlideshowOpen(true);
+            }
+        }, 300000);
+    };
+
+    const resetIdleTimer = () => {
+        startIdleTimer();
+    };
+
+    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
+    events.forEach(event => window.addEventListener(event, resetIdleTimer));
+
+    startIdleTimer(); // Start initially
+
+    return () => {
+        if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+        events.forEach(event => window.removeEventListener(event, resetIdleTimer));
+    };
+  }, [favorites, isSlideshowOpen]);
 
   // Theme management effects
   useEffect(() => {
