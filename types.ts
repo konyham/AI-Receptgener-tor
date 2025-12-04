@@ -167,6 +167,7 @@ export interface BackupData {
   cookingMethodsOrder?: string[];
   appGuideContent?: string;
   appGuideVersion?: string;
+  manualLocation?: string;
 }
 
 export interface UserProfile {

@@ -275,6 +275,8 @@ const App: React.FC = () => {
 
   const [variationModalState, setVariationModalState] = useState<{ isOpen: boolean; recipe: Recipe | null }>({ isOpen: false, recipe: null });
   const [isSlideshowOpen, setIsSlideshowOpen] = useState(false);
+  
+  const [manualLocation, setManualLocation] = useState<string>('');
 
   const { showNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -349,6 +351,18 @@ const App: React.FC = () => {
       localStorage.setItem('theme', 'light');
     }
   }, [theme]);
+  
+  useEffect(() => {
+      const savedLocation = localStorage.getItem('ai-recipe-generator-manual-location');
+      if (savedLocation) {
+          setManualLocation(savedLocation);
+      }
+  }, []);
+
+  const handleUpdateLocation = (location: string) => {
+      setManualLocation(location);
+      localStorage.setItem('ai-recipe-generator-manual-location', location);
+  };
 
   const toggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
@@ -1361,6 +1375,7 @@ const App: React.FC = () => {
             cookingMethodsOrder: orderedCookingMethods.map(o => o.value),
             appGuideContent,
             appGuideVersion,
+            manualLocation,
         };
         const jsonString = JSON.stringify(backupData, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json' });
@@ -1427,6 +1442,10 @@ const App: React.FC = () => {
             localStorage.setItem('app-guide-content', data.appGuideContent);
             localStorage.setItem('app-guide-version', data.appGuideVersion);
             setAppGuideContent(data.appGuideContent);
+        }
+        
+        if (data.manualLocation) {
+            handleUpdateLocation(data.manualLocation);
         }
 
         setFavorites(mergedFavorites);
@@ -1909,7 +1928,9 @@ const App: React.FC = () => {
       {isSlideshowOpen && (
         <PhotoSlideshow 
             favorites={favorites} 
-            onClose={() => setIsSlideshowOpen(false)} 
+            onClose={() => setIsSlideshowOpen(false)}
+            manualLocation={manualLocation}
+            onUpdateLocation={handleUpdateLocation}
         />
       )}
 
