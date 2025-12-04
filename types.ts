@@ -1,3 +1,4 @@
+
 // types.ts
 
 export interface Recipe {
@@ -19,6 +20,7 @@ export interface Recipe {
   dateAdded?: string;
   rating?: number; // 1-5
   favoritedBy?: string[]; // Array of user IDs
+  feedback?: 'like' | 'dislike'; // New field for AI feedback
   mealType: MealType;
   cuisine: CuisineOption;
   diet: DietOption;
@@ -168,6 +170,7 @@ export interface BackupData {
   appGuideContent?: string;
   appGuideVersion?: string;
   manualLocation?: string;
+  feedbackHistory?: UserFeedback[];
 }
 
 export interface UserProfile {
@@ -238,6 +241,12 @@ export interface VoiceCommandResult {
 export interface CategorizedIngredient {
   ingredient: string;
   category: string;
+}
+
+export interface UserFeedback {
+    recipeName: string;
+    feedback: 'like' | 'dislike';
+    timestamp: number;
 }
 
 // For useSpeechRecognition hook

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
@@ -51,6 +52,7 @@ import {
   FormCommand,
   VoiceCommandResult,
   VoiceCommand,
+  UserFeedback,
 } from './types';
 import {
     DIET_OPTIONS,
@@ -65,6 +67,7 @@ import {
     MEAL_TYPES_ORDER_KEY,
     COOKING_METHODS_ORDER_KEY,
     CUISINE_OPTIONS_ORDER_KEY,
+    FEEDBACK_HISTORY_STORAGE_KEY,
     APP_VERSION,
     ALL_LOCAL_COMMAND_EXAMPLES,
 } from './constants';
@@ -249,6 +252,7 @@ const App: React.FC = () => {
       const merged = { ...COOKING_METHOD_CAPACITIES, ...savedCapacities };
       return merged;
   });
+  const [feedbackHistory, setFeedbackHistory] = useState<UserFeedback[]>(() => loadFromLocalStorage(FEEDBACK_HISTORY_STORAGE_KEY, []));
   
   const [orderedMealTypes, setOrderedMealTypes] = useState<OptionItem[]>([]);
   const [orderedCookingMethods, setOrderedCookingMethods] = useState<OptionItem[]>([]);
@@ -296,6 +300,28 @@ const App: React.FC = () => {
   useEffect(() => {
       isSlideshowOpenRef.current = isSlideshowOpen;
   }, [isSlideshowOpen]);
+
+  // Hash-based Routing Logic
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1); // remove #
+      const validViews: AppView[] = ['generator', 'favorites', 'shopping-list', 'pantry', 'users'];
+      if (hash && validViews.includes(hash as AppView)) {
+        setView(hash as AppView);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    // Initial check on mount
+    handleHashChange();
+
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Update hash when view changes
+  useEffect(() => {
+    window.location.hash = view;
+  }, [view]);
 
   useEffect(() => {
     const startIdleTimer = () => {
@@ -653,7 +679,8 @@ const App: React.FC = () => {
             mealTypes,
             cuisineOptions,
             cookingMethodsList,
-            cookingMethodCapacities
+            cookingMethodCapacities,
+            feedbackHistory
           );
           setRecipe(generatedRecipe);
       }
@@ -1110,6 +1137,14 @@ const App: React.FC = () => {
     }
   };
 
+  const handleFeedback = (recipeName: string, feedback: 'like' | 'dislike') => {
+      const newEntry: UserFeedback = { recipeName, feedback, timestamp: Date.now() };
+      const updatedHistory = [...feedbackHistory, newEntry];
+      setFeedbackHistory(updatedHistory);
+      safeSetLocalStorage(FEEDBACK_HISTORY_STORAGE_KEY, updatedHistory);
+      showNotification(feedback === 'like' ? 'Visszajelzés rögzítve: Tetszett!' : 'Visszajelzés rögzítve: Nem tetszett.', 'success');
+  };
+
   const hasAnyData = Object.keys(favorites).length > 0 || shoppingList.length > 0 || Object.values(pantry).some((list: PantryItem[]) => list.length > 0) || users.length > 0;
   
     const handleShoppingListCommand = (command: AppCommand) => {
@@ -1376,6 +1411,7 @@ const App: React.FC = () => {
             appGuideContent,
             appGuideVersion,
             manualLocation,
+            feedbackHistory,
         };
         const jsonString = JSON.stringify(backupData, null, 2);
         const blob = new Blob([jsonString], { type: 'application/json' });
@@ -1446,6 +1482,11 @@ const App: React.FC = () => {
         
         if (data.manualLocation) {
             handleUpdateLocation(data.manualLocation);
+        }
+        
+        if (data.feedbackHistory) {
+            setFeedbackHistory(data.feedbackHistory);
+            safeSetLocalStorage(FEEDBACK_HISTORY_STORAGE_KEY, data.feedbackHistory);
         }
 
         setFavorites(mergedFavorites);
@@ -1715,8 +1756,8 @@ const App: React.FC = () => {
                     cookingMethodsList={cookingMethodsList}
                     cookingMethodCapacities={cookingMethodCapacities}
                     orderedMealTypes={orderedMealTypes}
-                    orderedCuisineOptions={orderedCuisineOptions}
                     orderedCookingMethods={orderedCookingMethods}
+                    orderedCuisineOptions={orderedCuisineOptions}
                     onOpenOptionsEditor={() => setIsOptionsEditorOpen(true)}
                     onOpenUrlImporter={() => setIsImportUrlModalOpen(true)}
                     onOpenRecipeFileImporter={() => recipeFileInputRef.current?.click()}
@@ -1755,6 +1796,7 @@ const App: React.FC = () => {
                         command={recipeCommand}
                         onCommandProcessed={() => setRecipeCommand(null)}
                         forceSpeakTrigger={forceSpeakTrigger}
+                        onFeedback={handleFeedback}
                     />
                 </div>
             )}

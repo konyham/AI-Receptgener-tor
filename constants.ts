@@ -1,7 +1,8 @@
+
 // FIX: This file has been cleaned up to only contain constant definitions, importing its types from the now-correct `types.ts` file.
 import { DietOption, MealType, TRADITIONAL_COOKING_METHOD, CuisineOption, RecipePace } from './types';
 
-export const APP_VERSION = '1.65.0';
+export const APP_VERSION = '1.66.0';
 
 export const LOADING_TIPS = [
   'Tudta? A tompa kés balesetveszélyesebb, mint az éles. Tartsa késeit mindig élesen!',
@@ -53,6 +54,7 @@ export const COOKING_METHOD_CAPACITIES_STORAGE_KEY = 'ai-recipe-generator-cookin
 export const MEAL_TYPES_ORDER_KEY = 'ai-recipe-generator-meal-types-order';
 export const COOKING_METHODS_ORDER_KEY = 'ai-recipe-generator-cooking-methods-order';
 export const CUISINE_OPTIONS_ORDER_KEY = 'ai-recipe-generator-cuisine-options-order';
+export const FEEDBACK_HISTORY_STORAGE_KEY = 'ai-recipe-generator-feedback-history';
 
 export const DIET_OPTIONS: { value: DietOption; label: string; description: string }[] = [
   { value: DietOption.NONE, label: 'Nincs megadva', description: 'Nem követ semmilyen speciális étrendet.' },

@@ -1,3 +1,4 @@
+
 // services/geminiService.ts
 import { GoogleGenAI, GenerateContentResponse, Type } from '@google/genai';
 import {
@@ -19,7 +20,8 @@ import {
   OptionItem,
   TRADITIONAL_COOKING_METHOD,
   InstructionStep,
-  CategorizedIngredient
+  CategorizedIngredient,
+  UserFeedback
 } from '../types';
 import { DIET_OPTIONS } from '../constants';
 
@@ -62,7 +64,8 @@ export const generateRecipe = async (
     allMealTypes: OptionItem[],
     allCuisineOptions: OptionItem[],
     allCookingMethods: OptionItem[],
-    cookingMethodCapacities: Record<string, number | null>
+    cookingMethodCapacities: Record<string, number | null>,
+    feedbackHistory: UserFeedback[] = []
 ): Promise<Recipe> => {
 
     const mealTypeLabel = getLabel(mealType, allMealTypes);
@@ -78,6 +81,19 @@ export const generateRecipe = async (
         if (capacities.length > 0) {
             capacityConstraint = ` A receptek adagja ne haladja meg a ${numberOfServings} főt. Vedd figyelembe a következő eszközök kapacitását: ${capacities.map(c => `${c.method}: max ${c.capacity} fő`).join(', ')}. Ha az adag meghaladja a kapacitást, az instrukciókban jelezd, hogy több részletben kell elkészíteni az ételt.`;
         }
+    }
+
+    // Process feedback history
+    const likedRecipes = feedbackHistory.filter(f => f.feedback === 'like').map(f => f.recipeName).slice(-10); // Take last 10
+    const dislikedRecipes = feedbackHistory.filter(f => f.feedback === 'dislike').map(f => f.recipeName).slice(-10);
+    
+    let feedbackContext = "";
+    if (likedRecipes.length > 0 || dislikedRecipes.length > 0) {
+        feedbackContext = `
+        A felhasználó korábbi visszajelzései a generált receptekre:
+        - Ezeket kedvelte (hasonló stílus/ízvilág javasolt): ${likedRecipes.join(', ')}
+        - Ezeket NEM kedvelte (kerüld az ehhez hasonló megoldásokat): ${dislikedRecipes.join(', ')}
+        `;
     }
 
 
@@ -97,6 +113,8 @@ export const generateRecipe = async (
     - Különleges kérés: ${specialRequest || 'nincs'}
     ${capacityConstraint}
     - Kérsz költségbecslést? ${withCost ? 'Igen' : 'Nem'}
+
+    ${feedbackContext}
     `;
 
     const responseSchema = {
@@ -421,7 +439,7 @@ export const generateRecipeVariations = async (originalRecipe: Recipe, allCookin
     });
     const variations = parseJsonResponse<Partial<Recipe>[]>(response.text, 'generateRecipeVariations');
     // Add original metadata to new recipes
-    return variations.map(v => ({ ...originalRecipe, ...v, imageUrl: undefined, dateAdded: undefined, rating: undefined, favoritedBy: undefined }));
+    return variations.map(v => ({ ...originalRecipe, ...v, imageUrl: undefined, dateAdded: undefined, rating: undefined, favoritedBy: undefined, feedback: undefined }));
 };
 
 export const generateSingleRecipeVariation = async (
@@ -529,7 +547,8 @@ export const generateSingleRecipeVariation = async (
         imageUrl: undefined, 
         dateAdded: undefined, 
         rating: undefined, 
-        favoritedBy: undefined 
+        favoritedBy: undefined,
+        feedback: undefined
     };
 };
 
