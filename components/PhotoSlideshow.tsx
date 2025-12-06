@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Favorites, Recipe } from '../types';
 import * as imageStore from '../services/imageStore';
@@ -353,7 +354,9 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose, man
         <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/80 to-transparent pointer-events-none"></div>
 
         {/* Left Side: Weather Info - Positioned at 23% from bottom with 3% left margin */}
-        <div className="absolute bottom-[23%] left-[3%] z-40 text-white drop-shadow-lg flex items-center gap-4 animate-fade-in pointer-events-auto">
+        {/* Added scale-[1.31] and origin-bottom-left to increase size by 31% */}
+        {/* Updated shadow for stronger contrast */}
+        <div className="absolute bottom-[23%] left-[3%] z-40 text-white drop-shadow-[0_4px_3px_rgba(0,0,0,0.9)] flex items-center gap-4 animate-fade-in pointer-events-auto scale-[1.31] origin-bottom-left">
              {isEditingLocation ? (
                  <div className="bg-black/50 p-3 rounded-lg backdrop-blur-md pointer-events-auto" onClick={e => e.stopPropagation()}>
                      <form onSubmit={handleSaveLocation} className="flex flex-col gap-2">
@@ -408,12 +411,13 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose, man
         </div>
 
         {/* Right Side: Date/Time/Nameday - Positioned at 23% from bottom with 3% right margin */}
-        <div className="absolute bottom-[23%] right-[3%] z-40 text-white text-right drop-shadow-lg animate-fade-in">
+        {/* Updated shadow for stronger contrast */}
+        <div className="absolute bottom-[23%] right-[3%] z-40 text-white text-right drop-shadow-[0_4px_3px_rgba(0,0,0,0.9)] animate-fade-in">
             <div className="text-6xl font-bold font-mono tracking-wider mb-2">{formattedTime}</div>
             <div className="text-xl font-semibold">{formattedDate}</div>
             <div className="text-lg opacity-90 mb-1">{dayName}</div>
-            <div className="text-sm opacity-80 mt-2 bg-white/10 px-3 py-1 rounded-full inline-block backdrop-blur-sm">
-                Ma ünnepli: <strong>{nameday}</strong>
+            <div className="text-sm opacity-80 mt-2 inline-block">
+                Mai névnapos: <strong>{nameday}</strong>
             </div>
         </div>
 
@@ -473,7 +477,7 @@ const PhotoSlideshow: React.FC<PhotoSlideshowProps> = ({ favorites, onClose, man
              </div>
         </div>
         
-        {/* Manual Nav Targets (Invisible but clickable) - z-index 10 is below controls */}
+        {/* Manual Nav Nav Targets (Invisible but clickable) - z-index 10 is below controls */}
         {slides.length > 1 && (
             <>
                 <div className="absolute inset-y-0 left-0 w-1/6 cursor-pointer z-10" onClick={(e) => { e.stopPropagation(); prevSlide(); }} title="Előző"></div>
