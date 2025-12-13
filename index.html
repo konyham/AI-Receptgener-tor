@@ -86,6 +86,8 @@
   <body class="bg-primary-50 dark:bg-gray-900 transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+    <!-- Service Worker registration disabled to prevent origin mismatch errors in development environment -->
+    <!-- 
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -98,6 +100,7 @@
             });
         });
       }
-    </script>
+    </script> 
+    -->
   </body>
 </html>
