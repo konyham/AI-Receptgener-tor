@@ -25,7 +25,10 @@ import {
 } from '../types';
 import { DIET_OPTIONS } from '../constants';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization helper
+const getAiClient = () => {
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
 
 const MODEL_NAME = 'gemini-2.5-flash';
 
@@ -67,7 +70,7 @@ export const generateRecipe = async (
     cookingMethodCapacities: Record<string, number | null>,
     feedbackHistory: UserFeedback[] = []
 ): Promise<Recipe> => {
-
+    const ai = getAiClient();
     const mealTypeLabel = getLabel(mealType, allMealTypes);
     const cuisineLabel = getLabel(cuisine, allCuisineOptions);
     const cookingMethodsLabels = cookingMethods.map(cm => getLabel(cm, allCookingMethods));
@@ -185,6 +188,7 @@ export const generateMenu = async (
     allCuisineOptions: OptionItem[],
     allCookingMethods: OptionItem[]
 ): Promise<MenuRecipe> => {
+    const ai = getAiClient();
     // This function will call generateRecipe 4 times or have one large prompt.
     // For simplicity, let's assume a large prompt.
     const cuisineLabel = getLabel(cuisine, allCuisineOptions);
@@ -259,6 +263,7 @@ export const generateDailyMenu = async (
     allCuisineOptions: OptionItem[],
     allCookingMethods: OptionItem[]
 ): Promise<DailyMenuRecipe> => {
+     const ai = getAiClient();
      const cuisineLabel = getLabel(cuisine, allCuisineOptions);
     const systemInstruction = `Te egy magyar dietetikus vagy, aki teljes napi menüket (reggeli, ebéd, vacsora) állít össze. A válaszodat mindig JSON formátumban add meg a megadott séma szerint. A receptek legyenek magyar nyelven.`;
     const prompt = `
@@ -308,6 +313,7 @@ export const getRecipeModificationSuggestions = async (recipe: Recipe): Promise<
 };
 
 export const interpretAppCommand = async (transcript: string, view: AppView, context: any): Promise<AppCommand> => {
+    const ai = getAiClient();
     const systemInstruction = `Te egy magyar nyelvű asszisztens vagy egy receptalkalmazásban. A feladatod, hogy a felhasználó magyar nyelvű hangutasítását lefordítsd egy JSON parancsra az alkalmazás számára. Mindig JSON formátumban válaszolj. Ha a parancs nem egyértelmű, használd az 'unknown' akciót.`;
 
     const availableActions = [
@@ -359,6 +365,7 @@ export const interpretAppCommand = async (transcript: string, view: AppView, con
 };
 
 export const generateAppGuide = async (): Promise<string> => {
+    const ai = getAiClient();
     const prompt = "Készíts egy rövid, barátságos, HTML formázott útmutatót (magyarul) az AI receptgenerátor alkalmazáshoz. Használj címsorokat (h3), félkövér szöveget (strong) és listákat (ul, li). Ne használj <html>, <body> vagy <head> tageket. Fedd le a fő funkciókat: recept generálás, mentés, bevásárlólista, kamra és hangvezérlés.";
     const response = await ai.models.generateContent({
         model: MODEL_NAME,
@@ -368,6 +375,7 @@ export const generateAppGuide = async (): Promise<string> => {
 };
 
 export const parseRecipeFromUrl = async (url: string): Promise<Partial<Recipe>> => {
+    const ai = getAiClient();
     const prompt = `Elemezd a következő weboldal tartalmát, és vonj ki belőle egy receptet JSON formátumban. Add meg a recept nevét, egy rövid leírást és a hozzávalók listáját. URL: ${url}`;
     const responseSchema = {
         type: Type.OBJECT,
@@ -389,6 +397,7 @@ export const parseRecipeFromUrl = async (url: string): Promise<Partial<Recipe>> 
 };
 
 export const parseRecipeFromFile = async (file: { inlineData: { data: string; mimeType: string; } }): Promise<Partial<Recipe>> => {
+    const ai = getAiClient();
     const prompt = `Elemezd a képen vagy PDF-ben található receptet és vonj ki belőle adatokat JSON formátumban. Add meg a recept nevét, egy rövid leírást és a hozzávalók listáját.`;
     const responseSchema = {
         type: Type.OBJECT,
@@ -410,6 +419,7 @@ export const parseRecipeFromFile = async (file: { inlineData: { data: string; mi
 };
 
 export const generateRecipeVariations = async (originalRecipe: Recipe, allCookingMethods: OptionItem[], allCuisineOptions: OptionItem[], allMealTypes: OptionItem[], cookingMethodCapacities: Record<string, number | null>): Promise<Recipe[]> => {
+    const ai = getAiClient();
     const prompt = `Készíts 2-3 kreatív variációt a következő recepthez. A variációk legyenek eltérőek, pl. más konyha, más elkészítési mód, vagy egy különleges csavar. Minden variáció legyen egy teljes recept. Eredeti recept: ${JSON.stringify(originalRecipe)}`;
     // This response schema needs to be an array of recipes
     // The schema for a single recipe is already complex, so I'll simplify it for the array.
@@ -458,6 +468,7 @@ export const generateSingleRecipeVariation = async (
     allCuisineOptions: OptionItem[],
     allCookingMethods: OptionItem[]
 ): Promise<Recipe> => {
+    const ai = getAiClient();
     const systemInstruction = `Te egy magyar séf vagy, aki kreatív és ízletes recept variációkat készít. A válaszodat mindig JSON formátumban add meg, a megadott séma szerint. A receptek legyenek magyar nyelven. Az instrukciókat oszd fel logikus, könnyen követhető lépésekre. Ha egy kép is tartozik egy lépéshez, adj egy rövid, angol nyelvű leírást a 'imagePrompt' mezőben a kép generálásához. A leírás ne tartalmazzon szöveget.`;
 
     const dietLabel = DIET_OPTIONS.find(d => d.value === variationParams.diet)?.label || variationParams.diet;
@@ -553,6 +564,7 @@ export const generateSingleRecipeVariation = async (
 };
 
 export const interpretFormCommand = async (transcript: string, mealTypes: OptionItem[], cookingMethods: OptionItem[], dietOptions: { value: DietOption; label: string }[]): Promise<FormCommand | null> => {
+    const ai = getAiClient();
     const systemInstruction = `Egy receptgenerátor űrlap asszisztense vagy. A felhasználó magyarul ad utasításokat. Értelmezd a parancsot és alakítsd át egy JSON objektummá. Csak a megadott JSON sémával válaszolj. Ha a parancs nem feleltethető meg egyértelműen egy akciónak, adj vissza null-t.`;
     
     const prompt = `
@@ -613,6 +625,7 @@ export const interpretFormCommand = async (transcript: string, mealTypes: Option
 };
 
 export const interpretUserCommand = async (transcript: string): Promise<VoiceCommandResult> => {
+    const ai = getAiClient();
     const systemInstruction = `Egy receptnézegető asszisztense vagy. A felhasználó magyarul ad utasításokat főzés közben. A parancsot alakítsd át egy JSON objektummá a megadott séma szerint.`;
 
     const prompt = `
@@ -667,6 +680,7 @@ export const interpretUserCommand = async (transcript: string): Promise<VoiceCom
 };
 
 export const suggestMealType = async (ingredients: string, specialRequest: string, mealTypes: OptionItem[]): Promise<MealType | null> => {
+    const ai = getAiClient();
     const prompt = `Adott alapanyagok és kérés alapján melyik étkezés típus a legvalószínűbb? Válaszod csak a típus kulcsa legyen. Alapanyagok: "${ingredients}". Kérés: "${specialRequest}". Lehetséges típusok: ${JSON.stringify(mealTypes)}`;
     const response = await ai.models.generateContent({ model: MODEL_NAME, contents: prompt });
     const key = response.text.trim();
@@ -677,6 +691,7 @@ export const suggestMealType = async (ingredients: string, specialRequest: strin
 };
 
 export const generateRecipeImage = async (recipe: Recipe): Promise<string> => {
+    const ai = getAiClient();
     const prompt = `Profi, fotorealisztikus ételfotó a következő ételről: ${recipe.recipeName}. Leírás: ${recipe.description}. Az étel legyen elegánsan tálalva, gasztronómiai környezetben, és a kép közepén helyezkedjen el. A háttér a szélek felé legyen semlegesebb, elmosódottabb (bokeh effekt). A képen ne szerepeljen semmilyen szöveg, logó vagy ember. Csak az étel és a tálalás legyen a fókuszban.`;
     
     const response = await ai.models.generateContent({
@@ -712,6 +727,7 @@ export const simplifyRecipe = async (recipe: Recipe): Promise<Recipe> => {
 };
 
 export const categorizeIngredients = async (ingredients: string[]): Promise<CategorizedIngredient[]> => {
+    const ai = getAiClient();
     if (ingredients.length === 0) {
         return [];
     }

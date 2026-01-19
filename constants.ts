@@ -1,8 +1,7 @@
-
 // FIX: This file has been cleaned up to only contain constant definitions, importing its types from the now-correct `types.ts` file.
 import { DietOption, MealType, TRADITIONAL_COOKING_METHOD, CuisineOption, RecipePace } from './types';
 
-export const APP_VERSION = '1.69.0';
+export const APP_VERSION = '1.69.3';
 
 export const LOADING_TIPS = [
   'Tudta? A tompa kés balesetveszélyesebb, mint az éles. Tartsa késeit mindig élesen!',

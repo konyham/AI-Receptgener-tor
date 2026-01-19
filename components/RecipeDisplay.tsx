@@ -642,6 +642,17 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
         }
     };
 
+    const ActionButton: React.FC<{ onClick: () => void; disabled?: boolean; children: React.ReactNode; label: string; }> = ({ onClick, disabled, children, label }) => (
+        <button
+            onClick={onClick}
+            disabled={disabled}
+            className="flex flex-col items-center justify-center gap-1 p-2 rounded-lg bg-white shadow-sm border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label={label}
+        >
+            {children}
+        </button>
+    );
+
   return (
     <>
         <div className="animate-fade-in space-y-6">
@@ -672,30 +683,8 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
             ) : (
                 <p className="text-gray-600 text-lg">{editableRecipe.description}</p>
             )}
-            <div className="flex items-center gap-4 flex-wrap">
+            <div>
               {isFromFavorites && <StarRating rating={editableRecipe.rating} onRatingChange={isEditing ? undefined : handleRatingChange} readOnly={isEditing} />}
-              <div className="flex items-center gap-2 border-l border-gray-300 pl-4">
-                  <button 
-                    onClick={() => handleFeedbackClick('like')}
-                    className={`flex items-center gap-1 px-3 py-1 rounded-full border transition-colors ${editableRecipe.feedback === 'like' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}`}
-                    title="Tetszett a recept"
-                  >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill={editableRecipe.feedback === 'like' ? 'currentColor' : 'none'} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
-                      </svg>
-                      <span className="text-sm font-semibold">Tetszett</span>
-                  </button>
-                  <button 
-                    onClick={() => handleFeedbackClick('dislike')}
-                    className={`flex items-center gap-1 px-3 py-1 rounded-full border transition-colors ${editableRecipe.feedback === 'dislike' ? 'bg-red-100 border-red-500 text-red-700' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}`}
-                    title="Nem tetszett a recept"
-                  >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill={editableRecipe.feedback === 'dislike' ? 'currentColor' : 'none'} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 10H1.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 014.736 0h4.017c.163 0 .326.02.485.06L13 1m-7 10v9a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L13 9V0m-7 10h2m5 0h2a2 2 0 002-2v-6a2 2 0 00-2-2h-2.5" />
-                      </svg>
-                      <span className="text-sm font-semibold">Nem tetszett</span>
-                  </button>
-              </div>
             </div>
 
             <div className="my-6 p-4 bg-gray-100 rounded-lg">
@@ -810,6 +799,54 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                         <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/png, image/jpeg, image/webp" className="hidden" aria-hidden="true" />
                     </div>
                     <RecipeDetails recipe={editableRecipe} mealTypes={mealTypes} cuisineOptions={cuisineOptions} cookingMethodsList={cookingMethodsList} />
+                    <div>
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200">Hozzávalók</h3>
+                            {!isEditing && (
+                                <button
+                                    onClick={handleSelectAllIngredients}
+                                    className="text-sm text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300"
+                                >
+                                    {checkedIngredients.size === editableRecipe.ingredients.length ? 'Kijelölés törlése' : 'Összes kijelölése'}
+                                </button>
+                            )}
+                        </div>
+                        
+                        {isEditing ? (
+                             <textarea 
+                                value={editableRecipe.ingredients.join('\n')} 
+                                onChange={e => setEditableRecipe(prev => ({...prev, ingredients: e.target.value.split('\n').filter(line => line.trim() !== '')}))} 
+                                rows={10} 
+                                className="w-full bg-yellow-50 border-2 border-primary-200 rounded-lg p-3 text-gray-700 font-medium" 
+                            />
+                        ) : (
+                            <div className="bg-primary-50 dark:bg-gray-700/50 p-4 rounded-lg border border-primary-100 dark:border-gray-700">
+                                <ul className="space-y-2">
+                                    {editableRecipe.ingredients.map((ingredient, index) => (
+                                        <li key={index} className="flex items-start gap-3">
+                                            <input
+                                                type="checkbox"
+                                                id={`ingredient-${index}`}
+                                                checked={checkedIngredients.has(ingredient)}
+                                                onChange={() => handleIngredientCheck(ingredient)}
+                                                className="mt-1 h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                                            />
+                                            <label htmlFor={`ingredient-${index}`} className={`flex-grow cursor-pointer text-gray-700 dark:text-gray-300 ${checkedIngredients.has(ingredient) ? 'line-through text-gray-400 dark:text-gray-500' : ''}`}>
+                                                {ingredient}
+                                            </label>
+                                        </li>
+                                    ))}
+                                </ul>
+                                <button
+                                    onClick={handleAddSelectedToShoppingList}
+                                    disabled={checkedIngredients.size === 0}
+                                    className="mt-4 w-full bg-primary-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-primary-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed dark:disabled:bg-gray-600"
+                                >
+                                    {checkedIngredients.size > 0 ? `${checkedIngredients.size} elem hozzáadása a listához` : 'Válasszon hozzávalókat'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 <div className="space-y-6">
                     <div className="flex justify-between items-center">
