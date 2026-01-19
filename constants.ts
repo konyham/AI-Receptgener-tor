@@ -1,8 +1,7 @@
-
 // FIX: This file has been cleaned up to only contain constant definitions, importing its types from the now-correct `types.ts` file.
 import { DietOption, MealType, TRADITIONAL_COOKING_METHOD, CuisineOption, RecipePace } from './types';
 
-export const APP_VERSION = '1.69.5';
+export const APP_VERSION = '1.69.9';
 
 export const LOADING_TIPS = [
   'Tudta? A tompa kés baleszélyesebb, mint az éles. Tartsa késeit mindig élesen!',
@@ -104,6 +103,8 @@ export const CUISINE_OPTIONS: { value: CuisineOption; label: string }[] = [
 
 export const COOKING_METHODS: { value: string; label: string }[] = [
   { value: TRADITIONAL_COOKING_METHOD, label: 'Hagyományos' },
+  { value: 'multicooker', label: 'Multifőző (Redmond RMC-M90)' },
+  { value: 'bread-machine', label: 'Kenyérsütő gép (Gorenje BM1210BK)' },
   { value: 'air-fryer', label: 'Forrólevegős fritőz' },
   { value: 'slow-cooker', label: 'Lassú főző (Slow cooker)' },
   { value: 'pressure-cooker', label: 'Kukta (Pressure cooker)' },
@@ -115,6 +116,8 @@ export const COOKING_METHODS: { value: string; label: string }[] = [
 
 export const COOKING_METHOD_CAPACITIES: Record<string, number | null> = {
   [TRADITIONAL_COOKING_METHOD]: null, // Nincs gyakorlati korlát
+  'multicooker': 5,
+  'bread-machine': 2,
   'air-fryer': 4,
   'slow-cooker': 8,
   'pressure-cooker': 6,
