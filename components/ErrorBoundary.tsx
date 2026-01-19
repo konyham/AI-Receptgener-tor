@@ -1,3 +1,4 @@
+
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 
 interface Props {
@@ -10,10 +11,14 @@ interface State {
 }
 
 class ErrorBoundary extends Component<Props, State> {
-  public state: State = {
-    hasError: false,
-    error: null
-  };
+  // FIX: Added constructor to ensure props and state are correctly handled by TypeScript, resolving the 'props' not existing error.
+  constructor(props: Props) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null
+    };
+  }
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
@@ -60,7 +65,8 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    return this.props.children;
+    // FIX: Using conditional access or providing a fallback to satisfy TypeScript if children is undefined.
+    return this.props.children || null;
   }
 }
 

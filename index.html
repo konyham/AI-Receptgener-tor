@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="hu">
   <head>
@@ -6,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark">
     <title>AI recept generátor - Konyha Miki módra</title>
-    <link rel="manifest" href="/manifest.json?v=1.69.3">
-    <link rel="icon" href="https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/icon-192.png?v=1.69.3" type="image/png">
-    <link rel="apple-touch-icon" href="https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/apple-touch-icon.png?v=1.69.3">
+    <link rel="manifest" href="/manifest.json?v=1.69.4">
+    <link rel="icon" href="https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/icon-192.png?v=1.69.4" type="image/png">
+    <link rel="apple-touch-icon" href="https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/apple-touch-icon.png?v=1.69.4">
     <meta name="theme-color" content="#854d24">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -101,21 +100,5 @@
       });
     </script>
     <script type="module" src="/index.tsx"></script>
-    <!-- Service Worker registration disabled to prevent origin mismatch errors in development environment -->
-    <!-- 
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js')
-            .then(registration => {
-              console.log('ServiceWorker registration successful with scope: ', registration.scope);
-            })
-            .catch(error => {
-              console.log('ServiceWorker registration failed: ', error);
-            });
-        });
-      }
-    </script> 
-    -->
   </body>
 </html>
