@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
@@ -19,7 +20,8 @@ import RecipeComparisonView from './components/RecipeComparisonView';
 import GenerateVariationModal from './components/GenerateVariationModal';
 import PhotoSlideshow from './components/PhotoSlideshow';
 import VoiceFeedbackBubble from './components/VoiceFeedbackBubble';
-import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile, generateRecipeVariations, generateSingleRecipeVariation, interpretFormCommand, interpretUserCommand } from './services/geminiService';
+import IngredientPhotoModal from './components/IngredientPhotoModal';
+import { generateRecipe, getRecipeModificationSuggestions, interpretAppCommand, generateMenu, generateDailyMenu, generateAppGuide, parseRecipeFromUrl, parseRecipeFromFile, generateRecipeVariations, generateSingleRecipeVariation, interpretFormCommand, interpretUserCommand, identifyIngredientsFromImage } from './services/geminiService';
 import * as favoritesService from './services/favoritesService';
 import * as shoppingListService from './services/shoppingListService';
 import * as pantryService from './services/pantryService';
@@ -245,6 +247,8 @@ const App: React.FC = () => {
   const [isImportUrlModalOpen, setIsImportUrlModalOpen] = useState(false);
   const [isParsingUrl, setIsParsingUrl] = useState(false);
   const [parsingUrlError, setParsingUrlError] = useState<string | null>(null);
+
+  const [isIngredientPhotoModalOpen, setIsIngredientPhotoModalOpen] = useState(false);
 
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
@@ -850,6 +854,11 @@ const App: React.FC = () => {
     } catch (e: any) { setError(e.message); } finally { setIsParsingUrl(false); }
   };
 
+  const handleProcessIngredientPhoto = async (file: File): Promise<string[]> => {
+      const fileData = await processAndResizeImageForGemini(file);
+      return await identifyIngredientsFromImage({ inlineData: fileData });
+  };
+
   const forceRegenerateGuide = async (showNotificationOnSuccess = true) => {
         setIsLoadingGuide(true);
         try {
@@ -903,7 +912,7 @@ const App: React.FC = () => {
           <div className="space-y-6">
             {!recipe && !alternativeRecipes && (
               <>
-                <RecipeInputForm onSubmit={handleRecipeSubmit} isLoading={isLoading} initialFormData={initialFormData} onFormPopulated={handleFormPopulated} users={users} mealTypes={mealTypes} cuisineOptions={cuisineOptions} cookingMethodsList={cookingMethodsList} cookingMethodCapacities={cookingMethodCapacities} orderedMealTypes={orderedMealTypes} orderedCookingMethods={orderedCookingMethods} orderedCuisineOptions={orderedCuisineOptions} onOpenOptionsEditor={() => setIsOptionsEditorOpen(true)} onOpenUrlImporter={() => setIsImportUrlModalOpen(true)} onOpenRecipeFileImporter={() => recipeFileInputRef.current?.click()} command={formCommand} onCommandProcessed={() => setFormCommand(null)} />
+                <RecipeInputForm onSubmit={handleRecipeSubmit} isLoading={isLoading} initialFormData={initialFormData} onFormPopulated={handleFormPopulated} users={users} mealTypes={mealTypes} cuisineOptions={cuisineOptions} cookingMethodsList={cookingMethodsList} cookingMethodCapacities={cookingMethodCapacities} orderedMealTypes={orderedMealTypes} orderedCookingMethods={orderedCookingMethods} orderedCuisineOptions={orderedCuisineOptions} onOpenOptionsEditor={() => setIsOptionsEditorOpen(true)} onOpenUrlImporter={() => setIsImportUrlModalOpen(true)} onOpenRecipeFileImporter={() => recipeFileInputRef.current?.click()} onOpenIngredientPhotoImporter={() => setIsIngredientPhotoModalOpen(true)} command={formCommand} onCommandProcessed={() => setFormCommand(null)} />
                 <input type="file" ref={recipeFileInputRef} onChange={(e) => { const file = e.target.files?.[0]; if (file) handleParseFile(file); }} accept="image/png, image/jpeg, image/webp, application/pdf" className="hidden" />
               </>
             )}
@@ -930,6 +939,7 @@ const App: React.FC = () => {
       <OptionsEditPanel isOpen={isOptionsEditorOpen} onClose={() => setIsOptionsEditorOpen(false)} onSave={(newMealTypes, newCuisineOptions, newCookingMethods, newCapacities) => handleOptionsSave(newMealTypes, newCuisineOptions, newCookingMethods, newCapacities)} initialMealTypes={mealTypes} initialCuisineOptions={cuisineOptions} initialCookingMethods={cookingMethodsList} initialCapacities={cookingMethodCapacities} />
       <InfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} content={appGuideContent} isLoading={isLoadingGuide} onRegenerate={forceRegenerateGuide} />
       <ImportUrlModal isOpen={isImportUrlModalOpen} onClose={() => setIsImportUrlModalOpen(false)} onParse={handleParseUrl} isParsing={isParsingUrl} error={parsingUrlError} />
+      <IngredientPhotoModal isOpen={isIngredientPhotoModalOpen} onClose={() => setIsIngredientPhotoModalOpen(false)} onProcess={handleProcessIngredientPhoto} onAccept={(items) => setInitialFormData({ ingredients: items.join(', ') })} />
       {variationModalState.isOpen && variationModalState.recipe && <GenerateVariationModal isOpen={variationModalState.isOpen} onClose={() => setVariationModalState({ isOpen: false, recipe: null })} originalRecipe={variationModalState.recipe} onGenerate={handleGenerateSingleVariation} dietOptions={DIET_OPTIONS} cuisineOptions={orderedCuisineOptions} cookingMethodsList={orderedCookingMethods} users={users} />}
       {isSlideshowOpen && <PhotoSlideshow favorites={favorites} onClose={() => setIsSlideshowOpen(false)} manualLocation={manualLocation} onUpdateLocation={handleUpdateLocation} />}
       <footer className="mt-8 text-center text-xs text-gray-500 dark:text-gray-400 space-y-4">

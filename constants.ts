@@ -1,7 +1,9 @@
+
 // FIX: This file has been cleaned up to only contain constant definitions, importing its types from the now-correct `types.ts` file.
 import { DietOption, MealType, TRADITIONAL_COOKING_METHOD, CuisineOption, RecipePace } from './types';
 
-export const APP_VERSION = '1.69.9';
+// Updated version number
+export const APP_VERSION = '1.69.15';
 
 export const LOADING_TIPS = [
   'Tudta? A tompa kés baleszélyesebb, mint az éles. Tartsa késeit mindig élesen!',
@@ -65,7 +67,7 @@ export const DIET_OPTIONS: { value: DietOption; label: string; description: stri
   { value: DietOption.PALEO, label: 'Paleo', description: 'A feldgozott élelmiszereket, gabonaféléket, hüvelyeseket és tejtermékeket kerüli, a hangsúly a húson, zöldségeken, gyümölcsökön van.' },
   { value: DietOption.ZONE, label: 'Zóna', description: 'A makrotápanyagok (szénhidrát, fehérje, zsír) meghatározott arányára (40-30-30) fókuszál minden étkezésnél.' },
   { value: DietOption.CANDIDA, label: 'Candida', description: 'Célja a candida gomba elszaporodásának visszaszorítása a cukor, élesztő, finomított szénhidrátok és bizonyos tejtermékek kerülésével.' },
-  { value: DietOption.MACROBIOTIC, label: 'Makrobiotikus', description: 'A jin és jang elvén alapuló, főként teljes kiőrlésű gabonákra, zöldségekre és hüvelyesekre épülő, feldolgozott élelmiszereket kerülő étrend.' },
+  { value: DietOption.MACROBIOTIC, label: 'Makrobiotikus', description: 'A jin és jang elvén alapuló, főként teljes kiőrlésű gabonákra, zöldségekre és hüvelyesekre épülő, feldgozott élelmiszereket kerülő étrend.' },
 ];
 
 export const MEAL_TYPES: { value: MealType; label: string }[] = [
@@ -103,26 +105,34 @@ export const CUISINE_OPTIONS: { value: CuisineOption; label: string }[] = [
 
 export const COOKING_METHODS: { value: string; label: string }[] = [
   { value: TRADITIONAL_COOKING_METHOD, label: 'Hagyományos' },
-  { value: 'multicooker', label: 'Multifőző (Redmond RMC-M90)' },
-  { value: 'bread-machine', label: 'Kenyérsütő gép (Gorenje BM1210BK)' },
+  { value: 'westinghouse-kukta', label: 'Westinghouse WKCPPC100 okoskukta (angol menüs)' },
+  { value: 'mc-connect', label: 'Monsieur Cuisine Connect termomixer (angol menüs) + van hozzá burgonya hámozó betét + késtakaró' },
+  { value: 'mc-plus', label: 'Monsieur Cuisine Plus termomixer (angol menüs)' },
+  { value: 'cuckoo-rizsfozo', label: 'CUCKOO CRP-M1001SK okos rizsfőző (kínai menüs)' },
+  { value: 'crockpot-slow', label: 'CROCK-POT SCCPRC507B-60 lassúfőző (angol menüs)' },
+  { value: 'redmond-m70', label: 'REDMOND RMC-M70 okosfőző (orosz menüs)' },
+  { value: 'unold-fagylaltgep', label: 'Unold 48808 fagylaltgép (német menüs)' },
+  { value: 'kerti-grill', label: 'Kerti grill' },
+  { value: 'bogracs', label: 'Bogrács' },
   { value: 'air-fryer', label: 'Forrólevegős fritőz' },
-  { value: 'slow-cooker', label: 'Lassú főző (Slow cooker)' },
-  { value: 'pressure-cooker', label: 'Kukta (Pressure cooker)' },
   { value: 'baking', label: 'Sütőben sütés' },
-  { value: 'grilling', label: 'Grillezés' },
   { value: 'steaming', label: 'Párolás' },
   { value: 'frying', label: 'Serpenyőben sütés' },
 ];
 
 export const COOKING_METHOD_CAPACITIES: Record<string, number | null> = {
-  [TRADITIONAL_COOKING_METHOD]: null, // Nincs gyakorlati korlát
-  'multicooker': 5,
-  'bread-machine': 2,
+  [TRADITIONAL_COOKING_METHOD]: null,
+  'westinghouse-kukta': 6,
+  'mc-connect': 3,
+  'mc-plus': 2,
+  'cuckoo-rizsfozo': 6,
+  'crockpot-slow': 6,
+  'redmond-m70': 5,
+  'unold-fagylaltgep': 2,
+  'kerti-grill': null,
+  'bogracs': null,
   'air-fryer': 4,
-  'slow-cooker': 8,
-  'pressure-cooker': 6,
   'baking': null,
-  'grilling': null,
   'steaming': null,
   'frying': null,
 };

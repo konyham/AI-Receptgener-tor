@@ -48,9 +48,25 @@ const getLabel = (value: string, options: readonly OptionItem[]): string => {
     return options.find(o => o.value === value)?.label || value;
 };
 
-// ... a lot of functions that need to be implemented ...
-// For now, I'll create stubs, but a full implementation would require detailed prompting.
-// Given the context of the app, I can make educated guesses on the prompts.
+export const identifyIngredientsFromImage = async (file: { inlineData: { data: string; mimeType: string; } }): Promise<string[]> => {
+    const ai = getAiClient();
+    const prompt = `Elemezd a képet és sorold fel a rajta látható összes konyhai alapanyagot, vagy ha a képen egy bevásárlólista vagy recept van, olvasd ki az azon szereplő hozzávalókat. 
+    A választ csak egy vesszővel elválasztott listaként add meg magyar nyelven. Ha semmilyen alapanyag nem ismerhető fel, adj vissza egy üres választ.
+    Példa jó válaszra: csirkemell, paradicsom, hagyma, bazsalikom, só, bors`;
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: { parts: [{ inlineData: file.inlineData }, { text: prompt }] }
+        });
+        
+        const text = response.text || '';
+        return text.split(',').map(s => s.trim()).filter(Boolean);
+    } catch (error) {
+        console.error("Error identifying ingredients from image:", error);
+        throw new Error("Sajnos nem sikerült beazonosítani az alapanyagokat a fotón. Próbálja meg világosabb környezetben, vagy gépelje be őket.");
+    }
+};
 
 export const generateRecipe = async (
     ingredients: string,
@@ -503,7 +519,7 @@ export const generateSingleRecipeVariation = async (
     - Elkészítés módja: ${cookingMethodsLabels.join(', ') || 'Hagyományos'}
     - Garantáltan kerülendő alapanyagok (allergia): ${variationParams.userPreferences.allergies || 'nincs'}
 
-    A válaszod egyetlen, teljes recept legyen JSON formátumban a megadott séma szerint. A variáció neve legyen utalás az eredeti receptre, de tükrözze a változtatást is (pl. "Rántott sajt légkeveréses fritőzben").
+    A válaszid egyetlen, teljes recept legyen JSON formátumban a megadott séma szerint. A variáció neve legyen utalás az eredeti receptre, de tükrözze a változtatást is (pl. "Rántott sajt légkeveréses fritőzben").
     `;
 
     const responseSchema = {

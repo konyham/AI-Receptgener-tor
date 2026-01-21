@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { DietOption, MealType, FormCommand, SelectionResult, CookingMethod, RecipeSuggestions, CuisineOption, RecipePace, UserProfile, OptionItem, TRADITIONAL_COOKING_METHOD } from '../types';
 import { DIET_OPTIONS, RECIPE_PACE_OPTIONS } from '../constants';
@@ -23,6 +24,7 @@ interface RecipeInputFormProps {
   onOpenOptionsEditor: () => void;
   onOpenUrlImporter?: () => void;
   onOpenRecipeFileImporter: () => void;
+  onOpenIngredientPhotoImporter: () => void;
   command: FormCommand | null;
   onCommandProcessed: () => void;
 }
@@ -46,6 +48,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
     onOpenOptionsEditor,
     onOpenUrlImporter,
     onOpenRecipeFileImporter,
+    onOpenIngredientPhotoImporter,
     command,
     onCommandProcessed,
 }) => {
@@ -580,6 +583,17 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
                 placeholder={mode === 'standard' ? 'Pl. csirkemell, rizs, hagyma...' : 'Pl. sült csirke, főtt rizs, tejszín...'}
                 className="flex-grow p-3 bg-white text-gray-900 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out"
             />
+            <button
+                type="button"
+                onClick={onOpenIngredientPhotoImporter}
+                className="p-3 bg-white text-primary-700 border border-primary-300 rounded-lg shadow-sm hover:bg-primary-50 transition-colors"
+                title="Alapanyagok felismerése fotóról"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+            </button>
             <button
                 type="button"
                 onClick={handleAddIngredient}

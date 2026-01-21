@@ -1,4 +1,5 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+
+import React, { ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children?: ReactNode;
@@ -9,13 +10,19 @@ interface State {
   error: Error | null;
 }
 
-// FIX: Using named Component import to ensure TypeScript correctly recognizes inherited members like 'state' and 'props'.
-class ErrorBoundary extends Component<Props, State> {
-  // FIX: Initializing state as a class field to ensure it is correctly typed and recognized by TypeScript, resolving 'Property state does not exist' errors.
+/**
+ * ErrorBoundary component to catch rendering errors in the component tree.
+ * FIX: Using React.Component explicitly with generic types to ensure 'props' and 'state' are correctly recognized by TypeScript.
+ */
+class ErrorBoundary extends React.Component<Props, State> {
   state: State = {
     hasError: false,
     error: null
   };
+
+  constructor(props: Props) {
+    super(props);
+  }
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
@@ -26,7 +33,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   render() {
-    // FIX: State is now correctly recognized as inherited from Component.
+    // FIX: Accessing this.state which is now correctly recognized.
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100 text-gray-900 p-4 font-sans">
@@ -63,7 +70,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    // FIX: Using this.props.children after ensuring valid inheritance from Component to resolve 'Property props does not exist' error.
+    // FIX: Inherited props are now correctly recognized by extending React.Component.
     return this.props.children || null;
   }
 }
