@@ -91,106 +91,64 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
     return defaultValue;
 };
 
-// The entire worker script is inlined here as a string to avoid cross-origin issues.
-const workerScriptContent = `
-const arrayBufferToBase64 = (buffer) => {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-};
+/**
+ * Memória-hatékony képfeldolgozás.
+ * Optimalizálva mobil eszközökhöz a "memory gap" / memóriahiány hibák elkerülése érdekében.
+ */
+const processAndResizeImageForGemini = async (file: File): Promise<{ data: string; mimeType: string }> => {
+    // Csökkentett felbontás mobil eszközökhöz (1600 helyett 1200), ami bőven elég az AI-nak.
+    const MAX_DIMENSION = 1200;
 
-self.onmessage = async (e) => {
-  const { blob } = e.data; // Receives a pre-resized, pre-compressed JPEG blob
-  try {
-    const arrayBuffer = await blob.arrayBuffer();
-    const base64Data = arrayBufferToBase64(arrayBuffer);
-    self.postMessage({ success: true, data: base64Data, mimeType: 'image/jpeg' });
-  } catch (error) {
-    self.postMessage({ success: false, error: error.message });
-  }
-};
-`;
+    let imageBitmap: ImageBitmap | null = null;
+    let canvas: HTMLCanvasElement | null = null;
+    let blob: Blob | null = null;
 
-const processAndResizeImageForGemini = (file: File): Promise<{ data: string; mimeType: string }> => {
-    return new Promise(async (resolve, reject) => {
-        const MAX_DIMENSION = 1600;
+    try {
+        // 1. Kép beolvasása memóriatakarékosan
+        imageBitmap = await window.createImageBitmap(file, {
+            resizeWidth: MAX_DIMENSION,
+            resizeHeight: MAX_DIMENSION,
+            resizeQuality: 'medium', // 'low' vagy 'medium' jobb memóriakezelést eredményez
+        });
 
-        if (typeof window.createImageBitmap === 'undefined') {
-            reject(new Error('A böngésződ nem támogatja a modern, memóriahatékony képfeldolgozást. A funkció valószínűleg nem fog működni ezen az eszközön.'));
-            return;
-        }
+        // 2. Rajzolás vászonra az átméretezés véglegesítéséhez
+        canvas = document.createElement('canvas');
+        canvas.width = imageBitmap.width;
+        canvas.height = imageBitmap.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error("A böngésző nem tudja létrehozni a grafikai környezetet.");
+        
+        ctx.drawImage(imageBitmap, 0, 0);
+        
+        // Felszabadítjuk az ImageBitmap-et amint rárajzoltuk a canvasra
+        imageBitmap.close();
+        imageBitmap = null;
 
-        try {
-            const imageBitmap = await window.createImageBitmap(file, {
-                resizeWidth: MAX_DIMENSION,
-                resizeHeight: MAX_DIMENSION,
-                resizeQuality: 'high',
-            });
+        // 3. Blob-bá alakítás (JPEG tömörítéssel a méret csökkentése érdekében)
+        blob = await new Promise<Blob | null>(res => canvas?.toBlob(res, 'image/jpeg', 0.75));
+        if (!blob) throw new Error("A kép konvertálása sikertelen.");
 
-            const canvas = document.createElement('canvas');
-            canvas.width = imageBitmap.width;
-            canvas.height = imageBitmap.height;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                imageBitmap.close();
-                reject(new Error("Could not get canvas context."));
-                return;
-            }
-            ctx.drawImage(imageBitmap, 0, 0);
-            imageBitmap.close();
+        // 4. Base64-é alakítás memóriabarát módon
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64data = reader.result as string;
+                const base64String = base64data.split(',')[1];
+                resolve({ data: base64String, mimeType: 'image/jpeg' });
+                // Takarítás a végén
+                canvas = null;
+                blob = null;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob!);
+        });
 
-            const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', 0.92));
-            
-            if (!blob) {
-                reject(new Error("Canvas toBlob conversion failed."));
-                return;
-            }
-
-            if (!window.Worker) {
-                reject(new Error('A Web Worker-ek nem támogatottak ebben a böngészőben.'));
-                return;
-            }
-            
-            let worker: Worker | null = null;
-            let workerUrl: string | null = null;
-            try {
-                const blobWorker = new Blob([workerScriptContent], { type: 'application/javascript' });
-                workerUrl = URL.createObjectURL(blobWorker);
-                worker = new Worker(workerUrl);
-
-                worker.onmessage = (e) => {
-                    if (e.data.success) {
-                        resolve({ data: e.data.data, mimeType: e.data.mimeType });
-                    } else {
-                        reject(new Error(e.data.error || 'Ismeretlen hiba a workerben.'));
-                    }
-                    worker?.terminate();
-                    if (workerUrl) URL.revokeObjectURL(workerUrl);
-                };
-
-                worker.onerror = (e) => {
-                    reject(new Error(`Worker hiba: ${e.message}`));
-                    worker?.terminate();
-                    if (workerUrl) URL.revokeObjectURL(workerUrl);
-                };
-                
-                worker.postMessage({ blob });
-
-            } catch (err: any) {
-                if (worker) worker.terminate();
-                if (workerUrl) URL.revokeObjectURL(workerUrl);
-                reject(new Error(`Hiba a worker inicializálása közben: ${err.message}`));
-            }
-
-        } catch (error: any) {
-            console.error("Error processing image with createImageBitmap:", error);
-            reject(new Error(`Hiba a kép feldolgozása közben: ${error.message}. Lehet, hogy a képfájl sérült, vagy túl nagy a készülék számára.`));
-        }
-    });
+    } catch (error: any) {
+        console.error("Error processing image:", error);
+        // Próbáljunk felszabadítani mindent hiba esetén is
+        if (imageBitmap) imageBitmap.close();
+        throw new Error(`Sajnos a készülék nem tudta feldolgozni a fotót (memória hiba). Próbálkozzon kisebb felbontással vagy kevesebb megnyitott alkalmazással. Eredeti hiba: ${error.message}`);
+    }
 };
 
 const App: React.FC = () => {
@@ -854,6 +812,10 @@ const App: React.FC = () => {
     } catch (e: any) { setError(e.message); } finally { setIsParsingUrl(false); }
   };
 
+  /**
+   * Alapanyagok felismerése fotóról.
+   * Optimalizált memória-kezeléssel és hozzáfűzési logikával.
+   */
   const handleProcessIngredientPhoto = async (file: File): Promise<string[]> => {
       const fileData = await processAndResizeImageForGemini(file);
       return await identifyIngredientsFromImage({ inlineData: fileData });
@@ -938,8 +900,9 @@ const App: React.FC = () => {
       <LoadOnStartModal isOpen={isLoadOnStartModalOpen} onClose={() => setIsLoadOnStartModalOpen(false)} onLoad={() => fileInputRef.current?.click()} />
       <OptionsEditPanel isOpen={isOptionsEditorOpen} onClose={() => setIsOptionsEditorOpen(false)} onSave={(newMealTypes, newCuisineOptions, newCookingMethods, newCapacities) => handleOptionsSave(newMealTypes, newCuisineOptions, newCookingMethods, newCapacities)} initialMealTypes={mealTypes} initialCuisineOptions={cuisineOptions} initialCookingMethods={cookingMethodsList} initialCapacities={cookingMethodCapacities} />
       <InfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} content={appGuideContent} isLoading={isLoadingGuide} onRegenerate={forceRegenerateGuide} />
+      <InfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} content={appGuideContent} isLoading={isLoadingGuide} onRegenerate={forceRegenerateGuide} />
       <ImportUrlModal isOpen={isImportUrlModalOpen} onClose={() => setIsImportUrlModalOpen(false)} onParse={handleParseUrl} isParsing={isParsingUrl} error={parsingUrlError} />
-      <IngredientPhotoModal isOpen={isIngredientPhotoModalOpen} onClose={() => setIsIngredientPhotoModalOpen(false)} onProcess={handleProcessIngredientPhoto} onAccept={(items) => setInitialFormData({ ingredients: items.join(', ') })} />
+      <IngredientPhotoModal isOpen={isIngredientPhotoModalOpen} onClose={() => setIsIngredientPhotoModalOpen(false)} onProcess={handleProcessIngredientPhoto} onAccept={(items) => setFormCommand({ action: 'add_ingredients', payload: items })} />
       {variationModalState.isOpen && variationModalState.recipe && <GenerateVariationModal isOpen={variationModalState.isOpen} onClose={() => setVariationModalState({ isOpen: false, recipe: null })} originalRecipe={variationModalState.recipe} onGenerate={handleGenerateSingleVariation} dietOptions={DIET_OPTIONS} cuisineOptions={orderedCuisineOptions} cookingMethodsList={orderedCookingMethods} users={users} />}
       {isSlideshowOpen && <PhotoSlideshow favorites={favorites} onClose={() => setIsSlideshowOpen(false)} manualLocation={manualLocation} onUpdateLocation={handleUpdateLocation} />}
       <footer className="mt-8 text-center text-xs text-gray-500 dark:text-gray-400 space-y-4">
