@@ -42,6 +42,8 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
     setError(null);
 
     try {
+      // Adunk egy pici időt a rendszernek, hogy a kamera pufferét ürítse
+      await new Promise(res => setTimeout(res, 500));
       const identified = await onProcess(file);
       if (identified.length === 0) {
           setError("Nem sikerült alapanyagokat felismerni a képen. Kérjük, próbálja újra egy jobb minőségű fotóval, vagy gépelje be őket.");
@@ -51,7 +53,7 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
           setStep('edit');
       }
     } catch (err: any) {
-      setError(err.message || "Hiba történt a kép feldolgozása közben.");
+      setError(err.message || "Hiba történt a kép feldolgozása közben. Próbálja meg manuálisan feltölteni a galériából.");
       setStep('upload');
     }
 
@@ -89,7 +91,10 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
         {step === 'upload' && (
           <div className="space-y-4">
             <p className="text-gray-600 dark:text-gray-300">
-              Készítsen egy fotót az alapanyagokról a kamerájával, vagy válasszon egy már meglévő képet a galériájából.
+              Készítsen egy fotót az alapanyagokról, vagy válasszon egyet a galériájából. 
+            </p>
+            <p className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded border border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800 dark:text-yellow-400">
+              Tipp: Ha a készülék memóriahibát jelez fotózásnál, készítse el a képet a telefon saját kamera appjával, majd töltse be a "Kép választása" gombbal.
             </p>
             {error && (
                 <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
@@ -117,12 +122,11 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
                     Kép választása
                 </button>
             </div>
-            {/* Hidden inputs */}
+            {/* Hidden inputs - removed capture to avoid memory spike */}
             <input
               type="file"
               ref={cameraInputRef}
               accept="image/*"
-              capture="environment"
               onChange={handleFileSelect}
               className="hidden"
             />

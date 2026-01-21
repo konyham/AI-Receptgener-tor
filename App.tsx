@@ -93,72 +93,84 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 
 /**
  * Radikálisan memória-hatékony képfeldolgozás mobil eszközökhöz.
- * Közvetlenül a Blob-ból dolgozik createImageBitmap segítségével, elkerülve a nehéz HTMLImageElement objektumot.
+ * 768px-es felbontásra optimalizálva, ami elegendő az AI-nak OCR-hez, de kíméli a RAM-ot.
  */
 const processAndResizeImageForGemini = async (file: File): Promise<{ data: string; mimeType: string }> => {
-    const MAX_DIMENSION = 1000;
+    const MAX_DIMENSION = 768; // Gemini OCR-hez ez bőven elég, és drasztikusan kevesebb RAM kell hozzá.
 
-    // 1. Kép dekódolása közvetlenül a fájlból a hardveres gyorsító segítségével
-    // Ez a legbiztonságosabb mód Android/iOS alatt a memóriahibák elkerülésére.
-    let imageBitmap: ImageBitmap | null = null;
-    try {
-        imageBitmap = await window.createImageBitmap(file, {
-            resizeWidth: MAX_DIMENSION,
-            resizeHeight: MAX_DIMENSION,
-            resizeQuality: 'low',
-        });
-    } catch (err) {
-        console.warn("createImageBitmap failed, falling back to basic Image element...");
-        // Biztonsági fallback régebbi böngészőkhöz
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            const url = URL.createObjectURL(file);
-            img.onload = () => {
-                URL.revokeObjectURL(url);
+    return new Promise(async (resolve, reject) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        
+        img.onload = async () => {
+            try {
+                // Modern böngészőkben a decode() aszinkron módon dekódolja a képet a háttérben
+                if ('decode' in img) {
+                    await img.decode();
+                }
+
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_DIMENSION) {
+                        height *= MAX_DIMENSION / width;
+                        width = MAX_DIMENSION;
+                    }
+                } else {
+                    if (height > MAX_DIMENSION) {
+                        width *= MAX_DIMENSION / height;
+                        height = MAX_DIMENSION;
+                    }
+                }
+
                 const canvas = document.createElement('canvas');
-                const scale = Math.min(MAX_DIMENSION / img.width, MAX_DIMENSION / img.height, 1);
-                canvas.width = img.width * scale;
-                canvas.height = img.height * scale;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) return reject(new Error("Canvas error"));
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-                resolve({ data: base64, mimeType: 'image/jpeg' });
-            };
-            img.onerror = () => reject(new Error("Beolvasási hiba"));
-            img.src = url;
-        });
-    }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d', { alpha: false }); // Kikapcsolt alfa = kevesebb RAM
+                
+                if (!ctx) {
+                    throw new Error("A készülék nem tudta elindítani a grafikai feldolgozót.");
+                }
 
-    // 2. Rajzolás canvasra a végleges base64 generáláshoz
-    const canvas = document.createElement('canvas');
-    canvas.width = imageBitmap.width;
-    canvas.height = imageBitmap.height;
-    const ctx = canvas.getContext('2d', { alpha: false }); // Kikapcsolt alfa = kevesebb RAM
-    
-    if (!ctx) throw new Error("A készülék nem tudta elindítani a grafikai feldolgozót.");
-    
-    ctx.drawImage(imageBitmap, 0, 0);
-    
-    // Felszabadítjuk a bitmap memóriát azonnal
-    imageBitmap.close();
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'medium';
+                ctx.drawImage(img, 0, 0, width, height);
 
-    // 3. Konvertálás JPEG-be alacsonyabb minőséggel (AI-nak elég, memóriának kímélő)
-    return new Promise((resolve, reject) => {
-        canvas.toBlob((blob) => {
-            if (!blob) {
-                reject(new Error("Kép konvertálási hiba."));
-                return;
+                // Azonnali felszabadítás, amint rárajzoltuk a vászonra
+                URL.revokeObjectURL(objectUrl);
+                (img as any).src = ''; 
+
+                canvas.toBlob((blob) => {
+                    if (!blob) {
+                        reject(new Error("Kép konvertálási hiba."));
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64data = reader.result as string;
+                        const base64String = base64data.split(',')[1];
+                        resolve({ data: base64String, mimeType: 'image/jpeg' });
+                        // Takarítás
+                        (canvas as any).width = 0;
+                        (canvas as any).height = 0;
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                }, 'image/jpeg', 0.6); // 0.6 minőség bőven elég az AI-nak
+
+            } catch (err) {
+                URL.revokeObjectURL(objectUrl);
+                reject(err);
             }
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64data = reader.result as string;
-                const base64String = base64data.split(',')[1];
-                resolve({ data: base64String, mimeType: 'image/jpeg' });
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        }, 'image/jpeg', 0.6);
+        };
+
+        img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error("A kép beolvasása sikertelen. Próbálja meg kisebb felbontással."));
+        };
+
+        img.src = objectUrl;
     });
 };
 
@@ -808,7 +820,6 @@ const App: React.FC = () => {
     setIsParsingUrl(true); setParsingUrlError(null);
     try {
         const parsed = await parseRecipeFromUrl(url);
-        // Hozzáfűzés helyett felülírás csak ha tényleg új recept adatról van szó URL-nél
         setInitialFormData({ ingredients: parsed.ingredients?.join(', ') || '', specialRequest: `Készíts receptet a következő alapján: ${parsed.recipeName}. Leírás: ${parsed.description}`, mealType: MealType.LUNCH });
         setView('generator'); setIsImportUrlModalOpen(false); showNotification('Recept adatok sikeresen beolvasva!', 'success');
     } catch (e: any) { setParsingUrlError(e.message); } finally { setIsParsingUrl(false); }
@@ -829,7 +840,6 @@ const App: React.FC = () => {
    * Optimalizált memória-kezeléssel és hozzáfűzési logikával.
    */
   const handleProcessIngredientPhoto = async (file: File): Promise<string[]> => {
-      // Itt használjuk az új, hardveresen gyorsított createImageBitmap alapú feldolgozót
       const fileData = await processAndResizeImageForGemini(file);
       return await identifyIngredientsFromImage({ inlineData: fileData });
   };
@@ -865,7 +875,7 @@ const App: React.FC = () => {
                 {theme === 'dark' ? <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 14.464A1 1 0 106.465 13.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zm.707-10.607a1 1 0 011.414 0l.707.707a1 1 0 11-1.414 1.414l-.707-.707a1 1 0 010-1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z" clipRule="evenodd" /></svg>}
             </button>
             <button onClick={toggleFullscreen} className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors flex items-center gap-2 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-500">
-                {isFullscreen ? <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 5a1 1 0 011-1h2a1 1 0 110 2H6v1a1 1 0 11-2 0V6a1 1 0 011-1zm10 0a1 1 0 011 1v1a1 1 0 11-2 0V6h-1a1 1 0 110-2h2zM5 14a1 1 0 011 v1h1a1 1 0 110 2H6a1 1 0 01-1-1v-2zm10 0a1 1 0 011 1v2a1 1 0 01-1 1h-1a1 1 0 110-2h1v-1z" clipRule="evenodd" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 4a1 1 0 011-1h2a1 1 0 110 2H5v1a1 1 0 11-2 0V4zm14 0a1 1 0 00-1-1h-2a1 1 0 100 2h1v1a1 1 0 102 0V4zM4 17a1 1 0 01-1-1v-2a1 1 0 112 0v1h1a1 1 0 110 2H4zM16 17a1 1 0 001-1v-1a1 1 0 10-2 0v1h-1a1 1 0 100 2h2z" clipRule="evenodd" /></svg>}
+                {isFullscreen ? <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 5a1 1 0 011-1h2a1 1 0 110 2H6v1a1 1 0 11-2 0V6a1 1 0 011-1zm10 0a1 1 0 011 1v1a1 1 0 11-2 0V6h-1a1 1 0 110-2h2zM5 14a1 1 0 011 1v1h1a1 1 0 110 2H6a1 1 0 01-1-1v-2zm10 0a1 1 0 011 1v2a1 1 0 01-1 1h-1a1 1 0 110-2h1v-1z" clipRule="evenodd" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 4a1 1 0 011-1h2a1 1 0 110 2H5v1a1 1 0 11-2 0V4zm14 0a1 1 0 00-1-1h-2a1 1 0 100 2h1v1a1 1 0 102 0V4zM4 17a1 1 0 01-1-1v-2a1 1 0 112 0v1h1a1 1 0 110 2H4zM16 17a1 1 0 001-1v-1a1 1 0 10-2 0v1h-1a1 1 0 100 2h2z" clipRule="evenodd" /></svg>}
                 <span className="hidden sm:inline">{isFullscreen ? 'Ablak mód' : 'Teljes képernyő'}</span>
             </button>
             <button onClick={handleShowAppGuide} className="bg-white text-primary-700 font-semibold py-2 px-4 rounded-lg border border-primary-300 shadow-sm hover:bg-primary-50 transition-colors dark:bg-gray-700 dark:text-gray-200 dark:border-gray-500">Információ</button>
