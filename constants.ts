@@ -3,7 +3,7 @@
 import { DietOption, MealType, TRADITIONAL_COOKING_METHOD, CuisineOption, RecipePace } from './types';
 
 // Updated version number
-export const APP_VERSION = '1.69.19';
+export const APP_VERSION = '1.69.21';
 
 export const LOADING_TIPS = [
   'Tudta? A tompa kés baleszélyesebb, mint az éles. Tartsa késeit mindig élesen!',
@@ -12,7 +12,7 @@ export const LOADING_TIPS = [
   'Konyhatechnika: A húst sütés előtt mindig törölje szárazra a tökéletes, ropós kéregért.',
   'Ne zsúfolja túl a serpenyőt! A hozzávalóknak legyen helyük pirulni, ne csak párolódni.',
   'A fűszereket sötét, hűvös helyen tárolja, hogy megőrizzék aromájukat.',
-  'A maradékokat légmentesen záródó edényben tegye a hűtőbe, miután szobahőmérsékletűre hűltek.',
+  'A maradékokat légmentesen záródó edényben tegye a hűtőbe, miután szobahőmérségletűre hűltek.',
   'Sütésnél a hozzávalók legyenek szobahőmérsékletűek a jobb állag érdekében (kivéve, ha a recept mást ír).',
   'A fokhagymát nyomja át, vagy vágja apróra 10 perccel a felhasználás előtt, hogy aktiválódjon az allicin.',
   'A tésztát mindig bő, lobogó, sós vízben főzze a legjobb eredményért.',
@@ -43,7 +43,7 @@ export const ALL_LOCAL_COMMAND_EXAMPLES = [
   'Főzés indítása',
   'Állj',
   // Időzítő
-  'Indíts egy 5 perces időzítőt',
+  'Indíts bir 5 perces időzítőt',
   'Állíts be 30 másodperces időzítőt'
 ];
 

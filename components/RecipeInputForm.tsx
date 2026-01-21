@@ -97,12 +97,12 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
         case 'add_ingredients':
             const payload = command.payload as string[];
             if (payload && payload.length > 0) {
-                const newIngredients = payload.flatMap(item => 
+                const newItems = payload.flatMap(item => 
                     item.split(/,\s*|\s+és\s+/).map(s => s.trim()).filter(Boolean)
                 );
-                if (newIngredients.length > 0) {
-                  setIngredients(prev => [...new Set([...prev, ...newIngredients])]);
-                  showNotification(`Hozzávalók hozzáadva: ${newIngredients.join(', ')}`, 'success');
+                if (newItems.length > 0) {
+                  setIngredients(prev => [...new Set([...prev, ...newItems])]);
+                  showNotification(`Hozzávalók hozzáadva (${newItems.length} db)`, 'success');
                 }
             }
             break;
@@ -193,7 +193,9 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
   useEffect(() => {
     if (initialFormData && onFormPopulated) {
         if (initialFormData.ingredients !== undefined) {
-            setIngredients(initialFormData.ingredients.split(',').map(s => s.trim()).filter(Boolean));
+            // FIX: Itt is hozzáfűzést alkalmazunk, hogy ne vesszenek el a korábbi elemek
+            const newIngredients = initialFormData.ingredients.split(',').map(s => s.trim()).filter(Boolean);
+            setIngredients(prev => [...new Set([...prev, ...newIngredients])]);
         }
         if (initialFormData.excludedIngredients !== undefined) {
             setExcludedIngredients(initialFormData.excludedIngredients);
@@ -629,7 +631,7 @@ const RecipeInputForm: React.FC<RecipeInputFormProps> = ({
                                 <span onDoubleClick={() => handleEditIngredientStart(index, ingredient)}>{ingredient}</span>
                             )}
                             <button type="button" onClick={() => removeIngredient(index)} className="text-primary-600 hover:text-primary-900 focus:outline-none" aria-label={`'${ingredient}' eltávolítása`}>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 0 1 0 16zm-1-5.414L7.586 11 10 8.586 12.414 11 11 12.414 8.586 10 11 7.586 10 5l-4 4 4 4zM10 0a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" clipRule="evenodd" /></svg>
                             </button>
                         </li>
                     ))}
