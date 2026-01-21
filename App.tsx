@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
@@ -92,11 +91,11 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 };
 
 /**
- * Legstabilabb képfeldolgozás mobil eszközökhöz.
- * Kerüli az aszinkron dekódolást, ami bizonyos Android/iOS verziók alatt hibázik.
+ * Radikálisan memória-hatékony képfeldolgozás mobil eszközökhöz.
+ * 768px-es felbontásra optimalizálva, azonnali GC takarítással.
  */
 const processAndResizeImageForGemini = async (file: File): Promise<{ data: string; mimeType: string }> => {
-    const MAX_DIMENSION = 768; // Bőven elég az OCR-hez
+    const MAX_DIMENSION = 768; 
 
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -133,8 +132,13 @@ const processAndResizeImageForGemini = async (file: File): Promise<{ data: strin
             ctx.imageSmoothingQuality = 'medium';
             ctx.drawImage(img, 0, 0, width, height);
 
+            // AZONNALI memória takarítás: revokeUrl és img ürítés, amint a canvas-on van az adat
+            URL.revokeObjectURL(objectUrl);
+            (img as any).src = ''; 
+            (img as any).onload = null;
+            (img as any).onerror = null;
+
             canvas.toBlob((blob) => {
-                URL.revokeObjectURL(objectUrl); // Itt már nincs rá szükség
                 if (!blob) {
                     reject(new Error("Kép konvertálási hiba."));
                     return;
@@ -144,6 +148,9 @@ const processAndResizeImageForGemini = async (file: File): Promise<{ data: strin
                     const base64data = reader.result as string;
                     const base64String = base64data.split(',')[1];
                     resolve({ data: base64String, mimeType: 'image/jpeg' });
+                    // Canvas takarítás is
+                    canvas.width = 0;
+                    canvas.height = 0;
                 };
                 reader.onerror = () => reject(new Error("Beolvasási hiba."));
                 reader.readAsDataURL(blob);
@@ -152,7 +159,7 @@ const processAndResizeImageForGemini = async (file: File): Promise<{ data: strin
 
         img.onerror = () => {
             URL.revokeObjectURL(objectUrl);
-            reject(new Error("A forráskép nem beolvasható. Lehet, hogy túl nagy a fájl a telefon memóriájához."));
+            reject(new Error("A kép nem beolvasható. Lehet, hogy túl nagy a fájl a telefon memóriájához."));
         };
 
         img.src = objectUrl;

@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect } from 'react';
 
 interface IngredientPhotoModalProps {
@@ -122,11 +121,12 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
                     Kép választása
                 </button>
             </div>
-            {/* Hidden inputs - removed capture to avoid memory spike */}
+            {/* Hidden inputs - RESTORED capture attribute for direct camera access */}
             <input
               type="file"
               ref={cameraInputRef}
               accept="image/*"
+              capture="environment"
               onChange={handleFileSelect}
               className="hidden"
             />

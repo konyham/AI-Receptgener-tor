@@ -49,7 +49,7 @@ class ErrorBoundary extends Component<Props, State> {
             <p className="text-gray-600 mb-6">Az alkalmazás nem tudott elindulni vagy váratlanul leállt. Az alábbi hibaüzenet segíthet a megoldásban:</p>
             
             <div className="text-left bg-red-50 p-4 rounded-lg text-sm text-red-800 overflow-auto mb-6 border border-red-100 max-h-64 shadow-inner font-mono">
-              {/* FIX: Correctly accessing inherited state object. */}
+              // FIX: Correctly accessing inherited state object.
               <strong>Hibaüzenet:</strong> {this.state.error?.message || 'Ismeretlen hiba'}
               {this.state.error?.stack && (
                   <details className="mt-2 cursor-pointer">
@@ -73,7 +73,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    {/* FIX: Correctly accessing inherited props object. */}
+    // FIX: Accessing inherited props correctly. Removed invalid stand-alone JSX comment syntax.
     return this.props.children || null;
   }
 }
