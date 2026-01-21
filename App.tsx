@@ -92,63 +92,80 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 };
 
 /**
- * Memória-hatékony képfeldolgozás.
- * Optimalizálva mobil eszközökhöz a "memory gap" / memóriahiány hibák elkerülése érdekében.
+ * Ultra-memória-hatékony képfeldolgozás.
+ * A kamerával készült hatalmas fájlok (pl. 4032x3024) azonnali átméretezésére optimalizálva.
  */
 const processAndResizeImageForGemini = async (file: File): Promise<{ data: string; mimeType: string }> => {
-    // Csökkentett felbontás mobil eszközökhöz (1600 helyett 1200), ami bőven elég az AI-nak.
-    const MAX_DIMENSION = 1200;
+    // Alacsonyabb felbontás (1000px), ami garantáltan belefér a memóriába régebbi telefonokon is.
+    const MAX_DIMENSION = 1000;
 
-    let imageBitmap: ImageBitmap | null = null;
-    let canvas: HTMLCanvasElement | null = null;
-    let blob: Blob | null = null;
-
-    try {
-        // 1. Kép beolvasása memóriatakarékosan
-        imageBitmap = await window.createImageBitmap(file, {
-            resizeWidth: MAX_DIMENSION,
-            resizeHeight: MAX_DIMENSION,
-            resizeQuality: 'medium', // 'low' vagy 'medium' jobb memóriakezelést eredményez
-        });
-
-        // 2. Rajzolás vászonra az átméretezés véglegesítéséhez
-        canvas = document.createElement('canvas');
-        canvas.width = imageBitmap.width;
-        canvas.height = imageBitmap.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error("A böngésző nem tudja létrehozni a grafikai környezetet.");
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
         
-        ctx.drawImage(imageBitmap, 0, 0);
-        
-        // Felszabadítjuk az ImageBitmap-et amint rárajzoltuk a canvasra
-        imageBitmap.close();
-        imageBitmap = null;
+        img.onload = () => {
+            // Felszabadítjuk a blob-ot amint beolvasta az Image objektum
+            URL.revokeObjectURL(objectUrl);
 
-        // 3. Blob-bá alakítás (JPEG tömörítéssel a méret csökkentése érdekében)
-        blob = await new Promise<Blob | null>(res => canvas?.toBlob(res, 'image/jpeg', 0.75));
-        if (!blob) throw new Error("A kép konvertálása sikertelen.");
+            let width = img.width;
+            let height = img.height;
 
-        // 4. Base64-é alakítás memóriabarát módon
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64data = reader.result as string;
-                const base64String = base64data.split(',')[1];
-                resolve({ data: base64String, mimeType: 'image/jpeg' });
-                // Takarítás a végén
-                canvas = null;
-                blob = null;
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob!);
-        });
+            if (width > height) {
+                if (width > MAX_DIMENSION) {
+                    height *= MAX_DIMENSION / width;
+                    width = MAX_DIMENSION;
+                }
+            } else {
+                if (height > MAX_DIMENSION) {
+                    width *= MAX_DIMENSION / height;
+                    height = MAX_DIMENSION;
+                }
+            }
 
-    } catch (error: any) {
-        console.error("Error processing image:", error);
-        // Próbáljunk felszabadítani mindent hiba esetén is
-        if (imageBitmap) imageBitmap.close();
-        throw new Error(`Sajnos a készülék nem tudta feldolgozni a fotót (memória hiba). Próbálkozzon kisebb felbontással vagy kevesebb megnyitott alkalmazással. Eredeti hiba: ${error.message}`);
-    }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d', { alpha: false }); // Kikapcsolt alfa csatorna kevesebb memóriát eszik
+            
+            if (!ctx) {
+                reject(new Error("Nem sikerült létrehozni a grafikai környezetet."));
+                return;
+            }
+
+            // Kép kirajzolása és átméretezése
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'medium';
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Tömörítés JPEG-be (0.65-ös minőség elég az AI-nak)
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    reject(new Error("A kép konvertálása sikertelen."));
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64data = reader.result as string;
+                    const base64String = base64data.split(',')[1];
+                    resolve({ data: base64String, mimeType: 'image/jpeg' });
+                    
+                    // Kényszerített takarítás
+                    (canvas as any) = null;
+                    (img as any) = null;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            }, 'image/jpeg', 0.65);
+        };
+
+        img.onerror = (e) => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error("A kép beolvasása sikertelen volt. Lehet, hogy túl nagy a fájl."));
+        };
+
+        img.src = objectUrl;
+    });
 };
 
 const App: React.FC = () => {

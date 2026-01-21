@@ -1,5 +1,5 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children?: ReactNode;
@@ -12,9 +12,9 @@ interface State {
 
 /**
  * ErrorBoundary component to catch rendering errors in the component tree.
- * FIX: Using Component explicitly from the react import to ensure 'props' and 'state' are correctly recognized by TypeScript.
+ * FIX: Explicitly using React.Component with Props and State generics ensures that inherited properties like 'this.props' are correctly typed and recognized by TypeScript.
  */
-class ErrorBoundary extends Component<Props, State> {
+class ErrorBoundary extends React.Component<Props, State> {
   state: State = {
     hasError: false,
     error: null
@@ -33,7 +33,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   render() {
-    // FIX: Accessing this.state which is now correctly recognized.
+    // FIX: Using this.state which is provided by React.Component<Props, State>.
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100 text-gray-900 p-4 font-sans">
@@ -70,7 +70,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    // FIX: Inherited props are now correctly recognized by extending Component directly.
+    // FIX: Accessing this.props.children which is provided by React.Component<Props, State>.
     return this.props.children || null;
   }
 }
