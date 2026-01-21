@@ -92,82 +92,67 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 };
 
 /**
- * Radikálisan memória-hatékony képfeldolgozás mobil eszközökhöz.
- * 768px-es felbontásra optimalizálva, ami elegendő az AI-nak OCR-hez, de kíméli a RAM-ot.
+ * Legstabilabb képfeldolgozás mobil eszközökhöz.
+ * Kerüli az aszinkron dekódolást, ami bizonyos Android/iOS verziók alatt hibázik.
  */
 const processAndResizeImageForGemini = async (file: File): Promise<{ data: string; mimeType: string }> => {
-    const MAX_DIMENSION = 768; // Gemini OCR-hez ez bőven elég, és drasztikusan kevesebb RAM kell hozzá.
+    const MAX_DIMENSION = 768; // Bőven elég az OCR-hez
 
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
         const img = new Image();
         const objectUrl = URL.createObjectURL(file);
         
-        img.onload = async () => {
-            try {
-                // Modern böngészőkben a decode() aszinkron módon dekódolja a képet a háttérben
-                if ('decode' in img) {
-                    await img.decode();
+        img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > MAX_DIMENSION) {
+                    height *= MAX_DIMENSION / width;
+                    width = MAX_DIMENSION;
                 }
-
-                let width = img.width;
-                let height = img.height;
-
-                if (width > height) {
-                    if (width > MAX_DIMENSION) {
-                        height *= MAX_DIMENSION / width;
-                        width = MAX_DIMENSION;
-                    }
-                } else {
-                    if (height > MAX_DIMENSION) {
-                        width *= MAX_DIMENSION / height;
-                        height = MAX_DIMENSION;
-                    }
+            } else {
+                if (height > MAX_DIMENSION) {
+                    width *= MAX_DIMENSION / height;
+                    height = MAX_DIMENSION;
                 }
-
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d', { alpha: false }); // Kikapcsolt alfa = kevesebb RAM
-                
-                if (!ctx) {
-                    throw new Error("A készülék nem tudta elindítani a grafikai feldolgozót.");
-                }
-
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'medium';
-                ctx.drawImage(img, 0, 0, width, height);
-
-                // Azonnali felszabadítás, amint rárajzoltuk a vászonra
-                URL.revokeObjectURL(objectUrl);
-                (img as any).src = ''; 
-
-                canvas.toBlob((blob) => {
-                    if (!blob) {
-                        reject(new Error("Kép konvertálási hiba."));
-                        return;
-                    }
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        const base64data = reader.result as string;
-                        const base64String = base64data.split(',')[1];
-                        resolve({ data: base64String, mimeType: 'image/jpeg' });
-                        // Takarítás
-                        (canvas as any).width = 0;
-                        (canvas as any).height = 0;
-                    };
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                }, 'image/jpeg', 0.6); // 0.6 minőség bőven elég az AI-nak
-
-            } catch (err) {
-                URL.revokeObjectURL(objectUrl);
-                reject(err);
             }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d', { alpha: false });
+            
+            if (!ctx) {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error("Nem sikerült elindítani a grafikai processzort."));
+                return;
+            }
+
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'medium';
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob((blob) => {
+                URL.revokeObjectURL(objectUrl); // Itt már nincs rá szükség
+                if (!blob) {
+                    reject(new Error("Kép konvertálási hiba."));
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64data = reader.result as string;
+                    const base64String = base64data.split(',')[1];
+                    resolve({ data: base64String, mimeType: 'image/jpeg' });
+                };
+                reader.onerror = () => reject(new Error("Beolvasási hiba."));
+                reader.readAsDataURL(blob);
+            }, 'image/jpeg', 0.6);
         };
 
         img.onerror = () => {
             URL.revokeObjectURL(objectUrl);
-            reject(new Error("A kép beolvasása sikertelen. Próbálja meg kisebb felbontással."));
+            reject(new Error("A forráskép nem beolvasható. Lehet, hogy túl nagy a fájl a telefon memóriájához."));
         };
 
         img.src = objectUrl;

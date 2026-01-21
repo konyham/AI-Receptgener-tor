@@ -1,5 +1,5 @@
 
-import React, { ErrorInfo, ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children?: ReactNode;
@@ -12,16 +12,18 @@ interface State {
 
 /**
  * ErrorBoundary component to catch rendering errors in the component tree.
- * FIX: Using React.Component explicitly with generic parameters for Props and State. 
- * This ensures that 'this.props' and 'this.state' are correctly typed and recognized by TypeScript.
+ * FIX: Using Component explicitly with generic parameters for Props and State.
+ * Initializing state as a class field to ensure it is recognized by TypeScript.
  */
-class ErrorBoundary extends React.Component<Props, State> {
+class ErrorBoundary extends Component<Props, State> {
+  // FIX: Class property for state to ensure it's found on the type.
+  state: State = {
+    hasError: false,
+    error: null
+  };
+
   constructor(props: Props) {
     super(props);
-    this.state = {
-      hasError: false,
-      error: null
-    };
   }
 
   static getDerivedStateFromError(error: Error): State {
@@ -33,7 +35,7 @@ class ErrorBoundary extends React.Component<Props, State> {
   }
 
   render() {
-    // FIX: Accessing this.state which is now explicitly inherited from React.Component<Props, State>.
+    // FIX: Using inherited state property correctly typed via generic Component.
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100 text-gray-900 p-4 font-sans">
@@ -47,6 +49,7 @@ class ErrorBoundary extends React.Component<Props, State> {
             <p className="text-gray-600 mb-6">Az alkalmazás nem tudott elindulni vagy váratlanul leállt. Az alábbi hibaüzenet segíthet a megoldásban:</p>
             
             <div className="text-left bg-red-50 p-4 rounded-lg text-sm text-red-800 overflow-auto mb-6 border border-red-100 max-h-64 shadow-inner font-mono">
+              {/* FIX: Correctly accessing inherited state object. */}
               <strong>Hibaüzenet:</strong> {this.state.error?.message || 'Ismeretlen hiba'}
               {this.state.error?.stack && (
                   <details className="mt-2 cursor-pointer">
@@ -70,7 +73,7 @@ class ErrorBoundary extends React.Component<Props, State> {
       );
     }
 
-    // FIX: Accessing this.props.children which is now explicitly inherited from React.Component<Props, State>.
+    {/* FIX: Correctly accessing inherited props object. */}
     return this.props.children || null;
   }
 }
