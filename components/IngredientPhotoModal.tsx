@@ -13,7 +13,6 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
   const [recognizedText, setRecognizedText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,7 +41,7 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
     setError(null);
 
     try {
-      // Várunk egy kicsit, hogy a rendszer befejezze az input kezelését
+      // Várunk egy kicsit, hogy a rendszer befejezze az UI frissítést
       await new Promise(res => setTimeout(res, 300));
       const identified = await onProcess(file);
       if (identified.length === 0) {
@@ -57,7 +56,7 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
       setStep('upload');
     }
 
-    // Reset input value to allow re-selection of the same file
+    // Reset input value to allow re-selection
     if (event.target) event.target.value = '';
   };
 
@@ -72,7 +71,7 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
 
   if (!isOpen) return null;
 
-  // Stílus a "rejtett de aktív" inputokhoz, hogy a mobilböngészők ne blokkolják
+  // Stílus a rejtett inputhoz
   const hiddenInputStyle: React.CSSProperties = {
       position: 'absolute',
       width: '1px',
@@ -105,50 +104,37 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
 
         {step === 'upload' && (
           <div className="space-y-4">
-            <p className="text-gray-600 dark:text-gray-300">
-              Készítsen egy fotót az alapanyagokról, vagy válasszon egyet a galériájából. 
-            </p>
+            <div className="bg-primary-50 dark:bg-primary-900/20 p-4 rounded-xl border border-primary-100 dark:border-primary-800">
+                <p className="text-primary-800 dark:text-primary-200 font-semibold mb-2 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    Javasolt módszer a legjobb eredményért:
+                </p>
+                <ol className="text-sm text-primary-700 dark:text-primary-300 list-decimal list-inside space-y-1">
+                    <li>Készítsen fotót az alapanyagokról a telefonja <strong>saját kamera alkalmazásával</strong>.</li>
+                    <li>Lépjen vissza ide, és kattintson a <strong>"Kép betöltése"</strong> gombra.</li>
+                    <li>Válassza ki az imént készített fotót a galériából.</li>
+                </ol>
+            </div>
+
             {error && (
                 <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
                     {error}
                 </div>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button
-                    type="button"
-                    onClick={() => cameraInputRef.current?.click()}
-                    className="w-full bg-primary-600 text-white font-bold py-4 px-4 rounded-lg shadow-md hover:bg-primary-700 flex flex-col items-center justify-center gap-2 transition-colors"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Fotó készítése
-                </button>
-                <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full bg-gray-600 text-white font-bold py-4 px-4 rounded-lg shadow-md hover:bg-gray-700 flex flex-col items-center justify-center gap-2 transition-colors"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    Kép választása
-                </button>
-            </div>
+
+            <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full bg-primary-600 text-white font-bold py-4 px-4 rounded-lg shadow-md hover:bg-primary-700 flex flex-col items-center justify-center gap-2 transition-colors"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Kép betöltése a galériából
+            </button>
             
-            {/* Kamera input - 'capture' attribútummal kényszerítjük a kamerát */}
-            <input
-              type="file"
-              ref={cameraInputRef}
-              accept="image/*"
-              capture="environment"
-              onChange={handleFileSelect}
-              style={hiddenInputStyle}
-              aria-hidden="true"
-            />
-            
-            {/* Galéria input - csak fájlválasztás */}
             <input
               type="file"
               ref={fileInputRef}
@@ -189,7 +175,7 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
                     onClick={() => setStep('upload')}
                     className="flex-1 bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 transition-colors"
                 >
-                    Újra próbálom
+                    Új kép választása
                 </button>
                 <button
                     onClick={handleAccept}
