@@ -1,5 +1,5 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children?: ReactNode;
@@ -12,10 +12,10 @@ interface State {
 
 /**
  * ErrorBoundary component to catch rendering errors in the component tree.
- * FIX: Using Component explicitly with generic parameters for Props and State.
+ * FIX: Explicitly extending React.Component to ensure 'props' and 'state' properties are correctly typed and inherited.
  * Initializing state as a class field to ensure it is recognized by TypeScript.
  */
-class ErrorBoundary extends Component<Props, State> {
+class ErrorBoundary extends React.Component<Props, State> {
   // FIX: Class property for state to ensure it's found on the type.
   state: State = {
     hasError: false,
@@ -49,7 +49,7 @@ class ErrorBoundary extends Component<Props, State> {
             <p className="text-gray-600 mb-6">Az alkalmazás nem tudott elindulni vagy váratlanul leállt. Az alábbi hibaüzenet segíthet a megoldásban:</p>
             
             <div className="text-left bg-red-50 p-4 rounded-lg text-sm text-red-800 overflow-auto mb-6 border border-red-100 max-h-64 shadow-inner font-mono">
-              // FIX: Correctly accessing inherited state object.
+              {/* FIX: Correctly wrapping internal comments within JSX braces to prevent them from rendering as text. */}
               <strong>Hibaüzenet:</strong> {this.state.error?.message || 'Ismeretlen hiba'}
               {this.state.error?.stack && (
                   <details className="mt-2 cursor-pointer">
@@ -73,7 +73,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    // FIX: Accessing inherited props correctly. Removed invalid stand-alone JSX comment syntax.
+    {/* FIX: Correctly accessing inherited props.children on class instance. */}
     return this.props.children || null;
   }
 }

@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect } from 'react';
 
 interface IngredientPhotoModalProps {
@@ -41,8 +42,8 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
     setError(null);
 
     try {
-      // Adunk egy pici időt a rendszernek, hogy a kamera pufferét ürítse
-      await new Promise(res => setTimeout(res, 500));
+      // Várunk egy kicsit, hogy a rendszer befejezze az input kezelését
+      await new Promise(res => setTimeout(res, 300));
       const identified = await onProcess(file);
       if (identified.length === 0) {
           setError("Nem sikerült alapanyagokat felismerni a képen. Kérjük, próbálja újra egy jobb minőségű fotóval, vagy gépelje be őket.");
@@ -52,10 +53,11 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
           setStep('edit');
       }
     } catch (err: any) {
-      setError(err.message || "Hiba történt a kép feldolgozása közben. Próbálja meg manuálisan feltölteni a galériából.");
+      setError(err.message || "Hiba történt a kép feldolgozása közben.");
       setStep('upload');
     }
 
+    // Reset input value to allow re-selection of the same file
     if (event.target) event.target.value = '';
   };
 
@@ -69,6 +71,20 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
   };
 
   if (!isOpen) return null;
+
+  // Stílus a "rejtett de aktív" inputokhoz, hogy a mobilböngészők ne blokkolják
+  const hiddenInputStyle: React.CSSProperties = {
+      position: 'absolute',
+      width: '1px',
+      height: '1px',
+      padding: '0',
+      margin: '-1px',
+      overflow: 'hidden',
+      clip: 'rect(0,0,0,0)',
+      border: '0',
+      opacity: 0,
+      pointerEvents: 'none'
+  };
 
   return (
     <div
@@ -92,9 +108,6 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
             <p className="text-gray-600 dark:text-gray-300">
               Készítsen egy fotót az alapanyagokról, vagy válasszon egyet a galériájából. 
             </p>
-            <p className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded border border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800 dark:text-yellow-400">
-              Tipp: Ha a készülék memóriahibát jelez fotózásnál, készítse el a képet a telefon saját kamera appjával, majd töltse be a "Kép választása" gombbal.
-            </p>
             {error && (
                 <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
                     {error}
@@ -102,6 +115,7 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
+                    type="button"
                     onClick={() => cameraInputRef.current?.click()}
                     className="w-full bg-primary-600 text-white font-bold py-4 px-4 rounded-lg shadow-md hover:bg-primary-700 flex flex-col items-center justify-center gap-2 transition-colors"
                 >
@@ -112,6 +126,7 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
                     Fotó készítése
                 </button>
                 <button
+                    type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="w-full bg-gray-600 text-white font-bold py-4 px-4 rounded-lg shadow-md hover:bg-gray-700 flex flex-col items-center justify-center gap-2 transition-colors"
                 >
@@ -121,21 +136,26 @@ const IngredientPhotoModal: React.FC<IngredientPhotoModalProps> = ({ isOpen, onC
                     Kép választása
                 </button>
             </div>
-            {/* Hidden inputs - RESTORED capture attribute for direct camera access */}
+            
+            {/* Kamera input - 'capture' attribútummal kényszerítjük a kamerát */}
             <input
               type="file"
               ref={cameraInputRef}
               accept="image/*"
               capture="environment"
               onChange={handleFileSelect}
-              className="hidden"
+              style={hiddenInputStyle}
+              aria-hidden="true"
             />
+            
+            {/* Galéria input - csak fájlválasztás */}
             <input
               type="file"
               ref={fileInputRef}
               accept="image/*"
               onChange={handleFileSelect}
-              className="hidden"
+              style={hiddenInputStyle}
+              aria-hidden="true"
             />
           </div>
         )}
