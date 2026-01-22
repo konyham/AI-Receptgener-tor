@@ -3,7 +3,8 @@
 import { DietOption, MealType, TRADITIONAL_COOKING_METHOD, CuisineOption, RecipePace } from './types';
 
 // Updated version number
-export const APP_VERSION = '1.69.29';
+// Incremented version to 1.69.31
+export const APP_VERSION = '1.69.31';
 
 export const LOADING_TIPS = [
   'Tudta? A tompa kés baleszélyesebb, mint az éles. Tartsa késeit mindig élesen!',

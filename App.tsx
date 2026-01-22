@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import RecipeInputForm from './components/RecipeInputForm';
 import RecipeDisplay from './components/RecipeDisplay';
@@ -92,52 +93,56 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 
 /**
  * Radikálisan memória-hatékony képfeldolgozás mobil eszközökhöz.
- * 768px-es felbontásra optimalizálva, azonnali GC takarítással.
+ * createImageBitmap API-t használ a hardveres gyorsítású, alacsony RAM igényű átméretezéshez.
  */
 const processAndResizeImageForGemini = async (file: File): Promise<{ data: string; mimeType: string }> => {
     const MAX_DIMENSION = 768; 
 
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        const objectUrl = URL.createObjectURL(file);
+    try {
+        // 1. Megnyitjuk a képet méretezési opciókkal (még a RAM-ba kerülés előtt)
+        // Ez a böngésző natív dekóderét használja, ami sokkal hatékonyabb, mint egy Image objektum
+        const options: any = {
+            resizeQuality: 'low',
+        };
+
+        // Kiszámítjuk a célméretet az arányok megtartásával
+        // Ehhez be kell olvasnunk a fejlécet, de createImageBitmap-nél ez "ingyen" van
+        let tempBmp = await createImageBitmap(file);
+        let width = tempBmp.width;
+        let height = tempBmp.height;
         
-        img.onload = () => {
-            let width = img.width;
-            let height = img.height;
-
-            if (width > height) {
-                if (width > MAX_DIMENSION) {
-                    height *= MAX_DIMENSION / width;
-                    width = MAX_DIMENSION;
-                }
-            } else {
-                if (height > MAX_DIMENSION) {
-                    width *= MAX_DIMENSION / height;
-                    height = MAX_DIMENSION;
-                }
+        if (width > height) {
+            if (width > MAX_DIMENSION) {
+                height *= MAX_DIMENSION / width;
+                width = MAX_DIMENSION;
             }
-
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d', { alpha: false });
-            
-            if (!ctx) {
-                URL.revokeObjectURL(objectUrl);
-                reject(new Error("Nem sikerült elindítani a grafikai processzort."));
-                return;
+        } else {
+            if (height > MAX_DIMENSION) {
+                width *= MAX_DIMENSION / height;
+                height = MAX_DIMENSION;
             }
+        }
+        tempBmp.close(); // Azonnal felszabadítjuk a temp bitmap-et
 
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'medium';
-            ctx.drawImage(img, 0, 0, width, height);
+        // 2. Tényleges átméretezés hardveresen
+        const bitmap = await createImageBitmap(file, {
+            resizeWidth: Math.round(width),
+            resizeHeight: Math.round(height),
+            resizeQuality: 'medium'
+        });
 
-            // AZONNALI memória takarítás: revokeUrl és img ürítés, amint a canvas-on van az adat
-            URL.revokeObjectURL(objectUrl);
-            (img as any).src = ''; 
-            (img as any).onload = null;
-            (img as any).onerror = null;
+        // 3. Canvas-ra rajzolás (már csak a kicsi képet kapja meg)
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (!ctx) throw new Error("Grafikai hiba.");
 
+        ctx.drawImage(bitmap, 0, 0);
+        bitmap.close(); // Bitmap azonnali ürítése
+
+        // 4. Blob konverzió és FileReader (már csak a kicsi adaton)
+        return new Promise((resolve, reject) => {
             canvas.toBlob((blob) => {
                 if (!blob) {
                     reject(new Error("Kép konvertálási hiba."));
@@ -145,25 +150,19 @@ const processAndResizeImageForGemini = async (file: File): Promise<{ data: strin
                 }
                 const reader = new FileReader();
                 reader.onloadend = () => {
-                    const base64data = reader.result as string;
-                    const base64String = base64data.split(',')[1];
+                    const base64String = (reader.result as string).split(',')[1];
                     resolve({ data: base64String, mimeType: 'image/jpeg' });
-                    // Canvas takarítás is
-                    canvas.width = 0;
-                    canvas.height = 0;
+                    // Takarítás
+                    canvas.width = 0; canvas.height = 0;
                 };
                 reader.onerror = () => reject(new Error("Beolvasási hiba."));
                 reader.readAsDataURL(blob);
             }, 'image/jpeg', 0.6);
-        };
-
-        img.onerror = () => {
-            URL.revokeObjectURL(objectUrl);
-            reject(new Error("A kép nem beolvasható. Lehet, hogy túl nagy a fájl a telefon memóriájához."));
-        };
-
-        img.src = objectUrl;
-    });
+        });
+    } catch (err: any) {
+        console.error("Image processing error:", err);
+        throw new Error("A telefon memóriája megtelt a kép feldolgozása közben. Próbálja meg kisebb felbontással, vagy válasszon képet a galériából.");
+    }
 };
 
 const App: React.FC = () => {
@@ -346,7 +345,7 @@ const App: React.FC = () => {
   useEffect(() => {
       const handleFullscreenChange = () => {
           const doc = document as any;
-          setIsFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement));
+          setIsFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullscreenElement || doc.msFullscreenElement));
       };
       document.addEventListener('fullscreenchange', handleFullscreenChange);
       document.addEventListener('webkitfullscreenchange', handleFullscreenChange);

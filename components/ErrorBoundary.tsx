@@ -1,5 +1,5 @@
 
-import React, { ErrorInfo, ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children?: ReactNode;
@@ -12,11 +12,10 @@ interface State {
 
 /**
  * ErrorBoundary component to catch rendering errors in the component tree.
- * FIX: Explicitly extending React.Component to ensure 'props' and 'state' properties are correctly typed and inherited.
- * Initializing state as a class field to ensure it is recognized by TypeScript.
+ * FIX: Importing Component directly and following standard inheritance patterns to ensure properties like 'this.props' are correctly typed.
  */
-class ErrorBoundary extends React.Component<Props, State> {
-  // FIX: Class property for state to ensure it's found on the type.
+class ErrorBoundary extends Component<Props, State> {
+  // Initialize state properly within the class
   state: State = {
     hasError: false,
     error: null
@@ -35,7 +34,7 @@ class ErrorBoundary extends React.Component<Props, State> {
   }
 
   render() {
-    // FIX: Using inherited state property correctly typed via generic Component.
+    // Standard access to inherited state property.
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100 text-gray-900 p-4 font-sans">
@@ -49,7 +48,6 @@ class ErrorBoundary extends React.Component<Props, State> {
             <p className="text-gray-600 mb-6">Az alkalmazás nem tudott elindulni vagy váratlanul leállt. Az alábbi hibaüzenet segíthet a megoldásban:</p>
             
             <div className="text-left bg-red-50 p-4 rounded-lg text-sm text-red-800 overflow-auto mb-6 border border-red-100 max-h-64 shadow-inner font-mono">
-              {/* FIX: Correctly wrapping internal comments within JSX braces to prevent them from rendering as text. */}
               <strong>Hibaüzenet:</strong> {this.state.error?.message || 'Ismeretlen hiba'}
               {this.state.error?.stack && (
                   <details className="mt-2 cursor-pointer">
@@ -73,7 +71,7 @@ class ErrorBoundary extends React.Component<Props, State> {
       );
     }
 
-    {/* FIX: Correctly accessing inherited props.children on class instance. */}
+    // Standard access to inherited props.children on class instance.
     return this.props.children || null;
   }
 }
