@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Favorites, Recipe, SortOption, UserProfile, OptionItem } from '../types';
 import StarRating from './StarRating';
@@ -6,6 +7,7 @@ import FavoriteStatusModal from './FavoriteStatusModal';
 import FavoriteActionModal from './FavoriteActionModal';
 import ConfirmationModal from './ConfirmationModal';
 import CategoryEditModal from './CategoryEditModal';
+import { useNotification } from '../contexts/NotificationContext';
 
 interface FavoritesViewProps {
   favorites: Favorites;
@@ -74,6 +76,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
   const [isDeleteMenuConfirmOpen, setIsDeleteMenuConfirmOpen] = useState(false);
   const [isCategoryEditModalOpen, setIsCategoryEditModalOpen] = useState(false);
 
+  const { showNotification } = useNotification();
 
   const cuisineLabels = useMemo(() => new Map(cuisineOptions.map(opt => [opt.value, opt.label])), [cuisineOptions]);
 
@@ -100,7 +103,6 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         await onDeleteRecipe(itemToDelete.recipeName, itemToDelete.category);
     } catch (e) {
         console.error("Delete failed in FavoritesView:", e);
-        // Error notification is handled in App.tsx
     } finally {
         setIsProcessingDelete(false);
         setIsDeleteConfirmOpen(false);
@@ -363,7 +365,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
                                         </div>
                                         {recipe.favoritedBy && recipe.favoritedBy.length > 0 && (
                                             <div className="flex items-center gap-1 border-l pl-2">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
                                                 <span className="font-medium">{recipe.favoritedBy.length}</span>
                                             </div>
                                         )}
@@ -466,7 +468,7 @@ const FavoritesView: React.FC<FavoritesViewProps> = ({
         onConfirm={handleConfirmDeleteMenu}
         title="Menü törlése"
         message={`Biztosan törli a(z) '${menuToDelete?.menuName}' nevű teljes menüt (az összes fogással együtt)? Ez a művelet nem vonható vissza.`}
-        isConfirming={false} // A törlés gyors, nem kell külön állapot
+        isConfirming={false} 
       />
     </div>
   );

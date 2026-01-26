@@ -1,4 +1,5 @@
-import React, { ErrorInfo, ReactNode } from 'react';
+
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children?: ReactNode;
@@ -11,9 +12,9 @@ interface State {
 
 /**
  * ErrorBoundary component to catch rendering errors in the component tree.
- * FIX: Inheriting explicitly from React.Component to resolve type errors related to inherited properties like 'this.props' on line 73.
+ * FIX: Using the named Component import directly to resolve property 'props' visibility in some TypeScript environments.
  */
-class ErrorBoundary extends React.Component<Props, State> {
+class ErrorBoundary extends Component<Props, State> {
   // Initialize state properly within the class
   state: State = {
     hasError: false,

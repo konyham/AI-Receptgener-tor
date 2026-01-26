@@ -15,6 +15,7 @@ import StarRating from './components/StarRating';
 import FavoriteStatusModal from './components/FavoriteStatusModal';
 import RecipeDetails from './components/RecipeDetails';
 import CookingModeView from './components/CookingModeView';
+import ShareFallbackModal from './ShareFallbackModal';
 
 interface RecipeDisplayProps {
   recipe: Recipe;
@@ -258,6 +259,7 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
     const [editableRecipe, setEditableRecipe] = useState<Recipe>(recipe);
     const [isEditing, setIsEditing] = useState(false);
     const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(new Set());
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     
     useEffect(() => {
         if (!isEditing) {
@@ -314,6 +316,28 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
             onAddItemsToShoppingList(itemsToAdd);
             setCheckedIngredients(new Set()); 
             showNotification(`${itemsToAdd.length} hozzávaló hozzáadva a bevásárlólistához!`, 'success');
+        }
+    };
+
+    const handleShare = async () => {
+        const shareTitle = `Konyha Miki Recept: ${editableRecipe.recipeName}`;
+        const shareText = `${editableRecipe.description}\n\nHozzávalók:\n${editableRecipe.ingredients.join('\n')}\n\nKészült az AI Receptgenerátorral - Konyha Miki módra.`;
+        
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: shareTitle,
+                    text: shareText,
+                    url: window.location.href,
+                });
+            } catch (err) {
+                if ((err as Error).name !== 'AbortError') {
+                    console.error('Megosztás sikertelen:', err);
+                    setIsShareModalOpen(true);
+                }
+            }
+        } else {
+            setIsShareModalOpen(true);
         }
     };
 
@@ -560,16 +584,20 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
                 ) : (
                     <h2 className="text-3xl font-bold text-primary-800">{editableRecipe.recipeName}</h2>
                 )}
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto">
                     {isEditing ? (
                         <>
-                            <button onClick={handleSaveEdit} className="bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-green-700">Mentés</button>
-                            <button onClick={() => setIsEditing(false)} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Mégse</button>
+                            <button onClick={handleSaveEdit} className="flex-1 sm:flex-none bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-green-700">Mentés</button>
+                            <button onClick={() => setIsEditing(false)} className="flex-1 sm:flex-none bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Mégse</button>
                         </>
                     ) : (
                         <>
-                            {isFromFavorites && <button onClick={() => setIsEditing(true)} className="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600">Szerkesztés</button>}
-                            <button onClick={onClose} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">{isFromFavorites ? 'Vissza' : 'Új recept'}</button>
+                            <button onClick={handleShare} className="flex-1 sm:flex-none bg-primary-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-primary-700 flex items-center justify-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
+                                <span>Megosztás</span>
+                            </button>
+                            {isFromFavorites && <button onClick={() => setIsEditing(true)} className="flex-1 sm:flex-none bg-blue-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600">Szerkesztés</button>}
+                            <button onClick={onClose} className="flex-1 sm:flex-none bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">{isFromFavorites ? 'Vissza' : 'Új recept'}</button>
                         </>
                     )}
                 </div>
@@ -700,6 +728,13 @@ const RecipeDisplay: React.FC<RecipeDisplayProps> = ({
             {isImageModalOpen && <ImageDisplayModal imageUrl={activeImageUrl} recipeName={activeImageTitle} onClose={() => setIsImageModalOpen(false)} />}
             {isCookingModeActive && (
               <CookingModeView isOpen={isCookingModeActive} onClose={() => setIsCookingModeActive(false)} instructions={resolvedInstructions} currentStep={instructionStep} onStepChange={setInstructionStep} recipeName={editableRecipe.recipeName} forceSpeakTrigger={forceSpeakTrigger} />
+            )}
+            {isShareModalOpen && (
+                <ShareFallbackModal
+                    isOpen={isShareModalOpen}
+                    onClose={() => setIsShareModalOpen(false)}
+                    textToCopy={`${editableRecipe.recipeName}\n\n${editableRecipe.description}\n\nHozzávalók:\n${editableRecipe.ingredients.join('\n')}`}
+                />
             )}
         </div>
     </>

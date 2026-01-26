@@ -1,9 +1,10 @@
+
 // FIX: This file has been cleaned up to only contain constant definitions, importing its types from the now-correct `types.ts` file.
 import { DietOption, MealType, TRADITIONAL_COOKING_METHOD, CuisineOption, RecipePace } from './types';
 
 // Updated version number
-// FIX: Bumped version to 1.69.33
-export const APP_VERSION = '1.69.33';
+// FIX: Bumped version to 1.69.43
+export const APP_VERSION = '1.69.43';
 
 export const LOADING_TIPS = [
   'Tudta? A tompa kés baleszélyesebb, mint az éles. Tartsa késeit mindig élesen!',
@@ -17,7 +18,7 @@ export const LOADING_TIPS = [
   'A fokhagymát nyomja át, vagy vágja apróra 10 perccel a felhasználás előtt, hogy aktiválódjon az allicin.',
   'A tésztát mindig bő, lobogó, sós vízben főzze a legjobb eredményért.',
   'Ha bort használ a főzéshez, olyat válasszon, amit szívesen meg is inna.',
-  'A salátaöntetet csak közvetlenül tálalás előtt adja a salátához, hogy a levelek ropósak maradjanak.',
+  'A salátaöntetet csak közvetlenül tálalás előtt adja a salátához, hogy a levelek ropósak maradnak.',
 ];
 
 export const ALL_LOCAL_COMMAND_EXAMPLES = [

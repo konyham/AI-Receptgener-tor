@@ -1,18 +1,18 @@
 
-const CACHE_NAME = 'konyha-miki-cache-v1.69.33';
+const CACHE_NAME = 'konyha-miki-cache-v1.69.43';
 const urlsToCache = [
   '/',
   '/index.html',
   '/index.tsx',
-  '/manifest.json?v=1.69.33',
+  '/manifest.json?v=1.69.43',
   // CDNs from importmap
   'https://aistudiocdn.com/react@^19.2.0',
   'https://aistudiocdn.com/react-dom@^19.2.0/client.mjs',
   'https://aistudiocdn.com/@google/genai@^1.22.0',
   // Icons from manifest
-  'https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/icon-192.png?v=1.69.33',
-  'https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/icon-512.png?v=1.69.33',
-  'https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/apple-touch-icon.png?v=1.69.33'
+  'https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/icon-192.png?v=1.69.43',
+  'https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/icon-512.png?v=1.69.43',
+  'https://storage.googleapis.com/genai-assets/konyha-miki-icons-v2/apple-touch-icon.png?v=1.69.43'
 ];
 
 // Install event: open cache and add all core assets.
